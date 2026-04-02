@@ -49,6 +49,17 @@ class Database {
 
     this.db.run(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
 
+    // 模板表
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        content TEXT NOT NULL,
+        category TEXT DEFAULT '默认',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     this._save();
   }
 
@@ -69,9 +80,34 @@ class Database {
       `INSERT INTO records (type, content, summary, source, tags, ai_summary, embedding, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [type, content, summary, source, tags, ai_summary, embedding, language]
     );
+    
+    // 自动清理旧记录（保留收藏）
+    this._autoCleanup();
+    
     const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
     this._save();
     return this.getRecord(id);
+  }
+
+  // 自动清理旧记录
+  _autoCleanup() {
+    const settings = this.getSettings();
+    const maxRecords = settings.maxRecords || 1000;
+    
+    // 获取总记录数
+    const total = this.db.exec(`SELECT COUNT(*) FROM records`)[0]?.values[0][0] || 0;
+    
+    if (total > maxRecords) {
+      // 删除最早的未收藏记录
+      const deleteCount = total - maxRecords;
+      this.db.run(
+        `DELETE FROM records WHERE id IN (
+          SELECT id FROM records WHERE favorite = 0 ORDER BY created_at ASC LIMIT ?
+        )`,
+        [deleteCount]
+      );
+      console.log(`自动清理了 ${deleteCount} 条旧记录`);
+    }
   }
 
   // 获取记录
@@ -258,6 +294,49 @@ class Database {
         [key, JSON.stringify(value)]
       );
     }
+    this._save();
+    return true;
+  }
+
+  // ==================== 模板管理 ====================
+  // 获取所有模板
+  getTemplates() {
+    const result = this.db.exec(`SELECT * FROM templates ORDER BY created_at DESC`);
+    if (result.length === 0) return [];
+    return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
+  }
+
+  // 添加模板
+  addTemplate(name, content, category = '默认') {
+    this.db.run(
+      `INSERT INTO templates (name, content, category) VALUES (?, ?, ?)`,
+      [name, content, category]
+    );
+    const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
+    this._save();
+    return this.getTemplate(id);
+  }
+
+  // 获取单个模板
+  getTemplate(id) {
+    const result = this.db.exec(`SELECT * FROM templates WHERE id = ?`, [id]);
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    return this._rowToRecord(result[0].columns, result[0].values[0]);
+  }
+
+  // 更新模板
+  updateTemplate(id, name, content, category) {
+    this.db.run(
+      `UPDATE templates SET name = ?, content = ?, category = ? WHERE id = ?`,
+      [name, content, category, id]
+    );
+    this._save();
+    return this.getTemplate(id);
+  }
+
+  // 删除模板
+  deleteTemplate(id) {
+    this.db.run(`DELETE FROM templates WHERE id = ?`, [id]);
     this._save();
     return true;
   }
