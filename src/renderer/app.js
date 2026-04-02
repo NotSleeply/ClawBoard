@@ -11,6 +11,7 @@
   let records = [];
   let selectedRecord = null;
   let isLoading = false;
+  let currentPreviewMode = 'raw'; // 'raw' | 'preview'
 
   // ==================== DOM 元素 ====================
   const $ = (sel) => document.querySelector(sel);
@@ -136,6 +137,16 @@
     $('#btnCopy').addEventListener('click', handleCopyRecord);
     $('#btnFavorite').addEventListener('click', handleToggleFavorite);
     $('#btnDelete').addEventListener('click', handleDeleteRecord);
+
+    // 预览模式切换
+    $$('.preview-mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        $$('.preview-mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentPreviewMode = btn.dataset.mode;
+        renderPreviewContent(selectedRecord);
+      });
+    });
 
     // 详情面板点击外部关闭
     detailPanel.addEventListener('click', (e) => {
@@ -297,8 +308,66 @@
   }
 
   // ==================== 详情面板 ====================
+  function isMarkdown(text) {
+    // 检测常见 Markdown 语法特征
+    const mdPatterns = [
+      /^#{1,6}\s/m,           // 标题
+      /\*{1,2}[^*]+\*{1,2}/,  // 粗体/斜体
+      /^\s*[-*+]\s/m,         // 无序列表
+      /^\s*\d+\.\s/m,         // 有序列表
+      /^\s*>\s/m,             // 引用
+      /\[.+\]\(.+\)/,         // 链接
+      /```[\s\S]*?```/,       // 代码块
+      /^\|.+\|$/m,            // 表格
+      /- \[[ x]\]/m,          // 任务列表
+      /^---$/m,               // 分隔线
+    ];
+    let matchCount = 0;
+    for (const pattern of mdPatterns) {
+      if (pattern.test(text)) matchCount++;
+    }
+    return matchCount >= 2;
+  }
+
+  function renderPreviewContent(record) {
+    const content = $('#detailContent');
+    const preview = $('#detailPreview');
+
+    if (!record) return;
+
+    if (currentPreviewMode === 'preview' && isMarkdown(record.content)) {
+      content.style.display = 'none';
+      preview.classList.add('show');
+      // 使用 marked 渲染 Markdown
+      try {
+        preview.innerHTML = marked.parse(record.content, {
+          breaks: true,
+          gfm: true,
+        });
+        // 高亮代码块
+        preview.querySelectorAll('pre code').forEach(block => {
+          hljs.highlightElement(block);
+        });
+      } catch (e) {
+        preview.textContent = record.content;
+      }
+    } else {
+      content.style.display = '';
+      preview.classList.remove('show');
+      if (record.type === 'image') {
+        content.innerHTML = `<img src="file://${record.content}" alt="图片">`;
+      } else if (record.type === 'code' && record.language) {
+        content.innerHTML = `<code class="hljs language-${record.language}">${escapeHtml(record.content)}</code>`;
+        hljs.highlightElement(content.querySelector('code'));
+      } else {
+        content.innerHTML = `<code>${escapeHtml(record.content)}</code>`;
+      }
+    }
+  }
+
   function openDetailPanel(record) {
     selectedRecord = record;
+    currentPreviewMode = 'raw';
     detailPanel.classList.add('open');
 
     const typeLabels = {
@@ -314,16 +383,19 @@
     const btnFav = $('#btnFavorite');
     btnFav.textContent = record.favorite ? '☆ 取消收藏' : '☆ 收藏';
 
-    const content = $('#detailContent');
-    if (record.type === 'image') {
-      content.innerHTML = `<img src="file://${record.content}" alt="图片">`;
-    } else if (record.type === 'code' && record.language) {
-      // 代码高亮显示
-      content.innerHTML = `<code class="hljs language-${record.language}">${escapeHtml(record.content)}</code>`;
-      hljs.highlightElement(content.querySelector('code'));
+    // 显示/隐藏预览模式按钮（仅文字类型支持 Markdown 预览）
+    const previewModes = $('#previewModes');
+    if (record.type === 'text' && isMarkdown(record.content)) {
+      previewModes.style.display = 'flex';
     } else {
-      content.innerHTML = `<code>${escapeHtml(record.content)}</code>`;
+      previewModes.style.display = 'none';
     }
+
+    // 重置预览模式按钮
+    $$('.preview-mode-btn').forEach(b => b.classList.remove('active'));
+    $$('.preview-mode-btn[data-mode="raw"]')[0].classList.add('active');
+
+    renderPreviewContent(record);
 
     // AI 摘要和语言标签
     const footer = $('#detailFooter');

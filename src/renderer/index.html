@@ -10,6 +10,8 @@
   <!-- Highlight.js 代码高亮样式 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <!-- Marked.js Markdown 渲染 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -68,6 +70,10 @@
       <span class="detail-type" id="detailType"></span>
       <span class="detail-time" id="detailTime"></span>
       <div class="detail-actions">
+        <div class="preview-modes" id="previewModes" style="display:none">
+          <button class="preview-mode-btn active" data-mode="raw" title="原文">📄</button>
+          <button class="preview-mode-btn" data-mode="preview" title="预览">👁️</button>
+        </div>
         <button class="detail-btn" id="btnCopy" title="复制">📋 复制</button>
         <button class="detail-btn" id="btnFavorite" title="收藏">☆ 收藏</button>
         <button class="detail-btn danger" id="btnDelete" title="删除">🗑️ 删除</button>
@@ -76,6 +82,7 @@
     </div>
     <div class="detail-content">
       <pre id="detailContent"></pre>
+      <div class="detail-preview" id="detailPreview"></div>
     </div>
     <div class="detail-footer" id="detailFooter">
       <!-- AI 摘要等 -->
