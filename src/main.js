@@ -15,6 +15,7 @@ log.info('ClawBoard 启动...');
 // 模块
 const ClipboardWatcher = require('./clipboard');
 const Database = require('./database');
+const AI = require('./ai');
 
 let mainWindow = null;
 let tray = null;
@@ -272,8 +273,8 @@ app.whenReady().then(async () => {
   db = new Database(app.getPath('userData'));
   await db._init();
 
-  // 初始化剪贴板监控
-  clipboardWatcher = new ClipboardWatcher(db, clipboard, log);
+  // 初始化剪贴板监控（传入 AI 模块）
+  clipboardWatcher = new ClipboardWatcher(db, clipboard, log, AI);
   clipboardWatcher.start();
 
   // 创建窗口和托盘

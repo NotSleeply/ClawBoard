@@ -2,11 +2,15 @@
  * ClawBoard - 剪贴板监控核心
  */
 
+const path = require('path');
+const { app } = require('electron');
+
 class ClipboardWatcher {
-  constructor(db, clipboard, log) {
+  constructor(db, clipboard, log, ai) {
     this.db = db;
     this.clipboard = clipboard;
     this.log = log;
+    this.ai = ai;
     this.interval = null;
     this.lastText = '';
     this.lastImage = '';
@@ -75,19 +79,59 @@ class ClipboardWatcher {
       type = 'code';
     }
 
-    // 保存到数据库
-    const record = this.db.addRecord({
-      type,
-      content,
-      summary: this._generateSummary(trimmed),
-      source: 'clipboard',
+    // 异步生成 AI 摘要
+    this._generateAISummary(trimmed).then(aiSummary => {
+      // 保存到数据库
+      const record = this.db.addRecord({
+        type,
+        content,
+        summary: aiSummary || this._generateSummary(trimmed),
+        source: 'clipboard',
+      });
+
+      this.log.info(`新记录: [${type}] ${trimmed.substring(0, 50)}...`);
+
+      // 通知渲染进程
+      if (global.mainWindow && !global.mainWindow.isDestroyed()) {
+        global.mainWindow.webContents.send('new-record', record);
+      }
+    }).catch(err => {
+      this.log.warn('AI 摘要生成失败，使用默认摘要:', err.message);
+      // 降级处理
+      const record = this.db.addRecord({
+        type,
+        content,
+        summary: this._generateSummary(trimmed),
+        source: 'clipboard',
+      });
+
+      this.log.info(`新记录: [${type}] ${trimmed.substring(0, 50)}...`);
+
+      if (global.mainWindow && !global.mainWindow.isDestroyed()) {
+        global.mainWindow.webContents.send('new-record', record);
+      }
     });
+  }
 
-    this.log.info(`新记录: [${type}] ${trimmed.substring(0, 50)}...`);
+  // 异步生成 AI 摘要
+  async _generateAISummary(text) {
+    if (!this.ai || !text || text.length < 30) {
+      return null;
+    }
 
-    // 通知渲染进程
-    if (global.mainWindow && !global.mainWindow.isDestroyed()) {
-      global.mainWindow.webContents.send('new-record', record);
+    try {
+      // 检查 Ollama 是否可用
+      const isHealthy = await this.ai.checkHealth();
+      if (!isHealthy) {
+        return null;
+      }
+
+      // 生成摘要
+      const summary = await this.ai.summarize(text);
+      return summary;
+    } catch (err) {
+      this.log.warn('AI 摘要生成失败:', err.message);
+      return null;
     }
   }
 
