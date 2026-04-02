@@ -55,6 +55,46 @@
         searchInput.focus();
         searchInput.select();
       }
+      // 键盘快捷操作
+      if (selectedRecord) {
+        if (e.key === 'Delete') {
+          e.preventDefault();
+          handleDeleteRecord();
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleCopyRecord();
+        }
+        if (e.key === 'Escape') {
+          closeDetailPanel();
+        }
+      }
+    });
+
+    // 文件拖拽支持
+    document.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      document.body.classList.add('drag-over');
+    });
+
+    document.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      document.body.classList.remove('drag-over');
+    });
+
+    document.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      document.body.classList.remove('drag-over');
+      
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        const filePaths = Array.from(files).map(f => f.path).join('\n');
+        await window.ClawBoard.copyToClipboard(filePaths);
+        showToast('✅ 文件路径已复制', 'success');
+      }
     });
 
     clearSearchBtn.addEventListener('click', () => {
