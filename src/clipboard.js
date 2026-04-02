@@ -82,6 +82,13 @@ class ClipboardWatcher {
     // 检测代码语言
     const language = type === 'code' ? this._detectLanguage(trimmed) : null;
 
+    // 检查去重（可选功能，默认不启用）
+    const lastRecords = this.db.getRecords({ limit: 1 });
+    if (lastRecords.length > 0 && lastRecords[0].content === trimmed) {
+      this.log.info('内容重复，跳过记录');
+      return;
+    }
+
     // 异步生成 AI 摘要和嵌入向量
     this._generateAI(trimmed).then(aiResult => {
       // 保存到数据库
