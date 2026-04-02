@@ -266,22 +266,29 @@
     const content = $('#detailContent');
     if (record.type === 'image') {
       content.innerHTML = `<img src="file://${record.content}" alt="图片">`;
+    } else if (record.type === 'code' && record.language) {
+      // 代码高亮显示
+      content.innerHTML = `<code class="hljs language-${record.language}">${escapeHtml(record.content)}</code>`;
+      hljs.highlightElement(content.querySelector('code'));
     } else {
       content.innerHTML = `<code>${escapeHtml(record.content)}</code>`;
     }
 
-    // AI 摘要
+    // AI 摘要和语言标签
     const footer = $('#detailFooter');
+    let footerHtml = '';
+    if (record.type === 'code' && record.language) {
+      footerHtml += `<div class="language-tag">🔤 ${record.language}</div>`;
+    }
     if (record.ai_summary) {
-      footer.innerHTML = `
+      footerHtml += `
         <div class="ai-summary">
           <div class="ai-summary-title">🤖 AI 摘要</div>
           <div class="ai-summary-text">${escapeHtml(record.ai_summary)}</div>
         </div>
       `;
-    } else {
-      footer.innerHTML = '';
     }
+    footer.innerHTML = footerHtml;
   }
 
   function closeDetailPanel() {

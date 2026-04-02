@@ -37,6 +37,7 @@ class Database {
         tags TEXT DEFAULT '[]',
         ai_summary TEXT,
         embedding BLOB,
+        language TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
@@ -63,10 +64,10 @@ class Database {
   }
 
   // 添加记录
-  addRecord({ type, content, summary, source, tags = '[]', ai_summary = null, embedding = null }) {
+  addRecord({ type, content, summary, source, tags = '[]', ai_summary = null, embedding = null, language = null }) {
     this.db.run(
-      `INSERT INTO records (type, content, summary, source, tags, ai_summary, embedding) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [type, content, summary, source, tags, ai_summary, embedding]
+      `INSERT INTO records (type, content, summary, source, tags, ai_summary, embedding, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [type, content, summary, source, tags, ai_summary, embedding, language]
     );
     const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
     this._save();

@@ -79,6 +79,9 @@ class ClipboardWatcher {
       type = 'code';
     }
 
+    // 检测代码语言
+    const language = type === 'code' ? this._detectLanguage(trimmed) : null;
+
     // 异步生成 AI 摘要和嵌入向量
     this._generateAI(trimmed).then(aiResult => {
       // 保存到数据库
@@ -88,6 +91,7 @@ class ClipboardWatcher {
         summary: (aiResult && aiResult.summary) || this._generateSummary(trimmed),
         ai_summary: aiResult && aiResult.summary,
         embedding: aiResult && aiResult.embedding,
+        language: language,
         source: 'clipboard',
       });
 
@@ -184,7 +188,7 @@ class ClipboardWatcher {
     // 简单代码检测：包含常见代码关键词
     const codePatterns = [
       /^(const|let|var|function|class|import|export|def|public|private|if|for|while)\s/m,
-      /[{}\[\]();].*[{}\[\]();]/,
+      /[{}\[\]()].*[{}\[\]()]/,
       /<\/?[a-zA-Z][^>]*>/,  // HTML/XML 标签
       /^\s*(import|from|require)\s/m,
       /^\s*#include\s/m,
@@ -192,6 +196,59 @@ class ClipboardWatcher {
       /=>|->|::|\.\.\./,
     ];
     return codePatterns.some(p => p.test(text));
+  }
+
+  _detectLanguage(text) {
+    const trimmed = text.trim();
+    
+    // JavaScript/TypeScript
+    if (/^(const|let|var|function|class|import|export|async|await)\s/.test(trimmed) ||
+        /=>\s*{/.test(trimmed) || /\(.*\)\s*=>/.test(trimmed)) {
+      return 'javascript';
+    }
+    // Python
+    if (/^(def|class|import|from|if __name__|print\(|async def)\s/.test(trimmed)) {
+      return 'python';
+    }
+    // HTML
+    if (/<(!DOCTYPE|html|head|body|div|span|p|a|script|style)/i.test(trimmed)) {
+      return 'html';
+    }
+    // CSS
+    if (/^(\.|#)[\w-]+\s*{/.test(trimmed) ||
+        /(margin|padding|color|background):\s*/.test(trimmed)) {
+      return 'css';
+    }
+    // Java
+    if (/^(public|private|protected|class|interface|void|static)\s/.test(trimmed)) {
+      return 'java';
+    }
+    // C/C++
+    if (/^(#include|#define|int main|void|printf|cout|std::)/.test(trimmed)) {
+      return 'cpp';
+    }
+    // Go
+    if (/^(package|func|import|type)\s/.test(trimmed) || /:=/.test(trimmed)) {
+      return 'go';
+    }
+    // Rust
+    if (/^(fn|let|mut|impl|struct|enum|use|pub)\s/.test(trimmed)) {
+      return 'rust';
+    }
+    // SQL
+    if (/^(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\s/i.test(trimmed)) {
+      return 'sql';
+    }
+    // JSON
+    if (/^\s*{[\s\S]*}\s*$/.test(trimmed) && /"\w+":\s*/.test(trimmed)) {
+      return 'json';
+    }
+    // Shell/Bash
+    if (/^#!/ .test(trimmed) || /^(echo|cd|ls|grep|awk|sed)\s/.test(trimmed)) {
+      return 'bash';
+    }
+    
+    return 'javascript';
   }
 
   _generateSummary(text) {
