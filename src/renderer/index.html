@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:;">
+  <title>🦞 ClawBoard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- 顶部导航 -->
+  <header class="header">
+    <div class="header-left">
+      <span class="logo">🦞</span>
+      <span class="logo-text">ClawBoard</span>
+    </div>
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="搜索剪贴板历史... (Ctrl+K)" autocomplete="off">
+      <button class="search-clear" id="clearSearch" title="清除搜索">×</button>
+    </div>
+    <div class="header-right">
+      <span class="stats-badge" id="statsBadge" title="总记录数">
+        <span class="stats-icon">📋</span>
+        <span id="totalCount">0</span>
+      </span>
+      <button class="icon-btn" id="btnSettings" title="设置">⚙️</button>
+    </div>
+  </header>
+
+  <!-- 标签栏 -->
+  <div class="tabs">
+    <button class="tab active" data-filter="all">全部</button>
+    <button class="tab" data-filter="text">📝 文字</button>
+    <button class="tab" data-filter="code">💻 代码</button>
+    <button class="tab" data-filter="file">📁 文件</button>
+    <button class="tab" data-filter="image">🖼️ 图片</button>
+    <button class="tab" data-filter="favorite">⭐ 收藏</button>
+  </div>
+
+  <!-- 主内容 -->
+  <main class="main">
+    <div class="records-list" id="recordsList">
+      <!-- 动态填充 -->
+    </div>
+    
+    <!-- 空状态 -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">📋</div>
+      <h3>暂无记录</h3>
+      <p>复制内容后会自动出现在这里</p>
+    </div>
+
+    <!-- 加载中 -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <span>加载中...</span>
+    </div>
+  </main>
+
+  <!-- 详情面板 -->
+  <div class="detail-panel" id="detailPanel">
+    <div class="detail-header">
+      <span class="detail-type" id="detailType"></span>
+      <span class="detail-time" id="detailTime"></span>
+      <div class="detail-actions">
+        <button class="detail-btn" id="btnCopy" title="复制">📋 复制</button>
+        <button class="detail-btn" id="btnFavorite" title="收藏">☆ 收藏</button>
+        <button class="detail-btn danger" id="btnDelete" title="删除">🗑️ 删除</button>
+        <button class="detail-close" id="btnCloseDetail">×</button>
+      </div>
+    </div>
+    <div class="detail-content">
+      <pre id="detailContent"></pre>
+    </div>
+    <div class="detail-footer" id="detailFooter">
+      <!-- AI 摘要等 -->
+    </div>
+  </div>
+
+  <!-- 设置面板 -->
+  <div class="settings-overlay" id="settingsOverlay">
+    <div class="settings-panel">
+      <div class="settings-header">
+        <h2>⚙️ 设置</h2>
+        <button class="detail-close" id="btnCloseSettings">×</button>
+      </div>
+      <div class="settings-body">
+        <div class="setting-item">
+          <label>🔢 最大历史记录数</label>
+          <input type="number" id="settingMaxRecords" min="100" max="10000" value="1000">
+        </div>
+        <div class="setting-item">
+          <label>🤖 Ollama 地址</label>
+          <input type="text" id="settingOllama" value="http://localhost:11434" placeholder="http://localhost:11434">
+        </div>
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" id="settingAiSummary" checked>
+            自动生成 AI 摘要
+          </label>
+        </div>
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" id="settingStartWithSystem">
+            开机自启动
+          </label>
+        </div>
+        <div class="setting-item">
+          <label>🗑️ 清空所有历史记录</label>
+          <button class="btn-danger" id="btnClearHistory">清空历史（保留收藏）</button>
+        </div>
+      </div>
+      <div class="settings-footer">
+        <button class="btn-primary" id="btnSaveSettings">保存设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 通知 -->
+  <div class="toast" id="toast">
+    <span id="toastMessage"></span>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
