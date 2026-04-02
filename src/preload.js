@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   // 设置相关
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  updateShortcut: (shortcut) => ipcRenderer.invoke('update-shortcut', shortcut),
   
   // 事件监听
   onNewRecord: (callback) => {
