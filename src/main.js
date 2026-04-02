@@ -442,6 +442,9 @@ app.whenReady().then(async () => {
     });
   }
 
+  // 注册全局快捷键（从设置读取）
+  registerGlobalShortcut(settings);
+
   // 注册 IPC
   setupIPC();
 
@@ -482,8 +485,18 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // 注册全局快捷键
-function registerGlobalShortcut() {
-  const ret = globalShortcut.register('CommandOrControl+Shift+V', () => {
+let currentShortcut = null;
+
+function registerGlobalShortcut(settings) {
+  // 先注销之前的快捷键
+  if (currentShortcut) {
+    globalShortcut.unregister(currentShortcut);
+  }
+
+  // 获取快捷键（默认 Ctrl+Shift+V）
+  const shortcut = settings?.globalShortcut || 'CommandOrControl+Shift+V';
+  
+  const ret = globalShortcut.register(shortcut, () => {
     if (mainWindow) {
       if (mainWindow.isVisible()) {
         mainWindow.hide();
@@ -495,8 +508,26 @@ function registerGlobalShortcut() {
   });
 
   if (!ret) {
-    log.warn('全局快捷键注册失败');
+    log.warn('全局快捷键注册失败: ' + shortcut);
   } else {
-    log.info('全局快捷键 Ctrl+Shift+V 已注册');
+    log.info('全局快捷键 ' + shortcut + ' 已注册');
+    currentShortcut = shortcut;
   }
 }
+
+// 更新全局快捷键
+ipcMain.handle('update-shortcut', async (event, shortcut) => {
+  try {
+    const settings = db.getSettings();
+    settings.globalShortcut = shortcut;
+    db.saveSettings(settings);
+    
+    // 重新注册快捷键
+    registerGlobalShortcut(settings);
+    
+    return { success: true };
+  } catch (err) {
+    log.error('update-shortcut error:', err);
+    return { success: false, message: err.message };
+  }
+});

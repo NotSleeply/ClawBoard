@@ -212,6 +212,7 @@
       $('#settingOllama').value = settings.ollamaHost || 'http://localhost:11434';
       $('#settingAiSummary').checked = settings.aiSummary !== false;
       $('#settingStartWithSystem').checked = settings.startWithSystem || false;
+      $('#settingShortcut').value = settings.globalShortcut || 'Ctrl+Shift+V';
       // 应用主题
       applyTheme(settings.theme || 'dark');
     } catch (err) {
@@ -421,10 +422,14 @@
       aiSummary: $('#settingAiSummary').checked,
       startWithSystem: $('#settingStartWithSystem').checked,
       theme: $('#settingTheme').value || 'dark',
+      globalShortcut: $('#settingShortcut').value || 'Ctrl+Shift+V',
     };
 
     try {
+      // 先保存设置
       await window.ClawBoard.saveSettings(settings);
+      // 更新快捷键
+      await window.ClawBoard.updateShortcut(settings.globalShortcut);
       applyTheme(settings.theme);
       settingsOverlay.classList.remove('show');
       showToast('✅ 设置已保存', 'success');
