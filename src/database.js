@@ -1,5 +1,5 @@
 /**
- * ClawBoard - SQLite 数据库模块
+ * ClawBoard - SQLite 数据库模块 (sql.js 纯 JS 实现，无需编译)
  */
 
 const path = require('path');
@@ -9,26 +9,24 @@ class Database {
   constructor(userDataPath) {
     this.dbPath = path.join(userDataPath, 'clawboard.db');
     this.dataPath = userDataPath;
-
-    // 确保目录存在
-    const dbDir = path.dirname(this.dbPath);
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
-    }
-
-    // 初始化数据库
+    this.db = null;
     this._init();
   }
 
-  _init() {
-    const Database = require('better-sqlite3');
-    this.db = new Database(this.dbPath);
+  async _init() {
+    const initSqlJs = require('sql.js');
+    const SQL = await initSqlJs();
 
-    // 启用 WAL 模式提升性能
-    this.db.pragma('journal_mode = WAL');
+    // 加载已有数据或创建新数据库
+    if (fs.existsSync(this.dbPath)) {
+      const buffer = fs.readFileSync(this.dbPath);
+      this.db = new SQL.Database(buffer);
+    } else {
+      this.db = new SQL.Database();
+    }
 
     // 创建表
-    this.db.exec(`
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT NOT NULL DEFAULT 'text',
@@ -40,57 +38,45 @@ class Database {
         ai_summary TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_records_type ON records(type);
-      CREATE INDEX IF NOT EXISTS idx_records_favorite ON records(favorite);
-      CREATE INDEX IF NOT EXISTS idx_records_created ON records(created_at DESC);
-
-      CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-      );
-
-      CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
-        content, summary, ai_summary, tags,
-        content='records',
-        content_rowid='id'
-      );
-
-      -- 触发器保持 FTS 同步
-      CREATE TRIGGER IF NOT EXISTS records_ai AFTER INSERT ON records BEGIN
-        INSERT INTO records_fts(rowid, content, summary, ai_summary, tags)
-        VALUES (new.id, new.content, new.summary, new.ai_summary, new.tags);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS records_ad AFTER DELETE ON records BEGIN
-        INSERT INTO records_fts(records_fts, rowid, content, summary, ai_summary, tags)
-        VALUES ('delete', old.id, old.content, old.summary, old.ai_summary, old.tags);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS records_au AFTER UPDATE ON records BEGIN
-        INSERT INTO records_fts(records_fts, rowid, content, summary, ai_summary, tags)
-        VALUES ('delete', old.id, old.content, old.summary, old.ai_summary, old.tags);
-        INSERT INTO records_fts(rowid, content, summary, ai_summary, tags)
-        VALUES (new.id, new.content, new.summary, new.ai_summary, new.tags);
-      END;
+      )
     `);
+
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_type ON records(type)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_favorite ON records(favorite)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_created ON records(created_at DESC)`);
+
+    this.db.run(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
+
+    this._save();
+  }
+
+  // 保存到磁盘
+  _save() {
+    try {
+      const data = this.db.export();
+      const buffer = Buffer.from(data);
+      fs.writeFileSync(this.dbPath, buffer);
+    } catch (err) {
+      console.error('数据库保存失败:', err);
+    }
   }
 
   // 添加记录
   addRecord({ type, content, summary, source, tags = '[]', ai_summary = null }) {
-    const stmt = this.db.prepare(`
-      INSERT INTO records (type, content, summary, source, tags, ai_summary)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(type, content, summary, source, tags, ai_summary);
-    return this.getRecord(result.lastInsertRowid);
+    this.db.run(
+      `INSERT INTO records (type, content, summary, source, tags, ai_summary) VALUES (?, ?, ?, ?, ?, ?)`,
+      [type, content, summary, source, tags, ai_summary]
+    );
+    const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
+    this._save();
+    return this.getRecord(id);
   }
 
   // 获取记录
   getRecord(id) {
-    const stmt = this.db.prepare('SELECT * FROM records WHERE id = ?');
-    return stmt.get(id);
+    const result = this.db.exec(`SELECT * FROM records WHERE id = ?`, [id]);
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    return this._rowToRecord(result[0].columns, result[0].values[0]);
   }
 
   // 获取记录列表
@@ -115,79 +101,64 @@ class Database {
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    const stmt = this.db.prepare(sql);
-    return stmt.all(...params);
+    const result = this.db.exec(sql, params);
+    if (result.length === 0) return [];
+    return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
   }
 
   // 搜索
   search(query, limit = 50) {
     if (!query) return [];
-
-    // 优先使用 FTS 全文搜索
-    try {
-      const stmt = this.db.prepare(`
-        SELECT records.* FROM records_fts
-        JOIN records ON records.id = records_fts.rowid
-        WHERE records_fts MATCH ?
-        ORDER BY rank
-        LIMIT ?
-      `);
-      return stmt.all(query, limit);
-    } catch {
-      // FTS 失败时降级到 LIKE
-      const stmt = this.db.prepare(`
-        SELECT * FROM records
-        WHERE content LIKE ? OR summary LIKE ?
-        ORDER BY created_at DESC
-        LIMIT ?
-      `);
-      return stmt.all(`%${query}%`, `%${query}%`, limit);
-    }
+    const result = this.db.exec(
+      `SELECT * FROM records WHERE content LIKE ? OR summary LIKE ? ORDER BY created_at DESC LIMIT ?`,
+      [`%${query}%`, `%${query}%`, limit]
+    );
+    if (result.length === 0) return [];
+    return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
   }
 
-  // 切换收藏状态
+  // 切换收藏
   toggleFavorite(id) {
-    const stmt = this.db.prepare(`
-      UPDATE records SET favorite = NOT favorite, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `);
-    const result = stmt.run(id);
-    return result.changes > 0;
+    this.db.run(`UPDATE records SET favorite = NOT favorite, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
+    this._save();
+    return true;
   }
 
   // 删除记录
   deleteRecord(id) {
-    const stmt = this.db.prepare('DELETE FROM records WHERE id = ?');
-    const result = stmt.run(id);
-    return result.changes > 0;
+    this.db.run(`DELETE FROM records WHERE id = ?`, [id]);
+    this._save();
+    return true;
   }
 
   // 清空历史
   clearHistory() {
-    this.db.exec('DELETE FROM records WHERE favorite = 0');
+    this.db.run(`DELETE FROM records WHERE favorite = 0`);
+    this._save();
     return true;
   }
 
   // 获取统计
   getStats() {
-    const total = this.db.prepare('SELECT COUNT(*) as count FROM records').get().count;
-    const text = this.db.prepare("SELECT COUNT(*) as count FROM records WHERE type = 'text'").get().count;
-    const image = this.db.prepare("SELECT COUNT(*) as count FROM records WHERE type = 'image'").get().count;
-    const file = this.db.prepare("SELECT COUNT(*) as count FROM records WHERE type = 'file'").get().count;
-    const code = this.db.prepare("SELECT COUNT(*) as count FROM records WHERE type = 'code'").get().count;
-    const favorite = this.db.prepare('SELECT COUNT(*) as count FROM records WHERE favorite = 1').get().count;
+    const total = this.db.exec(`SELECT COUNT(*) FROM records`)[0]?.values[0][0] || 0;
+    const text = this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'text'`)[0]?.values[0][0] || 0;
+    const image = this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'image'`)[0]?.values[0][0] || 0;
+    const file = this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'file'`)[0]?.values[0][0] || 0;
+    const code = this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'code'`)[0]?.values[0][0] || 0;
+    const favorite = this.db.exec(`SELECT COUNT(*) FROM records WHERE favorite = 1`)[0]?.values[0][0] || 0;
     return { total, text, image, file, code, favorite };
   }
 
   // 获取设置
   getSettings() {
-    const rows = this.db.prepare('SELECT key, value FROM settings').all();
+    const result = this.db.exec(`SELECT key, value FROM settings`);
+    if (result.length === 0) return {};
     const settings = {};
-    rows.forEach(row => {
+    result[0].values.forEach(([key, value]) => {
       try {
-        settings[row.key] = JSON.parse(row.value);
+        settings[key] = JSON.parse(value);
       } catch {
-        settings[row.key] = row.value;
+        settings[key] = value;
       }
     });
     return settings;
@@ -195,23 +166,32 @@ class Database {
 
   // 保存设置
   saveSettings(settings) {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)
-    `);
-    const transaction = this.db.transaction((settings) => {
-      for (const [key, value] of Object.entries(settings)) {
-        stmt.run(key, JSON.stringify(value));
-      }
-    });
-    transaction(settings);
+    for (const [key, value] of Object.entries(settings)) {
+      this.db.run(
+        `INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`,
+        [key, JSON.stringify(value)]
+      );
+    }
+    this._save();
     return true;
   }
 
-  // 关闭数据库
+  // 关闭
   close() {
     if (this.db) {
+      this._save();
       this.db.close();
     }
+  }
+
+  // 辅助：将列和值转为对象
+  _rowToRecord(columns, values) {
+    if (!values) return null;
+    const record = {};
+    columns.forEach((col, i) => {
+      record[col] = values[i];
+    });
+    return record;
   }
 }
 

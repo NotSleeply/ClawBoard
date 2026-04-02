@@ -268,8 +268,9 @@ function setupIPC() {
 app.whenReady().then(async () => {
   log.info('应用准备就绪');
 
-  // 初始化数据库
+  // 初始化数据库（异步）
   db = new Database(app.getPath('userData'));
+  await db._init();
 
   // 初始化剪贴板监控
   clipboardWatcher = new ClipboardWatcher(db, clipboard, log);
