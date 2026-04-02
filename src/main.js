@@ -128,6 +128,16 @@ function createTray() {
         shell.openPath(app.getPath('userData'));
       }
     },
+    {
+      label: '📌 窗口置顶',
+      type: 'checkbox',
+      checked: false,
+      click: (menuItem) => {
+        if (mainWindow) {
+          mainWindow.setAlwaysOnTop(menuItem.checked);
+        }
+      }
+    },
     { type: 'separator' },
     {
       label: '❌ 退出',
@@ -379,6 +389,30 @@ ipcMain.handle('delete-template', async (event, id) => {
     return db.deleteTemplate(id);
   } catch (err) {
     log.error('delete-template error:', err);
+    return false;
+  }
+});
+
+// 窗口置顶
+ipcMain.handle('set-always-on-top', async (event, flag) => {
+  try {
+    if (mainWindow) {
+      mainWindow.setAlwaysOnTop(flag);
+      return true;
+    }
+    return false;
+  } catch (err) {
+    log.error('set-always-on-top error:', err);
+    return false;
+  }
+});
+
+// 切换锁定状态
+ipcMain.handle('toggle-lock', async (event, id) => {
+  try {
+    return db.toggleLock(id);
+  } catch (err) {
+    log.error('toggle-lock error:', err);
     return false;
   }
 });

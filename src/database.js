@@ -38,6 +38,7 @@ class Database {
         ai_summary TEXT,
         embedding BLOB,
         language TEXT,
+        locked INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
@@ -98,16 +99,23 @@ class Database {
     const total = this.db.exec(`SELECT COUNT(*) FROM records`)[0]?.values[0][0] || 0;
     
     if (total > maxRecords) {
-      // 删除最早的未收藏记录
+      // 删除最早的未收藏且未锁定的记录
       const deleteCount = total - maxRecords;
       this.db.run(
         `DELETE FROM records WHERE id IN (
-          SELECT id FROM records WHERE favorite = 0 ORDER BY created_at ASC LIMIT ?
+          SELECT id FROM records WHERE favorite = 0 AND locked = 0 ORDER BY created_at ASC LIMIT ?
         )`,
         [deleteCount]
       );
       console.log(`自动清理了 ${deleteCount} 条旧记录`);
     }
+  }
+
+  // 切换锁定状态
+  toggleLock(id) {
+    this.db.run(`UPDATE records SET locked = NOT locked, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
+    this._save();
+    return true;
   }
 
   // 获取记录

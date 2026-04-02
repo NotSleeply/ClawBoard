@@ -82,9 +82,9 @@ class ClipboardWatcher {
     // 检测代码语言
     const language = type === 'code' ? this._detectLanguage(trimmed) : null;
 
-    // 检查去重（可选功能，默认不启用）
+    // 检查去重
     const lastRecords = this.db.getRecords({ limit: 1 });
-    if (lastRecords.length > 0 && lastRecords[0].content === trimmed) {
+    if (lastRecords.length > 0 && lastRecords[0].content === trimmed && !lastRecords[0].locked) {
       this.log.info('内容重复，跳过记录');
       return;
     }
