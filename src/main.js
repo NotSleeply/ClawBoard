@@ -245,6 +245,13 @@ function setupIPC() {
   // 保存设置
   ipcMain.handle('save-settings', async (event, settings) => {
     try {
+      // 处理开机自启动
+      if (settings.autoStart !== undefined) {
+        app.setLoginItemSettings({
+          openAtLogin: settings.autoStart,
+          path: app.getPath('exe')
+        });
+      }
       return db.saveSettings(settings);
     } catch (err) {
       log.error('save-settings error:', err);
@@ -354,6 +361,15 @@ app.whenReady().then(async () => {
   // 创建窗口和托盘
   createWindow();
   createTray();
+
+  // 设置开机自启动（从设置读取）
+  const settings = db.getSettings();
+  if (settings.autoStart) {
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      path: app.getPath('exe')
+    });
+  }
 
   // 注册 IPC
   setupIPC();
