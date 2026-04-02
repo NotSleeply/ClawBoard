@@ -252,9 +252,17 @@ function setupIPC() {
     }
   });
 
-  // 搜索（支持 AI 语义）
-  ipcMain.handle('search', async (event, query) => {
+  // 搜索（支持关键词 + 语义搜索）
+  ipcMain.handle('search', async (event, { query, useSemantic = true }) => {
     try {
+      // 如果启用语义搜索且 Ollama 可用
+      if (useSemantic && AI) {
+        const isHealthy = await AI.checkHealth();
+        if (isHealthy) {
+          return await db.semanticSearch(query, AI.getEmbedding.bind(AI));
+        }
+      }
+      // 回退到关键词搜索
       return db.search(query);
     } catch (err) {
       log.error('search error:', err);

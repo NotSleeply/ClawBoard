@@ -79,13 +79,15 @@ class ClipboardWatcher {
       type = 'code';
     }
 
-    // 异步生成 AI 摘要
-    this._generateAISummary(trimmed).then(aiSummary => {
+    // 异步生成 AI 摘要和嵌入向量
+    this._generateAI(trimmed).then(aiResult => {
       // 保存到数据库
       const record = this.db.addRecord({
         type,
         content,
-        summary: aiSummary || this._generateSummary(trimmed),
+        summary: (aiResult && aiResult.summary) || this._generateSummary(trimmed),
+        ai_summary: aiResult && aiResult.summary,
+        embedding: aiResult && aiResult.embedding,
         source: 'clipboard',
       });
 
@@ -96,7 +98,7 @@ class ClipboardWatcher {
         global.mainWindow.webContents.send('new-record', record);
       }
     }).catch(err => {
-      this.log.warn('AI 摘要生成失败，使用默认摘要:', err.message);
+      this.log.warn('AI 处理失败，使用默认摘要:', err.message);
       // 降级处理
       const record = this.db.addRecord({
         type,
@@ -113,9 +115,9 @@ class ClipboardWatcher {
     });
   }
 
-  // 异步生成 AI 摘要
-  async _generateAISummary(text) {
-    if (!this.ai || !text || text.length < 30) {
+  // 异步生成 AI 摘要和嵌入向量
+  async _generateAI(text) {
+    if (!this.ai || !text || text.length < 20) {
       return null;
     }
 
@@ -126,11 +128,15 @@ class ClipboardWatcher {
         return null;
       }
 
-      // 生成摘要
-      const summary = await this.ai.summarize(text);
-      return summary;
+      // 并行生成摘要和嵌入
+      const [summary, embedding] = await Promise.all([
+        this.ai.summarize(text).catch(() => null),
+        this.ai.getEmbedding(text).catch(() => null)
+      ]);
+
+      return { summary, embedding };
     } catch (err) {
-      this.log.warn('AI 摘要生成失败:', err.message);
+      this.log.warn('AI 处理失败:', err.message);
       return null;
     }
   }

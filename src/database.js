@@ -36,6 +36,7 @@ class Database {
         favorite INTEGER DEFAULT 0,
         tags TEXT DEFAULT '[]',
         ai_summary TEXT,
+        embedding BLOB,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
@@ -62,10 +63,10 @@ class Database {
   }
 
   // 添加记录
-  addRecord({ type, content, summary, source, tags = '[]', ai_summary = null }) {
+  addRecord({ type, content, summary, source, tags = '[]', ai_summary = null, embedding = null }) {
     this.db.run(
-      `INSERT INTO records (type, content, summary, source, tags, ai_summary) VALUES (?, ?, ?, ?, ?, ?)`,
-      [type, content, summary, source, tags, ai_summary]
+      `INSERT INTO records (type, content, summary, source, tags, ai_summary, embedding) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [type, content, summary, source, tags, ai_summary, embedding]
     );
     const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
     this._save();
@@ -106,15 +107,99 @@ class Database {
     return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
   }
 
-  // 搜索
-  search(query, limit = 50) {
+  // 搜索（支持关键词 + 语义搜索）
+  async search(query, limit = 50, useSemantic = true) {
     if (!query) return [];
-    const result = this.db.exec(
+    
+    // 先尝试关键词搜索
+    const keywordResult = this.db.exec(
       `SELECT * FROM records WHERE content LIKE ? OR summary LIKE ? ORDER BY created_at DESC LIMIT ?`,
       [`%${query}%`, `%${query}%`, limit]
     );
-    if (result.length === 0) return [];
-    return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
+    
+    // 如果不启用语义搜索或没有 embedding 列，直接返回关键词结果
+    if (!useSemantic) {
+      if (keywordResult.length === 0) return [];
+      return keywordResult[0].values.map(row => this._rowToRecord(keywordResult[0].columns, row));
+    }
+    
+    // 语义搜索需要外部传入 embedding 和 AI 模块
+    // 这里先返回关键词结果，语义搜索由外部处理
+    if (keywordResult.length === 0) return [];
+    return keywordResult[0].values.map(row => this._rowToRecord(keywordResult[0].columns, row));
+  }
+
+  // 语义搜索（使用嵌入向量）
+  async semanticSearch(query, embeddingFunc, limit = 10) {
+    if (!query || !embeddingFunc) return [];
+    
+    try {
+      // 生成查询的 embedding
+      const queryEmbedding = await embeddingFunc(query);
+      if (!queryEmbedding) return [];
+      
+      // 获取所有有 embedding 的记录
+      const result = this.db.exec(`SELECT id, content, summary, embedding FROM records WHERE embedding IS NOT NULL`);
+      if (result.length === 0 || result[0].values.length === 0) return [];
+      
+      // 计算余弦相似度并排序
+      const records = result[0].values.map(row => {
+        const id = row[0];
+        const content = row[1];
+        const summary = row[2];
+        // embedding 是 base64 编码的 Blob
+        const embedding = row[3] ? this._decodeEmbedding(row[3]) : null;
+        
+        if (!embedding) return null;
+        
+        const similarity = this._cosineSimilarity(queryEmbedding, embedding);
+        return { id, content, summary, similarity };
+      }).filter(r => r !== null);
+      
+      // 按相似度排序
+      records.sort((a, b) => b.similarity - a.similarity);
+      
+      // 返回 top N
+      return records.slice(0, limit).map(r => this.getRecord(r.id)).filter(r => r !== null);
+    } catch (err) {
+      console.error('语义搜索失败:', err);
+      return [];
+    }
+  }
+
+  // 解码 embedding（支持 Array 和 Blob）
+  _decodeEmbedding(embeddingData) {
+    if (!embeddingData) return null;
+    
+    // 如果是 Array（sql.js 返回）
+    if (Array.isArray(embeddingData)) {
+      return embeddingData;
+    }
+    
+    // 如果是 Buffer/Blob
+    if (embeddingData instanceof Uint8Array || Buffer.isBuffer(embeddingData)) {
+      return Array.from(embeddingData);
+    }
+    
+    return null;
+  }
+
+  // 计算余弦相似度
+  _cosineSimilarity(a, b) {
+    if (!a || !b || a.length !== b.length) return 0;
+    
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    
+    if (normA === 0 || normB === 0) return 0;
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 
   // 切换收藏
