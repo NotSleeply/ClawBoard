@@ -172,8 +172,18 @@
       $('#settingOllama').value = settings.ollamaHost || 'http://localhost:11434';
       $('#settingAiSummary').checked = settings.aiSummary !== false;
       $('#settingStartWithSystem').checked = settings.startWithSystem || false;
+      // 应用主题
+      applyTheme(settings.theme || 'dark');
     } catch (err) {
       console.error('加载设置失败:', err);
+    }
+  }
+
+  function applyTheme(theme) {
+    if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
     }
   }
 
@@ -370,10 +380,12 @@
       ollamaHost: $('#settingOllama').value,
       aiSummary: $('#settingAiSummary').checked,
       startWithSystem: $('#settingStartWithSystem').checked,
+      theme: $('#settingTheme').value || 'dark',
     };
 
     try {
       await window.ClawBoard.saveSettings(settings);
+      applyTheme(settings.theme);
       settingsOverlay.classList.remove('show');
       showToast('✅ 设置已保存', 'success');
     } catch (err) {
