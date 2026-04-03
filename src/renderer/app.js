@@ -12,6 +12,9 @@
   let selectedRecord = null;
   let isLoading = false;
   let currentPreviewMode = 'raw'; // 'raw' | 'preview'
+  // 多选模式状态
+  let isMultiSelectMode = false;
+  let selectedIds = new Set();
 
   // ==================== DOM 元素 ====================
   const $ = (sel) => document.querySelector(sel);
@@ -55,6 +58,16 @@
         e.preventDefault();
         searchInput.focus();
         searchInput.select();
+      }
+      // 多选模式下 Ctrl+A 全选
+      if (isMultiSelectMode && (e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        handleSelectAll();
+      }
+      // 多选模式下 Escape 退出
+      if (isMultiSelectMode && e.key === 'Escape') {
+        e.preventDefault();
+        setMultiSelectMode(false);
       }
       // 键盘快捷操作
       if (selectedRecord) {
@@ -147,6 +160,14 @@
         renderPreviewContent(selectedRecord);
       });
     });
+
+    // 多选模式按钮
+    $('#btnMultiSelect').addEventListener('click', toggleMultiSelectMode);
+    $('#btnSelectAll').addEventListener('click', handleSelectAll);
+    $('#btnExitMultiSelect').addEventListener('click', () => setMultiSelectMode(false));
+    $('#btnBatchFavorite').addEventListener('click', handleBatchFavorite);
+    $('#btnBatchDelete').addEventListener('click', handleBatchDelete);
+    $('#btnBatchExport').addEventListener('click', handleBatchExport);
 
     // 详情面板点击外部关闭
     detailPanel.addEventListener('click', (e) => {
@@ -259,7 +280,13 @@
   function createRecordCard(record, index) {
     const card = document.createElement('div');
     card.className = 'record-card' + (record.favorite ? ' favorite' : '');
+    card.dataset.id = record.id;
     card.style.animationDelay = `${index * 30}ms`;
+
+    // 多选模式下显示选中状态
+    if (isMultiSelectMode && selectedIds.has(record.id)) {
+      card.classList.add('selected');
+    }
 
     const typeLabels = {
       text: '📝 文字',
@@ -270,8 +297,14 @@
 
     const timeAgo = formatTimeAgo(new Date(record.created_at));
 
+    // 多选模式下显示复选框
+    const checkboxHtml = isMultiSelectMode
+      ? `<span class="record-checkbox ${selectedIds.has(record.id) ? 'checked' : ''}">${selectedIds.has(record.id) ? '✓' : ''}</span>`
+      : '';
+
     card.innerHTML = `
       <div class="record-header">
+        ${checkboxHtml}
         <span class="record-type ${record.type}">${typeLabels[record.type] || '📋'}</span>
         <span class="record-time">${timeAgo}</span>
         <span class="record-fav" title="${record.favorite ? '取消收藏' : '收藏'}">
@@ -283,7 +316,11 @@
 
     card.addEventListener('click', (e) => {
       e.stopPropagation();
-      openDetailPanel(record);
+      if (isMultiSelectMode) {
+        handleSelectRecord(record);
+      } else {
+        openDetailPanel(record);
+      }
     });
 
     return card;
@@ -417,6 +454,141 @@
   function closeDetailPanel() {
     detailPanel.classList.remove('open');
     selectedRecord = null;
+  }
+
+  // ==================== 多选批量操作 ====================
+  function toggleMultiSelectMode() {
+    setMultiSelectMode(!isMultiSelectMode);
+  }
+
+  function setMultiSelectMode(enabled) {
+    isMultiSelectMode = enabled;
+    selectedIds.clear();
+    updateMultiSelectUI();
+    renderRecords();
+  }
+
+  function updateMultiSelectUI() {
+    const batchBar = $('#batchBar');
+    const multiSelectBtn = $('#btnMultiSelect');
+    const selectAllBtn = $('#btnSelectAll');
+
+    if (isMultiSelectMode) {
+      batchBar.classList.add('show');
+      multiSelectBtn.classList.add('active');
+      selectAllBtn.classList.add('show');
+    } else {
+      batchBar.classList.remove('show');
+      multiSelectBtn.classList.remove('active');
+      selectAllBtn.classList.remove('show');
+    }
+
+    // 更新选中计数
+    $('#selectedCount').textContent = selectedIds.size;
+
+    // 更新批量操作按钮状态
+    const hasSelection = selectedIds.size > 0;
+    $('#btnBatchFavorite').disabled = !hasSelection;
+    $('#btnBatchDelete').disabled = !hasSelection;
+    $('#btnBatchExport').disabled = !hasSelection;
+
+    // 更新全选按钮状态
+    const allSelected = records.length > 0 && selectedIds.size === records.length;
+    selectAllBtn.textContent = allSelected ? '取消全选' : '全选';
+  }
+
+  function handleSelectAll() {
+    if (selectedIds.size === records.length) {
+      // 已全选，取消全选
+      selectedIds.clear();
+    } else {
+      // 全选
+      records.forEach(r => selectedIds.add(r.id));
+    }
+    updateMultiSelectUI();
+    renderRecords();
+  }
+
+  function handleSelectRecord(record) {
+    if (selectedIds.has(record.id)) {
+      selectedIds.delete(record.id);
+    } else {
+      selectedIds.add(record.id);
+    }
+    updateMultiSelectUI();
+    // 只更新对应的卡片选中状态，不重新渲染整个列表
+    const card = recordsList.querySelector(`[data-id="${record.id}"]`);
+    if (card) {
+      card.classList.toggle('selected', selectedIds.has(record.id));
+    }
+  }
+
+  async function handleBatchFavorite() {
+    if (selectedIds.size === 0) return;
+
+    try {
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        await window.ClawBoard.toggleFavorite(id);
+      }
+      showToast(`⭐ 已批量操作 ${ids.length} 条记录`, 'success');
+      setMultiSelectMode(false);
+      await loadRecords();
+    } catch (err) {
+      showToast('❌ 批量收藏失败', 'error');
+    }
+  }
+
+  async function handleBatchDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`确定要删除选中的 ${selectedIds.size} 条记录吗？`)) return;
+
+    try {
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        await window.ClawBoard.deleteRecord(id);
+      }
+      showToast(`🗑️ 已删除 ${ids.length} 条记录`, 'success');
+      setMultiSelectMode(false);
+      await loadRecords();
+      await loadStats();
+    } catch (err) {
+      showToast('❌ 批量删除失败', 'error');
+    }
+  }
+
+  async function handleBatchExport() {
+    if (selectedIds.size === 0) return;
+
+    try {
+      const selectedRecords = records.filter(r => selectedIds.has(r.id));
+      const exportData = selectedRecords.map(r => ({
+        id: r.id,
+        type: r.type,
+        content: r.content,
+        created_at: r.created_at,
+        favorite: r.favorite,
+        language: r.language || null,
+        ai_summary: r.ai_summary || null,
+      }));
+
+      // 生成 JSON 文件并保存
+      const jsonStr = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      // 创建下载链接
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `clawboard_export_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showToast(`✅ 已导出 ${selectedRecords.length} 条记录`, 'success');
+      setMultiSelectMode(false);
+    } catch (err) {
+      showToast('❌ 批量导出失败', 'error');
+    }
   }
 
   // ==================== 操作处理 ====================

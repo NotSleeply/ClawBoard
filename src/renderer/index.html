@@ -26,6 +26,7 @@
       <button class="search-clear" id="clearSearch" title="清除搜索">×</button>
     </div>
     <div class="header-right">
+      <button class="icon-btn" id="btnMultiSelect" title="多选模式">☑️</button>
       <span class="stats-badge" id="statsBadge" title="总记录数">
         <span class="stats-icon">📋</span>
         <span id="totalCount">0</span>
@@ -42,6 +43,16 @@
     <button class="tab" data-filter="file">📁 文件</button>
     <button class="tab" data-filter="image">🖼️ 图片</button>
     <button class="tab" data-filter="favorite">⭐ 收藏</button>
+    <button class="tab select-all-btn" id="btnSelectAll" title="全选">全选</button>
+  </div>
+
+  <!-- 批量操作栏 -->
+  <div class="batch-bar" id="batchBar">
+    <span class="batch-count">已选 <strong id="selectedCount">0</strong> 条</span>
+    <button class="batch-btn" id="btnBatchFavorite" title="批量收藏">⭐ 收藏</button>
+    <button class="batch-btn" id="btnBatchExport" title="批量导出">📥 导出</button>
+    <button class="batch-btn danger" id="btnBatchDelete" title="批量删除">🗑️ 删除</button>
+    <button class="batch-close" id="btnExitMultiSelect">取消</button>
   </div>
 
   <!-- 主内容 -->
