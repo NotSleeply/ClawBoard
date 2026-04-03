@@ -148,3 +148,24 @@ input{font-family:inherit;outline:none}
   .detail-panel{width:100%;right:-100%}
   .settings-panel{width:95%}
 }
+
+/* 多选批量操作 */
+.icon-btn.active{background:var(--accent-bg);color:var(--accent)}
+.select-all-btn{display:none;margin-left:auto}
+.select-all-btn.show{display:block}
+.batch-bar{position:fixed;bottom:0;left:0;right:0;height:60px;padding:0 1.5rem;display:flex;align-items:center;gap:1rem;background:rgba(8,11,18,0.95);backdrop-filter:blur(20px);border-top:1px solid var(--border);z-index:50;transform:translateY(100%);transition:transform 0.3s ease}
+.batch-bar.show{transform:translateY(0)}
+.batch-count{color:var(--muted);font-size:0.9rem}
+.batch-count strong{color:var(--accent)}
+.batch-btn{padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;background:var(--surface);color:var(--text);transition:all 0.2s;display:flex;align-items:center;gap:0.4rem}
+.batch-btn:hover:not(:disabled){background:var(--surface2);transform:translateY(-1px)}
+.batch-btn:disabled{opacity:0.4;cursor:not-allowed}
+.batch-btn.danger:hover:not(:disabled){background:rgba(239,68,68,0.15);color:var(--red)}
+.batch-close{padding:0.5rem 1rem;border-radius:8px;font-size:0.85rem;background:transparent;color:var(--muted);transition:all 0.2s;margin-left:auto}
+.batch-close:hover{color:var(--text)}
+.record-card.selected{border-color:var(--accent);background:var(--accent-bg)}
+.record-card.selected::before{opacity:1}
+.record-checkbox{width:18px;height:18px;border-radius:4px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--accent);transition:all 0.2s;flex-shrink:0}
+.record-checkbox.checked{border-color:var(--accent);background:var(--accent);color:#fff}
+.main{bottom:60px}
+.batch-bar.show~.main{bottom:120px}
