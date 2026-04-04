@@ -151,6 +151,7 @@ input{font-family:inherit;outline:none}
 
 /* 多选批量操作 */
 .icon-btn.active{background:var(--accent-bg);color:var(--accent)}
+.icon-btn#btnViewToggle.active{background:var(--accent-bg);color:var(--accent)}
 .select-all-btn{display:none;margin-left:auto}
 .select-all-btn.show{display:block}
 .batch-bar{position:fixed;bottom:0;left:0;right:0;height:60px;padding:0 1.5rem;display:flex;align-items:center;gap:1rem;background:rgba(8,11,18,0.95);backdrop-filter:blur(20px);border-top:1px solid var(--border);z-index:50;transform:translateY(100%);transition:transform 0.3s ease}
@@ -169,3 +170,17 @@ input{font-family:inherit;outline:none}
 .record-checkbox.checked{border-color:var(--accent);background:var(--accent);color:#fff}
 .main{bottom:60px}
 .batch-bar.show~.main{bottom:120px}
+
+/* 时间线视图 */
+.timeline-view{padding:0}
+.timeline-group{margin-bottom:0.5rem;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden}
+.timeline-group-header{display:flex;align-items:center;padding:1rem 1.2rem;cursor:pointer;transition:all 0.2s;gap:0.8rem}
+.timeline-group-header:hover{background:rgba(255,255,255,0.03)}
+.timeline-group-title{font-weight:600;color:var(--text);flex:1}
+.timeline-group-count{font-size:0.8rem;color:var(--muted)}
+.timeline-group-toggle{font-size:0.75rem;color:var(--muted);transition:transform 0.2s}
+.timeline-group.collapsed .timeline-group-content{display:none}
+.timeline-group.collapsed .timeline-group-toggle{transform:rotate(-90deg)}
+.timeline-group-content{padding:0 0.8rem 0.8rem}
+.timeline-card{margin-bottom:0.5rem}
+.timeline-card:last-child{margin-bottom:0}

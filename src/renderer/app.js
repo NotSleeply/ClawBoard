@@ -15,6 +15,8 @@
   // 多选模式状态
   let isMultiSelectMode = false;
   let selectedIds = new Set();
+  // 视图模式：'list' | 'timeline'
+  let currentViewMode = 'list';
 
   // ==================== DOM 元素 ====================
   const $ = (sel) => document.querySelector(sel);
@@ -169,6 +171,9 @@
     $('#btnBatchDelete').addEventListener('click', handleBatchDelete);
     $('#btnBatchExport').addEventListener('click', handleBatchExport);
 
+    // 视图切换
+    $('#btnViewToggle').addEventListener('click', toggleViewMode);
+
     // 详情面板点击外部关闭
     detailPanel.addEventListener('click', (e) => {
       if (e.target === detailPanel) {
@@ -262,6 +267,18 @@
 
   // ==================== 渲染 ====================
   function renderRecords() {
+    // 根据视图模式选择渲染方式
+    if (currentViewMode === 'timeline') {
+      renderTimelineView();
+    } else {
+      renderListView();
+    }
+  }
+
+  function renderListView() {
+    recordsList.style.display = '';
+    $('#timelineView').style.display = 'none';
+
     recordsList.innerHTML = '';
 
     if (records.length === 0) {
@@ -277,9 +294,113 @@
     });
   }
 
-  function createRecordCard(record, index) {
+  function renderTimelineView() {
+    recordsList.style.display = 'none';
+    const timelineView = $('#timelineView');
+    timelineView.style.display = '';
+
+    // 按时间分组
+    const groups = groupRecordsByTime(records);
+
+    timelineView.innerHTML = '';
+
+    if (records.length === 0) {
+      emptyState.classList.add('show');
+      return;
+    }
+
+    emptyState.classList.remove('show');
+
+    // 渲染每个分组
+    const groupOrder = ['today', 'yesterday', 'thisWeek', 'thisMonth', 'older'];
+    const groupLabels = {
+      today: '📅 今天',
+      yesterday: '📅 昨天',
+      thisWeek: '📆 本周',
+      thisMonth: '📆 本月',
+      older: '📆 更早',
+    };
+
+    groupOrder.forEach(groupKey => {
+      const groupRecords = groups[groupKey];
+      if (!groupRecords || groupRecords.length === 0) return;
+
+      const groupEl = document.createElement('div');
+      groupEl.className = 'timeline-group';
+
+      const header = document.createElement('div');
+      header.className = 'timeline-group-header';
+      header.innerHTML = `
+        <span class="timeline-group-title">${groupLabels[groupKey]}</span>
+        <span class="timeline-group-count">${groupRecords.length} 条</span>
+        <span class="timeline-group-toggle">▼</span>
+      `;
+      header.addEventListener('click', () => {
+        groupEl.classList.toggle('collapsed');
+        header.querySelector('.timeline-group-toggle').textContent =
+          groupEl.classList.contains('collapsed') ? '▶' : '▼';
+      });
+
+      const content = document.createElement('div');
+      content.className = 'timeline-group-content';
+
+      groupRecords.forEach((record, index) => {
+        const card = createRecordCard(record, index, true);
+        content.appendChild(card);
+      });
+
+      groupEl.appendChild(header);
+      groupEl.appendChild(content);
+      timelineView.appendChild(groupEl);
+    });
+  }
+
+  function groupRecordsByTime(records) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const thisWeekStart = new Date(today);
+    thisWeekStart.setDate(thisWeekStart.getDate() - today.getDay());
+    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const groups = {
+      today: [],
+      yesterday: [],
+      thisWeek: [],
+      thisMonth: [],
+      older: [],
+    };
+
+    records.forEach(record => {
+      const recordDate = new Date(record.created_at);
+      if (recordDate >= today) {
+        groups.today.push(record);
+      } else if (recordDate >= yesterday) {
+        groups.yesterday.push(record);
+      } else if (recordDate >= thisWeekStart) {
+        groups.thisWeek.push(record);
+      } else if (recordDate >= thisMonthStart) {
+        groups.thisMonth.push(record);
+      } else {
+        groups.older.push(record);
+      }
+    });
+
+    return groups;
+  }
+
+  function toggleViewMode() {
+    currentViewMode = currentViewMode === 'list' ? 'timeline' : 'list';
+    const btn = $('#btnViewToggle');
+    btn.textContent = currentViewMode === 'timeline' ? '📋' : '📅';
+    btn.classList.toggle('active', currentViewMode === 'timeline');
+    renderRecords();
+  }
+
+  function createRecordCard(record, index, isTimelineMode = false) {
     const card = document.createElement('div');
-    card.className = 'record-card' + (record.favorite ? ' favorite' : '');
+    card.className = 'record-card' + (record.favorite ? ' favorite' : '') + (isTimelineMode ? ' timeline-card' : '');
     card.dataset.id = record.id;
     card.style.animationDelay = `${index * 30}ms`;
 
