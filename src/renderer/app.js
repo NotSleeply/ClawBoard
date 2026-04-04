@@ -36,6 +36,7 @@
   // ==================== 初始化 ====================
   async function init() {
     setupEventListeners();
+    initShortcutRecording();  // 初始化快捷键录制
     await loadRecords();
     await loadStats();
     setupIpcListeners();
@@ -132,6 +133,17 @@
     $('#btnSettings').addEventListener('click', () => {
       loadSettings();
       settingsOverlay.classList.add('show');
+    });
+
+    // 设置标签切换
+    $$('.settings-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        $$('.settings-tab').forEach(t => t.classList.remove('active'));
+        $$('.settings-tab-content').forEach(c => c.classList.remove('show'));
+        tab.classList.add('active');
+        const tabId = 'settings' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1);
+        $('#' + tabId).classList.add('show');
+      });
     });
 
     $('#btnCloseSettings').addEventListener('click', () => {
@@ -249,9 +261,22 @@
       $('#settingOllama').value = settings.ollamaHost || 'http://localhost:11434';
       $('#settingAiSummary').checked = settings.aiSummary !== false;
       $('#settingStartWithSystem').checked = settings.startWithSystem || false;
-      $('#settingShortcut').value = settings.globalShortcut || 'Ctrl+Shift+V';
-      // 应用主题
       applyTheme(settings.theme || 'dark');
+
+      // 加载快捷键设置
+      const shortcuts = settings.shortcuts || {};
+      $('#shortcutGlobal').value = shortcuts.global || 'Ctrl+Shift+V';
+      $('#shortcutGlobal').dataset.value = shortcuts.global || 'Ctrl+Shift+V';
+      $('#shortcutSearch').value = shortcuts.search || 'Ctrl+K';
+      $('#shortcutSearch').dataset.value = shortcuts.search || 'Ctrl+K';
+      $('#shortcutCopy').value = shortcuts.copy || 'Enter';
+      $('#shortcutCopy').dataset.value = shortcuts.copy || 'Enter';
+      $('#shortcutDelete').value = shortcuts.delete || 'Delete';
+      $('#shortcutDelete').dataset.value = shortcuts.delete || 'Delete';
+      $('#shortcutEscape').value = shortcuts.escape || 'Escape';
+      $('#shortcutEscape').dataset.value = shortcuts.escape || 'Escape';
+      $('#shortcutSelectAll').value = shortcuts.selectAll || 'Ctrl+A';
+      $('#shortcutSelectAll').dataset.value = shortcuts.selectAll || 'Ctrl+A';
     } catch (err) {
       console.error('加载设置失败:', err);
     }
@@ -787,14 +812,25 @@
       aiSummary: $('#settingAiSummary').checked,
       startWithSystem: $('#settingStartWithSystem').checked,
       theme: $('#settingTheme').value || 'dark',
-      globalShortcut: $('#settingShortcut').value || 'Ctrl+Shift+V',
+    };
+
+    // 收集所有快捷键设置
+    const shortcuts = {
+      global: $('#shortcutGlobal').dataset.value || $('#shortcutGlobal').value,
+      search: $('#shortcutSearch').dataset.value || $('#shortcutSearch').value,
+      copy: $('#shortcutCopy').dataset.value || $('#shortcutCopy').value,
+      delete: $('#shortcutDelete').dataset.value || $('#shortcutDelete').value,
+      escape: $('#shortcutEscape').dataset.value || $('#shortcutEscape').value,
+      selectAll: $('#shortcutSelectAll').dataset.value || $('#shortcutSelectAll').value,
     };
 
     try {
       // 先保存设置
       await window.ClawBoard.saveSettings(settings);
-      // 更新快捷键
-      await window.ClawBoard.updateShortcut(settings.globalShortcut);
+      // 保存快捷键设置
+      await window.ClawBoard.saveShortcuts(shortcuts);
+      // 更新全局快捷键
+      await window.ClawBoard.updateShortcut(shortcuts.global);
       applyTheme(settings.theme);
       settingsOverlay.classList.remove('show');
       showToast('✅ 设置已保存', 'success');
@@ -803,7 +839,98 @@
     }
   }
 
+  // 添加重置快捷键按钮事件监听
+  $('#btnResetShortcuts').addEventListener('click', resetShortcuts);
+
   // ==================== 工具函数 ====================
+  // 默认快捷键配置
+  const defaultShortcuts = {
+    global: 'Ctrl+Shift+V',
+    search: 'Ctrl+K',
+    copy: 'Enter',
+    delete: 'Delete',
+    escape: 'Escape',
+    selectAll: 'Ctrl+A',
+  };
+
+  let currentRecordingInput = null;
+
+  function initShortcutRecording() {
+    const shortcutInputs = $$('.shortcut-input');
+    shortcutInputs.forEach(input => {
+      input.addEventListener('click', () => startShortcutRecording(input));
+      input.addEventListener('keydown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+  }
+
+  function startShortcutRecording(input) {
+    // 如果正在录制另一个，取消
+    if (currentRecordingInput && currentRecordingInput !== input) {
+      currentRecordingInput.classList.remove('recording');
+      currentRecordingInput.value = currentRecordingInput.dataset.value || '';
+    }
+
+    currentRecordingInput = input;
+    input.classList.add('recording');
+    input.value = '按下快捷键...';
+    input.readOnly = false;
+    input.focus();
+
+    // 绑定一次性键盘事件
+    const handleKeyDown = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const keys = [];
+      if (e.ctrlKey) keys.push('Ctrl');
+      if (e.shiftKey) keys.push('Shift');
+      if (e.altKey) keys.push('Alt');
+      if (e.metaKey) keys.push('Meta');
+
+      const key = e.key;
+      if (key && !['Control', 'Shift', 'Alt', 'Meta'].includes(key)) {
+        keys.push(key.length === 1 ? key.toUpperCase() : key);
+      }
+
+      if (keys.length > 0) {
+        const shortcut = keys.join('+');
+        input.value = shortcut;
+        input.dataset.value = shortcut;
+      }
+
+      input.classList.remove('recording');
+      currentRecordingInput = null;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+
+    document.addEventListener('keydown', handleKeyDown, { once: true });
+
+    // 点击其他位置取消录制
+    const handleClickOutside = (e) => {
+      if (!input.contains(e.target)) {
+        input.classList.remove('recording');
+        input.value = input.dataset.value || '';
+        currentRecordingInput = null;
+        document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('click', handleClickOutside);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', handleClickOutside), 100);
+  }
+
+  function resetShortcuts() {
+    const shortcutInputs = $$('.shortcut-input');
+    shortcutInputs.forEach(input => {
+      const key = input.id.replace('shortcut', '').toLowerCase();
+      const defaultVal = defaultShortcuts[key] || '';
+      input.value = defaultVal;
+      input.dataset.value = defaultVal;
+    });
+    showToast('✅ 快捷键已重置', 'success');
+  }
   function formatTimeAgo(date) {
     const now = new Date();
     const diff = now - date;

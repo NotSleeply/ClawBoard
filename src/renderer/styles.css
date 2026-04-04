@@ -184,3 +184,21 @@ input{font-family:inherit;outline:none}
 .timeline-group-content{padding:0 0.8rem 0.8rem}
 .timeline-card{margin-bottom:0.5rem}
 .timeline-card:last-child{margin-bottom:0}
+
+/* 快捷键管理 */
+.settings-tabs{display:flex;padding:0 1.5rem;gap:0.5rem;border-bottom:1px solid var(--border)}
+.settings-tab{padding:0.6rem 1rem;border:none;background:transparent;color:var(--muted);font-size:0.9rem;border-bottom:2px solid transparent;transition:all 0.2s;margin-bottom:-1px}
+.settings-tab:hover{color:var(--text)}
+.settings-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.settings-tab-content{display:none}
+.settings-tab-content.show{display:block}
+.shortcuts-list{display:flex;flex-direction:column;gap:0.8rem}
+.shortcut-item{display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.8rem;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+.shortcut-label{font-size:0.9rem;color:var(--text)}
+.shortcut-input{width:140px;height:32px;padding:0 0.8rem;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:0.85rem;text-align:center;cursor:pointer;transition:all 0.2s}
+.shortcut-input:hover{border-color:var(--accent)}
+.shortcut-input:focus{border-color:var(--accent);outline:none;background:var(--accent-bg)}
+.shortcut-input.recording{border-color:var(--accent);background:var(--accent-bg);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
+.btn-secondary{padding:0.5rem 1rem;border-radius:8px;background:var(--surface);color:var(--text);font-size:0.9rem;transition:all 0.2s;border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--surface2);border-color:var(--accent)}
