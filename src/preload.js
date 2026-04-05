@@ -26,6 +26,14 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   updateShortcut: (shortcut) => ipcRenderer.invoke('update-shortcut', shortcut),
+  saveShortcuts: (shortcuts) => ipcRenderer.invoke('save-settings', { shortcuts }),
+  
+  // 加密相关
+  setEncryptionPassword: (password) => ipcRenderer.invoke('set-encryption-password', password),
+  clearEncryptionKey: () => ipcRenderer.invoke('clear-encryption-key'),
+  encryptRecord: (id) => ipcRenderer.invoke('encrypt-record', id),
+  decryptRecord: (id) => ipcRenderer.invoke('decrypt-record', id),
+  removeEncryption: (id) => ipcRenderer.invoke('remove-encryption', id),
   
   // 事件监听
   onNewRecord: (callback) => {
