@@ -17,6 +17,8 @@
   let selectedIds = new Set();
   // 视图模式：'list' | 'timeline'
   let currentViewMode = 'list';
+  // 加密状态
+  let isEncryptionUnlocked = false;
 
   // ==================== DOM 元素 ====================
   const $ = (sel) => document.querySelector(sel);
@@ -185,6 +187,24 @@
 
     // 视图切换
     $('#btnViewToggle').addEventListener('click', toggleViewMode);
+
+    // 加密功能
+    $('#btnEncryption').addEventListener('click', () => {
+      $('#encryptionOverlay').classList.add('show');
+      updateEncryptionUI();
+    });
+    $('#btnCloseEncryption').addEventListener('click', () => {
+      $('#encryptionOverlay').classList.remove('show');
+    });
+    $('#encryptionOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#encryptionOverlay')) {
+        $('#encryptionOverlay').classList.remove('show');
+      }
+    });
+    $('#btnConfirmEncryption').addEventListener('click', handleSetEncryption);
+    $('#btnLockEncryption').addEventListener('click', handleLockEncryption);
+    $('#btnEncrypt').addEventListener('click', handleEncryptRecord);
+    $('#btnDecrypt').addEventListener('click', handleDecryptRecord);
 
     // 详情面板点击外部关闭
     detailPanel.addEventListener('click', (e) => {
@@ -425,7 +445,7 @@
 
   function createRecordCard(record, index, isTimelineMode = false) {
     const card = document.createElement('div');
-    card.className = 'record-card' + (record.favorite ? ' favorite' : '') + (isTimelineMode ? ' timeline-card' : '');
+    card.className = 'record-card' + (record.favorite ? ' favorite' : '') + (isTimelineMode ? ' timeline-card' : '') + (record.encrypted ? ' encrypted-card' : '');
     card.dataset.id = record.id;
     card.style.animationDelay = `${index * 30}ms`;
 
@@ -442,6 +462,7 @@
     };
 
     const timeAgo = formatTimeAgo(new Date(record.created_at));
+    const encryptedBadge = record.encrypted ? '<span class="encrypted-badge">🔒</span>' : '';
 
     // 多选模式下显示复选框
     const checkboxHtml = isMultiSelectMode
@@ -452,6 +473,7 @@
       <div class="record-header">
         ${checkboxHtml}
         <span class="record-type ${record.type}">${typeLabels[record.type] || '📋'}</span>
+        ${encryptedBadge}
         <span class="record-time">${timeAgo}</span>
         <span class="record-fav" title="${record.favorite ? '取消收藏' : '收藏'}">
           ${record.favorite ? '★' : '☆'}
@@ -577,6 +599,22 @@
     // 重置预览模式按钮
     $$('.preview-mode-btn').forEach(b => b.classList.remove('active'));
     $$('.preview-mode-btn[data-mode="raw"]')[0].classList.add('active');
+
+    // 显示/隐藏加密按钮
+    const btnEncrypt = $('#btnEncrypt');
+    const btnDecrypt = $('#btnDecrypt');
+    if (isEncryptionUnlocked) {
+      if (record.encrypted) {
+        btnEncrypt.style.display = 'none';
+        btnDecrypt.style.display = '';
+      } else {
+        btnEncrypt.style.display = '';
+        btnDecrypt.style.display = 'none';
+      }
+    } else {
+      btnEncrypt.style.display = 'none';
+      btnDecrypt.style.display = 'none';
+    }
 
     renderPreviewContent(record);
 
@@ -734,6 +772,104 @@
       setMultiSelectMode(false);
     } catch (err) {
       showToast('❌ 批量导出失败', 'error');
+    }
+  }
+
+  // ==================== 加密操作 ====================
+  function updateEncryptionUI() {
+    const status = $('#encryptionStatus');
+    const setup = $('#encryptionSetup');
+    const btnConfirm = $('#btnConfirmEncryption');
+
+    if (isEncryptionUnlocked) {
+      status.style.display = 'block';
+      setup.style.display = 'none';
+      btnConfirm.textContent = '关闭';
+    } else {
+      status.style.display = 'none';
+      setup.style.display = 'block';
+      btnConfirm.textContent = '确认';
+    }
+  }
+
+  async function handleSetEncryption() {
+    const status = $('#encryptionStatus');
+
+    if (isEncryptionUnlocked) {
+      // 关闭加密面板
+      $('#encryptionOverlay').classList.remove('show');
+      return;
+    }
+
+    const password = $('#encryptionPassword').value;
+    const confirm = $('#encryptionPasswordConfirm').value;
+
+    if (!password) {
+      showToast('❌ 请输入密码', 'error');
+      return;
+    }
+
+    if (password.length < 4) {
+      showToast('❌ 密码至少 4 个字符', 'error');
+      return;
+    }
+
+    if (password !== confirm) {
+      showToast('❌ 两次密码不一致', 'error');
+      return;
+    }
+
+    try {
+      await window.ClawBoard.setEncryptionPassword(password);
+      isEncryptionUnlocked = true;
+      $('#encryptionPassword').value = '';
+      $('#encryptionPasswordConfirm').value = '';
+      updateEncryptionUI();
+      showToast('✅ 加密已启用', 'success');
+      await loadRecords();
+    } catch (err) {
+      showToast('❌ 设置失败', 'error');
+    }
+  }
+
+  async function handleLockEncryption() {
+    try {
+      await window.ClawBoard.clearEncryptionKey();
+      isEncryptionUnlocked = false;
+      updateEncryptionUI();
+      showToast('🔒 加密已锁定', 'success');
+      closeDetailPanel();
+      await loadRecords();
+    } catch (err) {
+      showToast('❌ 锁定失败', 'error');
+    }
+  }
+
+  async function handleEncryptRecord() {
+    if (!selectedRecord || !isEncryptionUnlocked) return;
+
+    try {
+      await window.ClawBoard.encryptRecord(selectedRecord.id);
+      showToast('🔒 已加密', 'success');
+      closeDetailPanel();
+      await loadRecords();
+    } catch (err) {
+      showToast('❌ 加密失败', 'error');
+    }
+  }
+
+  async function handleDecryptRecord() {
+    if (!selectedRecord || !isEncryptionUnlocked) return;
+
+    try {
+      const decrypted = await window.ClawBoard.decryptRecord(selectedRecord.id);
+      if (decrypted) {
+        selectedRecord = decrypted;
+        renderPreviewContent(decrypted);
+        showToast('🔓 已解密查看', 'success');
+      }
+    } catch (err) {
+      showToast('❌ 解密失败', 'error');
     }
   }
 

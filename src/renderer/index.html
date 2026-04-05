@@ -27,6 +27,7 @@
     </div>
     <div class="header-right">
       <button class="icon-btn" id="btnViewToggle" title="切换视图">📋</button>
+      <button class="icon-btn" id="btnEncryption" title="加密">🔒</button>
       <button class="icon-btn" id="btnMultiSelect" title="多选模式">☑️</button>
       <span class="stats-badge" id="statsBadge" title="总记录数">
         <span class="stats-icon">📋</span>
@@ -93,6 +94,8 @@
         </div>
         <button class="detail-btn" id="btnCopy" title="复制">📋 复制</button>
         <button class="detail-btn" id="btnFavorite" title="收藏">☆ 收藏</button>
+        <button class="detail-btn" id="btnEncrypt" title="加密" style="display:none">🔒 加密</button>
+        <button class="detail-btn" id="btnDecrypt" title="解密" style="display:none">🔓 查看</button>
         <button class="detail-btn danger" id="btnDelete" title="删除">🗑️ 删除</button>
         <button class="detail-close" id="btnCloseDetail">×</button>
       </div>
@@ -188,6 +191,36 @@
       </div>
       <div class="settings-footer">
         <button class="btn-primary" id="btnSaveSettings">保存设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 加密密码对话框 -->
+  <div class="encryption-overlay" id="encryptionOverlay">
+    <div class="encryption-panel">
+      <div class="encryption-header">
+        <h2>🔒 加密保护</h2>
+        <button class="detail-close" id="btnCloseEncryption">×</button>
+      </div>
+      <div class="encryption-body">
+        <div id="encryptionStatus" style="display:none">
+          <p class="encryption-status-text">🔒 加密已启用</p>
+          <button class="btn-secondary" id="btnLockEncryption">🔒 锁定加密</button>
+        </div>
+        <div id="encryptionSetup">
+          <p style="color:var(--muted);margin-bottom:1rem;font-size:0.9rem">设置密码后可加密和解密剪贴板记录</p>
+          <div class="setting-item">
+            <label>🔑 加密密码</label>
+            <input type="password" id="encryptionPassword" placeholder="输入密码">
+          </div>
+          <div class="setting-item">
+            <label>🔑 确认密码</label>
+            <input type="password" id="encryptionPasswordConfirm" placeholder="再次输入">
+          </div>
+        </div>
+      </div>
+      <div class="settings-footer">
+        <button class="btn-primary" id="btnConfirmEncryption">确认</button>
       </div>
     </div>
   </div>

@@ -417,6 +417,60 @@ ipcMain.handle('toggle-lock', async (event, id) => {
   }
 });
 
+// ==================== 加密相关 ====================
+
+// 设置加密密码（解密所有加密记录）
+ipcMain.handle('set-encryption-password', async (event, password) => {
+  try {
+    db.setEncryptionKey(password);
+    return { success: true };
+  } catch (err) {
+    log.error('set-encryption-password error:', err);
+    return { success: false, message: err.message };
+  }
+});
+
+// 清除加密密钥
+ipcMain.handle('clear-encryption-key', async () => {
+  try {
+    db.clearEncryptionKey();
+    return { success: true };
+  } catch (err) {
+    log.error('clear-encryption-key error:', err);
+    return false;
+  }
+});
+
+// 加密记录
+ipcMain.handle('encrypt-record', async (event, id) => {
+  try {
+    return db.encryptRecord(id);
+  } catch (err) {
+    log.error('encrypt-record error:', err);
+    return false;
+  }
+});
+
+// 解密记录（临时查看）
+ipcMain.handle('decrypt-record', async (event, id) => {
+  try {
+    return db.decryptRecord(id);
+  } catch (err) {
+    log.error('decrypt-record error:', err);
+    return null;
+  }
+});
+
+// 取消加密
+ipcMain.handle('remove-encryption', async (event, id) => {
+  try {
+    return db.removeEncryption(id);
+  } catch (err) {
+    log.error('remove-encryption error:', err);
+    return false;
+  }
+});
+
 // 应用启动
 app.whenReady().then(async () => {
   log.info('应用准备就绪');

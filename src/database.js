@@ -4,13 +4,55 @@
 
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 class Database {
   constructor(userDataPath) {
     this.dbPath = path.join(userDataPath, 'clawboard.db');
     this.dataPath = userDataPath;
     this.db = null;
+    this.encryptionKey = null; // 用于内存中临时存储的加密密钥
     this._init();
+  }
+
+  // AES-256 加密
+  _encrypt(text, key) {
+    if (!key) return text;
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key, 'hex'), iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+  }
+
+  // AES-256 解密
+  _decrypt(encryptedText, key) {
+    if (!key || !encryptedText.includes(':')) return encryptedText;
+    try {
+      const [ivHex, encrypted] = encryptedText.split(':');
+      const iv = Buffer.from(ivHex, 'hex');
+      const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(key, 'hex'), iv);
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    } catch (err) {
+      console.error('解密失败:', err);
+      return '[加密内容 - 需要密码]';
+    }
+  }
+
+  // 设置加密密钥
+  setEncryptionKey(password) {
+    // 使用 PBKDF2 从密码派生密钥
+    const salt = 'clawboard-salt-v1';
+    this.encryptionKey = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256').toString('hex');
+    return true;
+  }
+
+  // 清除加密密钥
+  clearEncryptionKey() {
+    this.encryptionKey = null;
+    return true;
   }
 
   async _init() {
@@ -39,14 +81,23 @@ class Database {
         embedding BLOB,
         language TEXT,
         locked INTEGER DEFAULT 0,
+        encrypted INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
+    // 添加 encrypted 列（如果不存在）
+    try {
+      this.db.run(`ALTER TABLE records ADD COLUMN encrypted INTEGER DEFAULT 0`);
+    } catch (e) {
+      // 列已存在，忽略
+    }
+
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_type ON records(type)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_favorite ON records(favorite)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_created ON records(created_at DESC)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_encrypted ON records(encrypted)`);
 
     this.db.run(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
 
@@ -76,10 +127,15 @@ class Database {
   }
 
   // 添加记录
-  addRecord({ type, content, summary, source, tags = '[]', ai_summary = null, embedding = null, language = null }) {
+  addRecord({ type, content, summary, source, tags = '[]', ai_summary = null, embedding = null, language = null, encrypted = false }) {
+    let finalContent = content;
+    if (encrypted && this.encryptionKey) {
+      finalContent = this._encrypt(content, this.encryptionKey);
+    }
+    
     this.db.run(
-      `INSERT INTO records (type, content, summary, source, tags, ai_summary, embedding, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [type, content, summary, source, tags, ai_summary, embedding, language]
+      `INSERT INTO records (type, content, summary, source, tags, ai_summary, embedding, language, encrypted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [type, finalContent, summary, source, tags, ai_summary, embedding, language, encrypted ? 1 : 0]
     );
     
     // 自动清理旧记录（保留收藏）
@@ -88,6 +144,49 @@ class Database {
     const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
     this._save();
     return this.getRecord(id);
+  }
+
+  // 加密已有记录
+  encryptRecord(id) {
+    if (!this.encryptionKey) return false;
+    
+    const record = this.getRecord(id);
+    if (!record || record.encrypted) return false;
+    
+    const encryptedContent = this._encrypt(record.content, this.encryptionKey);
+    this.db.run(
+      `UPDATE records SET content = ?, encrypted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [encryptedContent, id]
+    );
+    this._save();
+    return true;
+  }
+
+  // 解密记录（临时解密查看）
+  decryptRecord(id) {
+    if (!this.encryptionKey) return null;
+    
+    const record = this.getRecord(id);
+    if (!record || !record.encrypted) return record;
+    
+    const decryptedContent = this._decrypt(record.content, this.encryptionKey);
+    return { ...record, content: decryptedContent, decrypted: true };
+  }
+
+  // 取消加密
+  removeEncryption(id) {
+    if (!this.encryptionKey) return false;
+    
+    const record = this.getRecord(id);
+    if (!record || !record.encrypted) return false;
+    
+    const decryptedContent = this._decrypt(record.content, this.encryptionKey);
+    this.db.run(
+      `UPDATE records SET content = ?, encrypted = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [decryptedContent, id]
+    );
+    this._save();
+    return true;
   }
 
   // 自动清理旧记录
@@ -142,6 +241,8 @@ class Database {
     if (search) {
       sql += ' AND (content LIKE ? OR summary LIKE ?)';
       params.push(`%${search}%`, `%${search}%`);
+      // 加密记录不参与搜索
+      sql += ' AND encrypted = 0';
     }
 
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
@@ -364,6 +465,10 @@ class Database {
     columns.forEach((col, i) => {
       record[col] = values[i];
     });
+    // 加密记录的内容替换为占位符
+    if (record.encrypted && !this.encryptionKey) {
+      record.content = '🔒 加密内容';
+    }
     return record;
   }
 }
