@@ -94,6 +94,13 @@ class Database {
       // 列已存在，忽略
     }
 
+    // 添加 ocr_text 列（如果不存在）- v0.17.0 OCR功能
+    try {
+      this.db.run(`ALTER TABLE records ADD COLUMN ocr_text TEXT`);
+    } catch (e) {
+      // 列已存在，忽略
+    }
+
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_type ON records(type)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_favorite ON records(favorite)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_created ON records(created_at DESC)`);
@@ -127,15 +134,15 @@ class Database {
   }
 
   // 添加记录
-  addRecord({ type, content, summary, source, tags = '[]', ai_summary = null, embedding = null, language = null, encrypted = false }) {
+  addRecord({ type, content, summary, source, tags = '[]', ai_summary = null, embedding = null, language = null, encrypted = false, ocr_text = null }) {
     let finalContent = content;
     if (encrypted && this.encryptionKey) {
       finalContent = this._encrypt(content, this.encryptionKey);
     }
     
     this.db.run(
-      `INSERT INTO records (type, content, summary, source, tags, ai_summary, embedding, language, encrypted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [type, finalContent, summary, source, tags, ai_summary, embedding, language, encrypted ? 1 : 0]
+      `INSERT INTO records (type, content, summary, source, tags, ai_summary, embedding, language, encrypted, ocr_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [type, finalContent, summary, source, tags, ai_summary, embedding, language, encrypted ? 1 : 0, ocr_text]
     );
     
     // 自动清理旧记录（保留收藏）
@@ -184,6 +191,16 @@ class Database {
     this.db.run(
       `UPDATE records SET content = ?, encrypted = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       [decryptedContent, id]
+    );
+    this._save();
+    return true;
+  }
+
+  // v0.17.0: 更新 OCR 文本
+  updateOCRText(id, ocrText) {
+    this.db.run(
+      `UPDATE records SET ocr_text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [ocrText, id]
     );
     this._save();
     return true;
@@ -239,8 +256,8 @@ class Database {
     }
 
     if (search) {
-      sql += ' AND (content LIKE ? OR summary LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`);
+      sql += ' AND (content LIKE ? OR summary LIKE ? OR ocr_text LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
       // 加密记录不参与搜索
       sql += ' AND encrypted = 0';
     }

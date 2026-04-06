@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   decryptRecord: (id) => ipcRenderer.invoke('decrypt-record', id),
   removeEncryption: (id) => ipcRenderer.invoke('remove-encryption', id),
   
+  // v0.17.0: OCR 相关
+  ocrRecognize: (imagePath) => ipcRenderer.invoke('ocr-recognize', imagePath),
+  getOCRText: (id) => ipcRenderer.invoke('get-ocr-text', id),
+  
   // 事件监听
   onNewRecord: (callback) => {
     ipcRenderer.on('new-record', (event, record) => callback(record));

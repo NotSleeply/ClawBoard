@@ -214,3 +214,17 @@ input{font-family:inherit;outline:none}
 .record-card.encrypted-card{border-color:rgba(234,179,8,0.2);background:rgba(234,179,8,0.03)}
 .record-card.encrypted-card::before{background:#eab308}
 .encrypted-badge{font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(234,179,8,0.15);color:#facc15;margin-left:0.3rem}
+
+/* v0.17.0: OCR 功能样式 */
+.ocr-section{margin-top:1rem;padding:1rem;background:var(--surface2);border:1px solid var(--border);border-radius:10px}
+.ocr-header{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.8rem;font-size:0.9rem}
+.ocr-icon{font-size:1rem}
+.ocr-title{font-weight:600;color:var(--text)}
+.ocr-status{font-size:0.8rem;color:var(--muted);margin-left:auto}
+.ocr-status.processing{color:var(--accent)}
+.ocr-status.completed{color:var(--green)}
+.ocr-content{max-height:200px;overflow-y:auto;padding:0.8rem;background:var(--surface);border-radius:8px;font-size:0.85rem;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-word}
+.ocr-content:empty::before{content:'正在识别图片中的文字...';color:var(--muted);font-style:italic}
+.ocr-copy-btn{margin-top:0.8rem;padding:0.4rem 0.8rem;border-radius:6px;background:var(--accent-bg);color:var(--accent);font-size:0.8rem;transition:all 0.2s;border:1px solid transparent}
+.ocr-copy-btn:hover{background:var(--accent);color:#fff}
+.ocr-badge{font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(59,130,246,0.15);color:#93c5fd;margin-left:0.3rem}

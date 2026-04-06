@@ -103,6 +103,16 @@
     <div class="detail-content">
       <pre id="detailContent"></pre>
       <div class="detail-preview" id="detailPreview"></div>
+      <!-- v0.17.0: OCR 结果展示 -->
+      <div class="ocr-section" id="ocrSection" style="display:none">
+        <div class="ocr-header">
+          <span class="ocr-icon">🔍</span>
+          <span class="ocr-title">图片文字识别 (OCR)</span>
+          <span class="ocr-status" id="ocrStatus"></span>
+        </div>
+        <div class="ocr-content" id="ocrContent"></div>
+        <button class="ocr-copy-btn" id="btnCopyOCR" title="复制识别结果">📋 复制文字</button>
+      </div>
     </div>
     <div class="detail-footer" id="detailFooter">
       <!-- AI 摘要等 -->
