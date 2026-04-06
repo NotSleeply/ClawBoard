@@ -243,6 +243,28 @@ function setupIPC() {
     }
   });
 
+  // 获取来源应用列表
+  ipcMain.handle('get-source-apps', async () => {
+    try {
+      return db.getSourceApps();
+    } catch (err) {
+      log.error('get-source-apps error:', err);
+      return [];
+    }
+  });
+
+  // 更新当前来源应用（由剪贴板监控调用）
+  ipcMain.handle('set-current-source', async (event, { app, title, url }) => {
+    try {
+      // 存储当前前台窗口信息
+      clipboardWatcher.setCurrentSource({ app, title, url });
+      return { success: true };
+    } catch (err) {
+      log.error('set-current-source error:', err);
+      return { success: false };
+    }
+  });
+
   // AI 摘要（占位）
   ipcMain.handle('ai-summary', async (event, text) => {
     try {
