@@ -253,6 +253,43 @@ function setupIPC() {
     }
   });
 
+  // 标签相关
+  ipcMain.handle('get-all-tags', async () => {
+    try {
+      return db.getAllTags();
+    } catch (err) {
+      log.error('get-all-tags error:', err);
+      return [];
+    }
+  });
+
+  ipcMain.handle('add-tag', async (event, { recordId, tag }) => {
+    try {
+      return db.addTag(recordId, tag);
+    } catch (err) {
+      log.error('add-tag error:', err);
+      return false;
+    }
+  });
+
+  ipcMain.handle('remove-tag', async (event, { recordId, tag }) => {
+    try {
+      return db.removeTag(recordId, tag);
+    } catch (err) {
+      log.error('remove-tag error:', err);
+      return false;
+    }
+  });
+
+  ipcMain.handle('delete-tag', async (event, tag) => {
+    try {
+      return db.deleteTag(tag);
+    } catch (err) {
+      log.error('delete-tag error:', err);
+      return 0;
+    }
+  });
+
   // 更新当前来源应用（由剪贴板监控调用）
   ipcMain.handle('set-current-source', async (event, { app, title, url }) => {
     try {

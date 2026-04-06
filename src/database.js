@@ -295,6 +295,128 @@ class Database {
     return result[0].values.map(([app, count]) => ({ app, count }));
   }
 
+  // ==================== 标签系统 ====================
+  // 获取所有标签及其记录数
+  getAllTags() {
+    // 从所有记录的 tags 字段提取标签
+    const result = this.db.exec(`SELECT tags FROM records WHERE tags IS NOT NULL AND tags != '[]'`);
+    const tagCount = {};
+
+    if (result.length > 0 && result[0].values.length > 0) {
+      result[0].values.forEach(([tagsJson]) => {
+        try {
+          const tags = JSON.parse(tagsJson);
+          tags.forEach(tag => {
+            tagCount[tag] = (tagCount[tag] || 0) + 1;
+          });
+        } catch (e) {}
+      });
+    }
+
+    return Object.entries(tagCount)
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  // 为记录添加标签
+  addTag(recordId, tag) {
+    const record = this.getRecord(recordId);
+    if (!record) return false;
+
+    let tags = [];
+    try {
+      tags = JSON.parse(record.tags || '[]');
+    } catch (e) {}
+
+    tag = tag.trim();
+    if (!tag || tags.includes(tag)) return true; // 标签已存在
+
+    tags.push(tag);
+    this.db.run(`UPDATE records SET tags = ? WHERE id = ?`, [JSON.stringify(tags), recordId]);
+    this._save();
+    return true;
+  }
+
+  // 移除记录标签
+  removeTag(recordId, tag) {
+    const record = this.getRecord(recordId);
+    if (!record) return false;
+
+    let tags = [];
+    try {
+      tags = JSON.parse(record.tags || '[]');
+    } catch (e) {}
+
+    const index = tags.indexOf(tag);
+    if (index === -1) return true;
+
+    tags.splice(index, 1);
+    this.db.run(`UPDATE records SET tags = ? WHERE id = ?`, [JSON.stringify(tags), recordId]);
+    this._save();
+    return true;
+  }
+
+  // 获取带标签的记录
+  getRecords({ type, limit = 50, offset = 0, search, favorite, sourceApp, tag } = {}) {
+    let sql = 'SELECT * FROM records WHERE 1=1';
+    const params = [];
+
+    if (type) {
+      sql += ' AND type = ?';
+      params.push(type);
+    }
+
+    if (favorite) {
+      sql += ' AND favorite = 1';
+    }
+
+    if (search) {
+      sql += ' AND (content LIKE ? OR summary LIKE ? OR ocr_text LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      sql += ' AND encrypted = 0';
+    }
+
+    if (sourceApp) {
+      sql += ' AND source_app = ?';
+      params.push(sourceApp);
+    }
+
+    // 按标签筛选
+    if (tag) {
+      sql += ' AND tags LIKE ?';
+      params.push(`%"${tag}"%`);
+    }
+
+    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const result = this.db.exec(sql, params);
+    if (result.length === 0) return [];
+    return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
+  }
+
+  // 删除标签（从所有记录中移除）
+  deleteTag(tag) {
+    const result = this.db.exec(`SELECT id, tags FROM records WHERE tags LIKE ?`, [`%"${tag}"%`]);
+    if (result.length === 0) return 0;
+
+    let count = 0;
+    result[0].values.forEach(([id, tagsJson]) => {
+      try {
+        let tags = JSON.parse(tagsJson || '[]');
+        const index = tags.indexOf(tag);
+        if (index !== -1) {
+          tags.splice(index, 1);
+          this.db.run(`UPDATE records SET tags = ? WHERE id = ?`, [JSON.stringify(tags), id]);
+          count++;
+        }
+      } catch (e) {}
+    });
+
+    if (count > 0) this._save();
+    return count;
+  }
+
   // 搜索（支持关键词 + 语义搜索）
   async search(query, limit = 50, useSemantic = true) {
     if (!query) return [];

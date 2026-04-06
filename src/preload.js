@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   getStats: () => ipcRenderer.invoke('get-stats'),
   getDetailedStats: () => ipcRenderer.invoke('get-detailed-stats'),
   getSourceApps: () => ipcRenderer.invoke('get-source-apps'),
+  getAllTags: () => ipcRenderer.invoke('get-all-tags'),
+  addTag: (recordId, tag) => ipcRenderer.invoke('add-tag', { recordId, tag }),
+  removeTag: (recordId, tag) => ipcRenderer.invoke('remove-tag', { recordId, tag }),
+  deleteTag: (tag) => ipcRenderer.invoke('delete-tag', tag),
   
   // 搜索相关
   search: (query) => ipcRenderer.invoke('search', query),
