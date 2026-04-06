@@ -16,11 +16,13 @@ log.info('ClawBoard 启动...');
 const ClipboardWatcher = require('./clipboard');
 const Database = require('./database');
 const AI = require('./ai');
+const OCRService = require('./ocr'); // v0.17.0 OCR服务
 
 let mainWindow = null;
 let tray = null;
 let db = null;
 let clipboardWatcher = null;
+let ocrService = null; // v0.17.0 OCR服务实例
 
 // 单实例锁
 const gotTheLock = app.requestSingleInstanceLock();
@@ -407,6 +409,31 @@ ipcMain.handle('set-always-on-top', async (event, flag) => {
   }
 });
 
+// v0.17.0: OCR 相关 IPC
+// 手动触发 OCR 识别
+ipcMain.handle('ocr-recognize', async (event, imagePath) => {
+  try {
+    if (!ocrService) {
+      return { success: false, error: 'OCR 服务未初始化' };
+    }
+    return await ocrService.recognize(imagePath);
+  } catch (err) {
+    log.error('ocr-recognize error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 获取 OCR 文本
+ipcMain.handle('get-ocr-text', async (event, id) => {
+  try {
+    const record = db.getRecord(id);
+    return record ? record.ocr_text : null;
+  } catch (err) {
+    log.error('get-ocr-text error:', err);
+    return null;
+  }
+});
+
 // 切换锁定状态
 ipcMain.handle('toggle-lock', async (event, id) => {
   try {
@@ -479,8 +506,18 @@ app.whenReady().then(async () => {
   db = new Database(app.getPath('userData'));
   await db._init();
 
-  // 初始化剪贴板监控（传入 AI 模块）
-  clipboardWatcher = new ClipboardWatcher(db, clipboard, log, AI);
+  // v0.17.0: 初始化 OCR 服务
+  ocrService = new OCRService();
+  await ocrService.init().then(success => {
+    if (success) {
+      log.info('OCR 服务初始化成功');
+    } else {
+      log.warn('OCR 服务初始化失败，图片文字识别功能不可用');
+    }
+  });
+
+  // 初始化剪贴板监控（传入 AI 和 OCR 模块）
+  clipboardWatcher = new ClipboardWatcher(db, clipboard, log, AI, ocrService);
   clipboardWatcher.start();
 
   // 创建窗口和托盘

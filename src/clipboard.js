@@ -6,11 +6,12 @@ const path = require('path');
 const { app } = require('electron');
 
 class ClipboardWatcher {
-  constructor(db, clipboard, log, ai) {
+  constructor(db, clipboard, log, ai, ocr) {
     this.db = db;
     this.clipboard = clipboard;
     this.log = log;
     this.ai = ai;
+    this.ocr = ocr; // v0.17.0 OCR服务
     this.interval = null;
     this.lastText = '';
     this.lastImage = '';
@@ -167,14 +168,35 @@ class ClipboardWatcher {
       const filename = `clip_${Date.now()}.png`;
       const filepath = path.join(dataDir, filename);
 
-      fs.writeFileSync(filepath, image.toPNG());
+      const imageBuffer = image.toPNG();
+      fs.writeFileSync(filepath, imageBuffer);
 
-      // 保存到数据库
+      // v0.17.0: 异步进行 OCR 识别
+      let ocrText = null;
+      if (this.ocr) {
+        this.ocr.recognizeClipboardImage(imageBuffer).then(ocrResult => {
+          if (ocrResult.success && ocrResult.text) {
+            // 更新记录的 OCR 文本
+            this.db.updateOCRText(record.id, ocrResult.text);
+            this.log.info(`图片 OCR 完成: ${ocrResult.text.substring(0, 50)}...`);
+            
+            // 通知渲染进程更新
+            if (global.mainWindow && !global.mainWindow.isDestroyed()) {
+              global.mainWindow.webContents.send('ocr-complete', { id: record.id, text: ocrResult.text });
+            }
+          }
+        }).catch(err => {
+          this.log.warn('OCR 识别失败:', err.message);
+        });
+      }
+
+      // 保存到数据库（先保存，OCR 结果异步更新）
       const record = this.db.addRecord({
         type: 'image',
         content: filepath,
         summary: '[图片]',
         source: 'clipboard',
+        ocr_text: ocrText, // 初始为空，OCR 完成后更新
       });
 
       this.log.info(`新图片记录: ${filename}`);

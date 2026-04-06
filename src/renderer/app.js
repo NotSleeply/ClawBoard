@@ -206,12 +206,26 @@
     $('#btnEncrypt').addEventListener('click', handleEncryptRecord);
     $('#btnDecrypt').addEventListener('click', handleDecryptRecord);
 
+    // v0.17.0: OCR 复制按钮
+    $('#btnCopyOCR').addEventListener('click', handleCopyOCR);
+
     // 详情面板点击外部关闭
     detailPanel.addEventListener('click', (e) => {
       if (e.target === detailPanel) {
         closeDetailPanel();
       }
     });
+  }
+
+  // v0.17.0: 复制 OCR 结果
+  async function handleCopyOCR() {
+    if (!selectedRecord || !selectedRecord.ocr_text) return;
+    try {
+      await window.electron.copyToClipboard(selectedRecord.ocr_text);
+      showToast('📋 OCR 文字已复制', 'success');
+    } catch (err) {
+      showToast('复制失败', 'error');
+    }
   }
 
   function setupIpcListeners() {
@@ -618,6 +632,31 @@
 
     renderPreviewContent(record);
 
+    // v0.17.0: 显示 OCR 结果（图片类型）
+    const ocrSection = $('#ocrSection');
+    const ocrContent = $('#ocrContent');
+    const ocrStatus = $('#ocrStatus');
+    const btnCopyOCR = $('#btnCopyOCR');
+    
+    if (record.type === 'image') {
+      ocrSection.style.display = 'block';
+      if (record.ocr_text) {
+        ocrContent.textContent = record.ocr_text;
+        ocrStatus.textContent = '✓ 识别完成';
+        ocrStatus.className = 'ocr-status completed';
+        btnCopyOCR.style.display = 'inline-block';
+      } else {
+        ocrContent.textContent = '';
+        ocrStatus.textContent = '⏳ 识别中...';
+        ocrStatus.className = 'ocr-status processing';
+        btnCopyOCR.style.display = 'none';
+        // 异步获取 OCR 结果
+        loadOCRText(record.id);
+      }
+    } else {
+      ocrSection.style.display = 'none';
+    }
+
     // AI 摘要和语言标签
     const footer = $('#detailFooter');
     let footerHtml = '';
@@ -633,6 +672,24 @@
       `;
     }
     footer.innerHTML = footerHtml;
+  }
+
+  // v0.17.0: 异步加载 OCR 文本
+  async function loadOCRText(recordId) {
+    try {
+      const ocrText = await window.electron.getOCRText(recordId);
+      if (ocrText && selectedRecord && selectedRecord.id === recordId) {
+        const ocrContent = $('#ocrContent');
+        const ocrStatus = $('#ocrStatus');
+        const btnCopyOCR = $('#btnCopyOCR');
+        ocrContent.textContent = ocrText;
+        ocrStatus.textContent = '✓ 识别完成';
+        ocrStatus.className = 'ocr-status completed';
+        btnCopyOCR.style.display = 'inline-block';
+      }
+    } catch (err) {
+      console.error('获取 OCR 文本失败:', err);
+    }
   }
 
   function closeDetailPanel() {
