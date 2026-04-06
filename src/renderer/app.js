@@ -19,6 +19,10 @@
   let currentViewMode = 'list';
   // 加密状态
   let isEncryptionUnlocked = false;
+  // 标签筛选
+  let currentTag = null;
+  // 预设标签颜色
+  const tagColors = ['#f97316', '#3b82f6', '#22c55e', '#a855f7', '#ec4899', '#eab308', '#06b6d4', '#ef4444'];
 
   // ==================== DOM 元素 ====================
   const $ = (sel) => document.querySelector(sel);
@@ -199,6 +203,40 @@
       $('#statsOverlay').classList.add('show');
       await loadDetailedStats();
     });
+
+    // 标签面板
+    $('#btnTags').addEventListener('click', async () => {
+      $('#tagsOverlay').classList.add('show');
+      await loadTags();
+    });
+    $('#btnCloseTags').addEventListener('click', () => {
+      $('#tagsOverlay').classList.remove('show');
+    });
+    $('#tagsOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#tagsOverlay')) {
+        $('#tagsOverlay').classList.remove('show');
+      }
+    });
+    $('#btnClearTagFilter').addEventListener('click', () => {
+      currentTag = null;
+      $('#tagsFilter').style.display = 'none';
+      $('#currentTagFilter').textContent = '';
+      loadRecords();
+    });
+
+    // 标签输入
+    $('#btnCloseTagInput').addEventListener('click', () => {
+      $('#tagInputOverlay').classList.remove('show');
+    });
+    $('#tagInputOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#tagInputOverlay')) {
+        $('#tagInputOverlay').classList.remove('show');
+      }
+    });
+    $('#btnConfirmTag').addEventListener('click', handleConfirmTag);
+    $('#newTagInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleConfirmTag();
+    });
     $('#btnCloseStats').addEventListener('click', () => {
       $('#statsOverlay').classList.remove('show');
     });
@@ -220,6 +258,10 @@
     $('#btnLockEncryption').addEventListener('click', handleLockEncryption);
     $('#btnEncrypt').addEventListener('click', handleEncryptRecord);
     $('#btnDecrypt').addEventListener('click', handleDecryptRecord);
+    $('#btnAddTag').addEventListener('click', () => {
+      $('#tagInputOverlay').classList.add('show');
+      $('#newTagInput').focus();
+    });
 
     // v0.17.0: OCR 复制按钮
     $('#btnCopyOCR').addEventListener('click', handleCopyOCR);
@@ -276,6 +318,10 @@
         options.favorite = true;
       } else if (currentFilter !== 'all') {
         options.type = currentFilter;
+      }
+
+      if (currentTag) {
+        options.tag = currentTag;
       }
 
       if (searchQuery) {
@@ -561,6 +607,92 @@
     });
   }
 
+  async function loadTags() {
+    const tagsList = $('#tagsList');
+    tagsList.innerHTML = '<div class="spinner" style="margin:2rem auto"></div>';
+
+    try {
+      const tags = await window.ClawBoard.getAllTags();
+      if (tags.length === 0) {
+        tagsList.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">暂无标签，添加记录后自动显示</p>';
+        return;
+      }
+
+      tagsList.innerHTML = '';
+      tags.forEach((item, index) => {
+        const color = tagColors[index % tagColors.length];
+        const tagEl = document.createElement('div');
+        tagEl.className = 'tag-item';
+        tagEl.innerHTML = `
+          <span class="tag-dot" style="background:${color}"></span>
+          <span class="tag-name">${escapeHtml(item.tag)}</span>
+          <span class="tag-count">${item.count}条</span>
+          <button class="tag-delete" data-tag="${escapeHtml(item.tag)}" title="删除标签">×</button>
+        `;
+        tagEl.querySelector('.tag-name').addEventListener('click', () => {
+          currentTag = item.tag;
+          $('#currentTagFilter').textContent = item.tag;
+          $('#tagsFilter').style.display = '';
+          $('#tagsOverlay').classList.remove('show');
+          loadRecords();
+        });
+        tagEl.querySelector('.tag-delete').addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm(`确定删除标签 "${item.tag}" 吗？`)) return;
+          await window.ClawBoard.deleteTag(item.tag);
+          showToast(`已删除标签 "${item.tag}"`, 'success');
+          await loadTags();
+        });
+        tagsList.appendChild(tagEl);
+      });
+    } catch (err) {
+      tagsList.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">加载失败</p>';
+    }
+  }
+
+  async function handleConfirmTag() {
+    if (!selectedRecord) return;
+    const input = $('#newTagInput');
+    const tag = input.value.trim();
+    if (!tag) {
+      showToast('请输入标签名', 'error');
+      return;
+    }
+    try {
+      await window.ClawBoard.addTag(selectedRecord.id, tag);
+      selectedRecord.tags = selectedRecord.tags || '[]';
+      let tags;
+      try {
+        tags = JSON.parse(selectedRecord.tags);
+      } catch { tags = []; }
+      if (!tags.includes(tag)) tags.push(tag);
+      selectedRecord.tags = JSON.stringify(tags);
+      input.value = '';
+      $('#tagInputOverlay').classList.remove('show');
+      renderTagsInDetail();
+      showToast(`已添加标签 "${tag}"`, 'success');
+      await loadTags();
+    } catch (err) {
+      showToast('添加失败', 'error');
+    }
+  }
+
+  function renderTagsInDetail() {
+    const footer = $('#detailFooter');
+    let tagsHtml = '';
+    try {
+      const tags = JSON.parse(selectedRecord.tags || '[]');
+      if (tags.length > 0) {
+        tagsHtml = `
+          <div class="record-tags" style="margin-top:0.5rem">
+            ${tags.map(t => `<span class="record-tag">${escapeHtml(t)}</span>`).join('')}
+          </div>
+        `;
+      }
+    } catch (e) {}
+    footer.innerHTML += tagsHtml;
+  }
+
   function groupRecordsByTime(records) {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -624,6 +756,14 @@
 
     const timeAgo = formatTimeAgo(new Date(record.created_at));
     const encryptedBadge = record.encrypted ? '<span class="encrypted-badge">🔒</span>' : '';
+    // 标签
+    let tagsHtml = '';
+    try {
+      const tags = JSON.parse(record.tags || '[]');
+      if (tags.length > 0) {
+        tagsHtml = `<div class="record-tags">${tags.slice(0, 3).map(t => `<span class="record-tag">${escapeHtml(t)}</span>`).join('')}${tags.length > 3 ? `<span class="record-tag">+${tags.length - 3}</span>` : ''}</div>`;
+      }
+    } catch (e) {}
 
     // 多选模式下显示复选框
     const checkboxHtml = isMultiSelectMode
@@ -641,6 +781,7 @@
         </span>
       </div>
       <div class="record-content ${record.type}">${formatContent(record)}</div>
+      ${tagsHtml}
     `;
 
     card.addEventListener('click', (e) => {

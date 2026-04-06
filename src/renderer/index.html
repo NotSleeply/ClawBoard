@@ -27,6 +27,7 @@
     </div>
     <div class="header-right">
       <button class="icon-btn" id="btnViewToggle" title="切换视图">📋</button>
+      <button class="icon-btn" id="btnTags" title="标签">🏷️</button>
       <button class="icon-btn" id="btnStats" title="统计">📊</button>
       <button class="icon-btn" id="btnEncryption" title="加密">🔒</button>
       <button class="icon-btn" id="btnMultiSelect" title="多选模式">☑️</button>
@@ -95,6 +96,7 @@
         </div>
         <button class="detail-btn" id="btnCopy" title="复制">📋 复制</button>
         <button class="detail-btn" id="btnFavorite" title="收藏">☆ 收藏</button>
+        <button class="detail-btn" id="btnAddTag" title="添加标签">🏷️ 标签</button>
         <button class="detail-btn" id="btnEncrypt" title="加密" style="display:none">🔒 加密</button>
         <button class="detail-btn" id="btnDecrypt" title="解密" style="display:none">🔓 查看</button>
         <button class="detail-btn danger" id="btnDelete" title="删除">🗑️ 删除</button>
@@ -117,6 +119,45 @@
     </div>
     <div class="detail-footer" id="detailFooter">
       <!-- AI 摘要等 -->
+    </div>
+  </div>
+
+  <!-- 标签管理面板 -->
+  <div class="settings-overlay" id="tagsOverlay">
+    <div class="settings-panel tags-panel">
+      <div class="settings-header">
+        <h2>🏷️ 标签管理</h2>
+        <button class="detail-close" id="btnCloseTags">×</button>
+      </div>
+      <div class="settings-body" id="tagsContent">
+        <div class="tags-list" id="tagsList"></div>
+        <div class="tags-filter" id="tagsFilter" style="display:none">
+          <div class="tags-filter-header">
+            <span>当前筛选: <strong id="currentTagFilter"></strong></span>
+            <button class="btn-secondary btn-sm" id="btnClearTagFilter">清除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 标签输入对话框 -->
+  <div class="settings-overlay" id="tagInputOverlay">
+    <div class="encryption-panel" style="width:360px">
+      <div class="encryption-header">
+        <h2>🏷️ 添加标签</h2>
+        <button class="detail-close" id="btnCloseTagInput">×</button>
+      </div>
+      <div class="encryption-body">
+        <div class="setting-item">
+          <label>标签名称</label>
+          <input type="text" id="newTagInput" placeholder="输入标签名">
+        </div>
+        <div class="tags-presets" id="tagsPresets"></div>
+      </div>
+      <div class="settings-footer">
+        <button class="btn-primary" id="btnConfirmTag">添加</button>
+      </div>
     </div>
   </div>
 
