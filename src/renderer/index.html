@@ -27,6 +27,7 @@
     </div>
     <div class="header-right">
       <button class="icon-btn" id="btnViewToggle" title="切换视图">📋</button>
+      <button class="icon-btn" id="btnStats" title="统计">📊</button>
       <button class="icon-btn" id="btnEncryption" title="加密">🔒</button>
       <button class="icon-btn" id="btnMultiSelect" title="多选模式">☑️</button>
       <span class="stats-badge" id="statsBadge" title="总记录数">
@@ -116,6 +117,22 @@
     </div>
     <div class="detail-footer" id="detailFooter">
       <!-- AI 摘要等 -->
+    </div>
+  </div>
+
+  <!-- 统计面板 -->
+  <div class="settings-overlay" id="statsOverlay">
+    <div class="settings-panel stats-panel">
+      <div class="settings-header">
+        <h2>📊 使用统计</h2>
+        <button class="detail-close" id="btnCloseStats">×</button>
+      </div>
+      <div class="settings-body" id="statsContent">
+        <div class="stats-loading" id="statsLoading">
+          <div class="spinner"></div>
+          <span>加载中...</span>
+        </div>
+      </div>
     </div>
   </div>
 
