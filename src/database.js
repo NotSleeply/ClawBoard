@@ -75,6 +75,9 @@ class Database {
         content TEXT NOT NULL,
         summary TEXT,
         source TEXT DEFAULT 'clipboard',
+        source_app TEXT,
+        source_title TEXT,
+        source_url TEXT,
         favorite INTEGER DEFAULT 0,
         tags TEXT DEFAULT '[]',
         ai_summary TEXT,
@@ -87,12 +90,14 @@ class Database {
       )
     `);
 
-    // 添加 encrypted 列（如果不存在）
-    try {
-      this.db.run(`ALTER TABLE records ADD COLUMN encrypted INTEGER DEFAULT 0`);
-    } catch (e) {
-      // 列已存在，忽略
-    }
+    // 添加新列（如果不存在）
+    ['source_app', 'source_title', 'source_url'].forEach(col => {
+      try {
+        this.db.run(`ALTER TABLE records ADD COLUMN ${col} TEXT`);
+      } catch (e) {
+        // 列已存在，忽略
+      }
+    });
 
     // 添加 ocr_text 列（如果不存在）- v0.17.0 OCR功能
     try {
@@ -134,20 +139,20 @@ class Database {
   }
 
   // 添加记录
-  addRecord({ type, content, summary, source, tags = '[]', ai_summary = null, embedding = null, language = null, encrypted = false, ocr_text = null }) {
+  addRecord({ type, content, summary, source, source_app, source_title, source_url, tags = '[]', ai_summary = null, embedding = null, language = null, encrypted = false, ocr_text = null }) {
     let finalContent = content;
     if (encrypted && this.encryptionKey) {
       finalContent = this._encrypt(content, this.encryptionKey);
     }
-    
+
     this.db.run(
-      `INSERT INTO records (type, content, summary, source, tags, ai_summary, embedding, language, encrypted, ocr_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [type, finalContent, summary, source, tags, ai_summary, embedding, language, encrypted ? 1 : 0, ocr_text]
+      `INSERT INTO records (type, content, summary, source, source_app, source_title, source_url, tags, ai_summary, embedding, language, encrypted, ocr_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [type, finalContent, summary, source || 'clipboard', source_app || null, source_title || null, source_url || null, tags, ai_summary, embedding, language, encrypted ? 1 : 0, ocr_text]
     );
-    
+
     // 自动清理旧记录（保留收藏）
     this._autoCleanup();
-    
+
     const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
     this._save();
     return this.getRecord(id);
@@ -242,7 +247,7 @@ class Database {
   }
 
   // 获取记录列表
-  getRecords({ type, limit = 50, offset = 0, search, favorite } = {}) {
+  getRecords({ type, limit = 50, offset = 0, search, favorite, sourceApp } = {}) {
     let sql = 'SELECT * FROM records WHERE 1=1';
     const params = [];
 
@@ -262,12 +267,32 @@ class Database {
       sql += ' AND encrypted = 0';
     }
 
+    // 按来源应用筛选
+    if (sourceApp) {
+      sql += ' AND source_app = ?';
+      params.push(sourceApp);
+    }
+
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
     const result = this.db.exec(sql, params);
     if (result.length === 0) return [];
     return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
+  }
+
+  // 获取来源应用列表及其记录数
+  getSourceApps() {
+    const result = this.db.exec(`
+      SELECT source_app, COUNT(*) as count
+      FROM records
+      WHERE source_app IS NOT NULL AND source_app != ''
+      GROUP BY source_app
+      ORDER BY count DESC
+      LIMIT 20
+    `);
+    if (result.length === 0) return [];
+    return result[0].values.map(([app, count]) => ({ app, count }));
   }
 
   // 搜索（支持关键词 + 语义搜索）

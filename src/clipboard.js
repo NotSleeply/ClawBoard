@@ -16,6 +16,11 @@ class ClipboardWatcher {
     this.lastText = '';
     this.lastImage = '';
     this.pollInterval = 1000; // 每秒检查一次
+    this.currentSource = { app: null, title: null, url: null }; // 来源应用信息
+  }
+
+  setCurrentSource(source) {
+    this.currentSource = { ...this.currentSource, ...source };
   }
 
   start() {
