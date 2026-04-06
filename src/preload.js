@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   clearHistory: () => ipcRenderer.invoke('clear-history'),
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
   getStats: () => ipcRenderer.invoke('get-stats'),
+  getDetailedStats: () => ipcRenderer.invoke('get-detailed-stats'),
   
   // 搜索相关
   search: (query) => ipcRenderer.invoke('search', query),

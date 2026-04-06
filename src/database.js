@@ -397,6 +397,92 @@ class Database {
     return { total, text, image, file, code, favorite };
   }
 
+  // 获取详细统计
+  getDetailedStats() {
+    const basic = this.getStats();
+
+    // 今日记录数
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayCount = this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at >= ?`, [todayStart.toISOString()])[0]?.values[0][0] || 0;
+
+    // 本周记录数
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    const weekCount = this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at >= ?`, [weekStart.toISOString()])[0]?.values[0][0] || 0;
+
+    // 本月记录数
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const monthCount = this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at >= ?`, [monthStart.toISOString()])[0]?.values[0][0] || 0;
+
+    // 平均每日记录数
+    const firstRecord = this.db.exec(`SELECT MIN(created_at) FROM records`)[0]?.values[0][0];
+    let avgPerDay = 0;
+    if (firstRecord) {
+      const days = Math.max(1, Math.ceil((Date.now() - new Date(firstRecord).getTime()) / (1000 * 60 * 60 * 24)));
+      avgPerDay = Math.round((basic.total / days) * 10) / 10;
+    }
+
+    // 最活跃时段（按小时统计）
+    const hourlyStats = this.db.exec(`
+      SELECT strftime('%H', created_at) as hour, COUNT(*) as count
+      FROM records
+      GROUP BY hour
+      ORDER BY count DESC
+      LIMIT 3
+    `);
+    const peakHours = hourlyStats.length > 0
+      ? hourlyStats[0].values.map(([h, c]) => ({ hour: parseInt(h), count: c }))
+      : [];
+
+    // 类型占比
+    const typePercent = {};
+    if (basic.total > 0) {
+      typePercent.text = Math.round((basic.text / basic.total) * 100);
+      typePercent.image = Math.round((basic.image / basic.total) * 100);
+      typePercent.file = Math.round((basic.file / basic.total) * 100);
+      typePercent.code = Math.round((basic.code / basic.total) * 100);
+    }
+
+    // 最近7天趋势
+    const trend = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const nextD = new Date(d);
+      nextD.setDate(nextD.getDate() + 1);
+      const count = this.db.exec(
+        `SELECT COUNT(*) FROM records WHERE created_at >= ? AND created_at < ?`,
+        [d.toISOString(), nextD.toISOString()]
+      )[0]?.values[0][0] || 0;
+      trend.push({
+        date: d.toISOString().slice(0, 10),
+        label: `${d.getMonth() + 1}/${d.getDate()}`,
+        count,
+      });
+    }
+
+    // 加密记录数
+    const encrypted = this.db.exec(`SELECT COUNT(*) FROM records WHERE encrypted = 1`)[0]?.values[0][0] || 0;
+
+    return {
+      ...basic,
+      today: todayCount,
+      week: weekCount,
+      month: monthCount,
+      avgPerDay,
+      peakHours,
+      typePercent,
+      trend,
+      encrypted,
+      firstRecordDate: firstRecord,
+    };
+  }
+
   // 获取设置
   getSettings() {
     const result = this.db.exec(`SELECT key, value FROM settings`);

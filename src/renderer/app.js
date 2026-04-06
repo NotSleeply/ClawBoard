@@ -193,6 +193,21 @@
       $('#encryptionOverlay').classList.add('show');
       updateEncryptionUI();
     });
+
+    // 统计面板
+    $('#btnStats').addEventListener('click', async () => {
+      $('#statsOverlay').classList.add('show');
+      await loadDetailedStats();
+    });
+    $('#btnCloseStats').addEventListener('click', () => {
+      $('#statsOverlay').classList.remove('show');
+    });
+    $('#statsOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#statsOverlay')) {
+        $('#statsOverlay').classList.remove('show');
+      }
+    });
+
     $('#btnCloseEncryption').addEventListener('click', () => {
       $('#encryptionOverlay').classList.remove('show');
     });
@@ -285,6 +300,138 @@
       totalCount.textContent = stats.total;
     } catch (err) {
       console.error('加载统计失败:', err);
+    }
+  }
+
+  async function loadDetailedStats() {
+    const loading = $('#statsLoading');
+    const content = $('#statsContent');
+    loading.style.display = 'flex';
+
+    try {
+      const stats = await window.ClawBoard.getDetailedStats();
+      loading.style.display = 'none';
+
+      if (!stats) {
+        content.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">加载失败</p>';
+        return;
+      }
+
+      // 类型颜色
+      const typeColors = {
+        text: '#3b82f6',
+        code: '#a855f7',
+        file: '#22c55e',
+        image: '#f97316',
+      };
+
+      // 渲染统计面板
+      let html = `
+        <div class="stats-grid">
+          <div class="stats-card">
+            <div class="stats-card-value">${stats.total}</div>
+            <div class="stats-card-label">总记录数</div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-value">${stats.today}</div>
+            <div class="stats-card-label">今日新增</div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-value">${stats.week}</div>
+            <div class="stats-card-label">本周新增</div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-value">${stats.avgPerDay}</div>
+            <div class="stats-card-label">日均记录</div>
+          </div>
+        </div>
+
+        <div class="stats-section">
+          <div class="stats-section-title">📈 近7天趋势</div>
+          <div class="stats-trend">
+      `;
+
+      const maxTrend = Math.max(...stats.trend.map(t => t.count), 1);
+      stats.trend.forEach(day => {
+        const height = Math.max(4, Math.round((day.count / maxTrend) * 70));
+        html += `
+          <div class="stats-trend-bar" style="height:${height}px">
+            <span class="bar-label">${day.label}</span>
+          </div>
+        `;
+      });
+
+      html += `
+          </div>
+        </div>
+
+        <div class="stats-section">
+          <div class="stats-section-title">📂 类型分布</div>
+      `;
+
+      const typeLabels = { text: '文字', code: '代码', file: '文件', image: '图片' };
+      for (const [type, pct] of Object.entries(stats.typePercent)) {
+        html += `
+          <div class="stats-type-row">
+            <span class="stats-type-label">${typeLabels[type] || type}</span>
+            <div class="stats-type-bar">
+              <div class="stats-type-bar-fill" style="width:${pct}%;background:${typeColors[type] || 'var(--accent)'}"></div>
+            </div>
+            <span class="stats-type-pct">${pct}%</span>
+          </div>
+        `;
+      }
+
+      html += `
+          </div>
+      `;
+
+      // 最活跃时段
+      if (stats.peakHours && stats.peakHours.length > 0) {
+        html += `
+          <div class="stats-section">
+            <div class="stats-section-title">⏰ 最活跃时段</div>
+            <div class="stats-peak-hours">
+        `;
+        stats.peakHours.forEach(h => {
+          const label = `${String(h.hour).padStart(2, '0')}:00`;
+          html += `<span class="stats-peak-hour">${label} (${h.count}条)</span>`;
+        });
+        html += `
+            </div>
+          </div>
+        `;
+      }
+
+      // 其他统计
+      html += `
+        <div class="stats-section">
+          <div class="stats-section-title">📋 其他统计</div>
+        </div>
+        <div class="stats-grid">
+          <div class="stats-card">
+            <div class="stats-card-value">${stats.favorite}</div>
+            <div class="stats-card-label">⭐ 收藏数</div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-value">${stats.encrypted}</div>
+            <div class="stats-card-label">🔒 加密数</div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-value">${stats.month}</div>
+            <div class="stats-card-label">本月记录</div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-value">${stats.code}</div>
+            <div class="stats-card-label">💻 代码数</div>
+          </div>
+        </div>
+      `;
+
+      content.innerHTML = html;
+    } catch (err) {
+      loading.style.display = 'none';
+      content.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">加载失败: ' + err.message + '</p>';
     }
   }
 

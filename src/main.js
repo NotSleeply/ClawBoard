@@ -233,6 +233,16 @@ function setupIPC() {
     }
   });
 
+  // 获取详细统计
+  ipcMain.handle('get-detailed-stats', async () => {
+    try {
+      return db.getDetailedStats();
+    } catch (err) {
+      log.error('get-detailed-stats error:', err);
+      return null;
+    }
+  });
+
   // AI 摘要（占位）
   ipcMain.handle('ai-summary', async (event, text) => {
     try {
