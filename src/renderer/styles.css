@@ -267,3 +267,15 @@ input{font-family:inherit;outline:none}
 .ocr-copy-btn{margin-top:0.8rem;padding:0.4rem 0.8rem;border-radius:6px;background:var(--accent-bg);color:var(--accent);font-size:0.8rem;transition:all 0.2s;border:1px solid transparent}
 .ocr-copy-btn:hover{background:var(--accent);color:#fff}
 .ocr-badge{font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(59,130,246,0.15);color:#93c5fd;margin-left:0.3rem}
+
+/* v0.23.0: 内容合并样式 */
+.merge-separator-options{display:flex;gap:0.5rem;flex-wrap:wrap}
+.merge-option{display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.8rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all 0.2s}
+.merge-option:hover{border-color:var(--accent)}
+.merge-option input[type="radio"]{margin:0}
+.merge-option:has(input:checked){background:var(--accent-bg);border-color:var(--accent)}
+.merge-preview{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;font-size:0.85rem;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto}
+.merge-preview span{color:var(--accent);font-weight:bold}
+.record-card.merged-card{border-color:rgba(168,85,247,0.2);background:rgba(168,85,247,0.05)}
+.record-card.merged-card::before{background:#a855f7}
+.merged-badge{font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(168,85,247,0.15);color:#c4b5fd;margin-left:0.3rem}

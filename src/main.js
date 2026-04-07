@@ -595,6 +595,17 @@ ipcMain.handle('remove-encryption', async (event, id) => {
   }
 });
 
+// v0.23.0: 保存记录（用于合并功能）
+ipcMain.handle('save-record', async (event, record) => {
+  try {
+    const result = db.addRecord(record);
+    return { success: true, record: result };
+  } catch (err) {
+    log.error('save-record error:', err);
+    return { success: false, message: err.message };
+  }
+});
+
 // 应用启动
 app.whenReady().then(async () => {
   log.info('应用准备就绪');

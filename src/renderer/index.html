@@ -53,6 +53,7 @@
   <!-- 批量操作栏 -->
   <div class="batch-bar" id="batchBar">
     <span class="batch-count">已选 <strong id="selectedCount">0</strong> 条</span>
+    <button class="batch-btn" id="btnBatchMerge" title="合并内容">🔗 合并</button>
     <button class="batch-btn" id="btnBatchFavorite" title="批量收藏">⭐ 收藏</button>
     <button class="batch-btn" id="btnBatchExport" title="批量导出">📥 导出</button>
     <button class="batch-btn danger" id="btnBatchDelete" title="批量删除">🗑️ 删除</button>
@@ -294,6 +295,54 @@
       </div>
       <div class="settings-footer">
         <button class="btn-primary" id="btnConfirmEncryption">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 合并内容对话框 -->
+  <div class="settings-overlay" id="mergeOverlay">
+    <div class="encryption-panel" style="width:480px;max-width:90vw">
+      <div class="encryption-header">
+        <h2>🔗 合并内容</h2>
+        <button class="detail-close" id="btnCloseMerge">×</button>
+      </div>
+      <div class="encryption-body">
+        <div class="setting-item">
+          <label>分隔符</label>
+          <div class="merge-separator-options">
+            <label class="merge-option">
+              <input type="radio" name="mergeSeparator" value="\n\n" checked>
+              <span>双换行</span>
+            </label>
+            <label class="merge-option">
+              <input type="radio" name="mergeSeparator" value="\n">
+              <span>换行</span>
+            </label>
+            <label class="merge-option">
+              <input type="radio" name="mergeSeparator" value=" ">
+              <span>空格</span>
+            </label>
+            <label class="merge-option">
+              <input type="radio" name="mergeSeparator" value="custom">
+              <span>自定义</span>
+            </label>
+          </div>
+          <input type="text" id="customSeparator" placeholder="输入自定义分隔符" style="margin-top:0.5rem;display:none">
+        </div>
+        <div class="setting-item">
+          <label>合并预览（<span id="mergePreviewCount">0</span> 条）</label>
+          <div class="merge-preview" id="mergePreview" style="max-height:200px;overflow:auto;background:var(--surface);padding:0.75rem;border-radius:0.5rem;font-size:0.85rem;line-height:1.5"></div>
+        </div>
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" id="mergeKeepOriginals" checked>
+            保留原始记录
+          </label>
+        </div>
+      </div>
+      <div class="settings-footer">
+        <button class="btn-secondary" id="btnCancelMerge">取消</button>
+        <button class="btn-primary" id="btnConfirmMerge">确认合并</button>
       </div>
     </div>
   </div>
