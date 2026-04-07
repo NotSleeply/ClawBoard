@@ -215,10 +215,10 @@ class Database {
   _autoCleanup() {
     const settings = this.getSettings();
     const maxRecords = settings.maxRecords || 1000;
-    
+
     // 获取总记录数
     const total = this.db.exec(`SELECT COUNT(*) FROM records`)[0]?.values[0][0] || 0;
-    
+
     if (total > maxRecords) {
       // 删除最早的未收藏且未锁定的记录
       const deleteCount = total - maxRecords;
@@ -230,6 +230,127 @@ class Database {
       );
       console.log(`自动清理了 ${deleteCount} 条旧记录`);
     }
+  }
+
+  // ==================== 智能去重 ====================
+  // 计算文本相似度（基于编辑距离）
+  _levenshteinDistance(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j;
+    }
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+    return matrix[b.length][a.length];
+  }
+
+  // 计算相似度（0-1）
+  _similarity(a, b) {
+    if (!a || !b) return 0;
+    const maxLen = Math.max(a.length, b.length);
+    if (maxLen === 0) return 1;
+    const dist = this._levenshteinDistance(a, b);
+    return 1 - dist / maxLen;
+  }
+
+  // 查找相似记录
+  findSimilar(content, threshold = 0.8, limit = 5) {
+    if (!content || content.length < 10) return [];
+
+    const result = this.db.exec(`
+      SELECT id, content, created_at, favorite, type
+      FROM records
+      WHERE encrypted = 0 AND type = 'text'
+      ORDER BY created_at DESC
+      LIMIT 100
+    `);
+
+    if (result.length === 0 || result[0].values.length === 0) return [];
+
+    const similar = [];
+    for (const row of result[0].values) {
+      const [id, recordContent, createdAt, favorite, type] = row;
+      const sim = this._similarity(content, recordContent);
+      if (sim >= threshold && sim < 1) { // 排除完全相同
+        similar.push({
+          id,
+          content: recordContent.substring(0, 200),
+          similarity: Math.round(sim * 100),
+          created_at: createdAt,
+          favorite: favorite === 1,
+          type,
+        });
+        if (similar.length >= limit) break;
+      }
+    }
+
+    return similar.sort((a, b) => b.similarity - a.similarity);
+  }
+
+  // 检查完全重复
+  findExactDuplicate(content) {
+    const result = this.db.exec(
+      `SELECT id, created_at FROM records WHERE content = ? AND encrypted = 0 LIMIT 1`,
+      [content]
+    );
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    return { id: result[0].values[0][0], created_at: result[0].values[0][1] };
+  }
+
+  // 批量查找重复记录
+  findDuplicates() {
+    const result = this.db.exec(`
+      SELECT content, COUNT(*) as count, GROUP_CONCAT(id) as ids
+      FROM records
+      WHERE encrypted = 0
+      GROUP BY content
+      HAVING count > 1
+      ORDER BY count DESC
+      LIMIT 50
+    `);
+
+    if (result.length === 0) return [];
+    return result[0].values.map(([content, count, ids]) => ({
+      content: content.substring(0, 100),
+      count,
+      ids: ids.split(',').map(Number),
+    }));
+  }
+
+  // 清理重复记录（保留最新的一条）
+  cleanupDuplicates() {
+    const duplicates = this.findDuplicates();
+    let deletedCount = 0;
+
+    for (const dup of duplicates) {
+      // 保留最后一条，删除其他的
+      const idsToDelete = dup.ids.slice(0, -1);
+      for (const id of idsToDelete) {
+        this.db.run(`DELETE FROM records WHERE id = ? AND favorite = 0 AND locked = 0`, [id]);
+        deletedCount++;
+      }
+    }
+
+    if (deletedCount > 0) {
+      this._save();
+    }
+    return deletedCount;
   }
 
   // 切换锁定状态

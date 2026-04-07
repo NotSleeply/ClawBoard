@@ -290,6 +290,34 @@ function setupIPC() {
     }
   });
 
+  // 智能去重相关
+  ipcMain.handle('find-similar', async (event, content) => {
+    try {
+      return db.findSimilar(content);
+    } catch (err) {
+      log.error('find-similar error:', err);
+      return [];
+    }
+  });
+
+  ipcMain.handle('find-duplicates', async () => {
+    try {
+      return db.findDuplicates();
+    } catch (err) {
+      log.error('find-duplicates error:', err);
+      return [];
+    }
+  });
+
+  ipcMain.handle('cleanup-duplicates', async () => {
+    try {
+      return db.cleanupDuplicates();
+    } catch (err) {
+      log.error('cleanup-duplicates error:', err);
+      return 0;
+    }
+  });
+
   // 更新当前来源应用（由剪贴板监控调用）
   ipcMain.handle('set-current-source', async (event, { app, title, url }) => {
     try {

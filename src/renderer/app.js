@@ -164,6 +164,7 @@
 
     $('#btnSaveSettings').addEventListener('click', handleSaveSettings);
     $('#btnClearHistory').addEventListener('click', handleClearHistory);
+    $('#btnFindDuplicates').addEventListener('click', handleFindDuplicates);
 
     // 详情面板
     $('#btnCloseDetail').addEventListener('click', closeDetailPanel);
@@ -1283,6 +1284,37 @@
       showToast('🗑️ 历史已清空', 'success');
     } catch (err) {
       showToast('❌ 清空失败', 'error');
+    }
+  }
+
+  async function handleFindDuplicates() {
+    const resultDiv = $('#duplicatesResult');
+    resultDiv.innerHTML = '<span style="color:var(--muted)">扫描中...</span>';
+
+    try {
+      const duplicates = await window.ClawBoard.findDuplicates();
+
+      if (duplicates.length === 0) {
+        resultDiv.innerHTML = '<span style="color:var(--green)">✅ 未发现重复内容</span>';
+        return;
+      }
+
+      const totalCount = duplicates.reduce((sum, d) => sum + d.count - 1, 0);
+      resultDiv.innerHTML = `
+        <div style="color:var(--muted);margin-bottom:0.5rem">
+          发现 ${duplicates.length} 组重复内容，共 ${totalCount} 条可清理
+        </div>
+        <button class="btn-danger" id="btnCleanupDuplicates">一键清理重复项</button>
+      `;
+      $('#btnCleanupDuplicates').addEventListener('click', async () => {
+        if (!confirm(`确定清理 ${totalCount} 条重复记录吗？\n将保留每组最新的一条。`)) return;
+        const deleted = await window.ClawBoard.cleanupDuplicates();
+        showToast(`已清理 ${deleted} 条重复记录`, 'success');
+        resultDiv.innerHTML = '<span style="color:var(--green)">✅ 清理完成</span>';
+        await loadStats();
+      });
+    } catch (err) {
+      resultDiv.innerHTML = '<span style="color:var(--red)">扫描失败</span>';
     }
   }
 
