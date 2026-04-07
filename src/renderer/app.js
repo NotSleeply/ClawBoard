@@ -186,9 +186,24 @@
     $('#btnMultiSelect').addEventListener('click', toggleMultiSelectMode);
     $('#btnSelectAll').addEventListener('click', handleSelectAll);
     $('#btnExitMultiSelect').addEventListener('click', () => setMultiSelectMode(false));
+    $('#btnBatchMerge').addEventListener('click', handleBatchMerge);
     $('#btnBatchFavorite').addEventListener('click', handleBatchFavorite);
     $('#btnBatchDelete').addEventListener('click', handleBatchDelete);
     $('#btnBatchExport').addEventListener('click', handleBatchExport);
+
+    // 合并对话框
+    $('#btnCloseMerge').addEventListener('click', () => {
+      $('#mergeOverlay').classList.remove('show');
+    });
+    $('#mergeOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#mergeOverlay')) {
+        $('#mergeOverlay').classList.remove('show');
+      }
+    });
+    $('#btnCancelMerge').addEventListener('click', () => {
+      $('#mergeOverlay').classList.remove('show');
+    });
+    $('#btnConfirmMerge').addEventListener('click', handleConfirmMerge);
 
     // 视图切换
     $('#btnViewToggle').addEventListener('click', toggleViewMode);
@@ -1084,6 +1099,127 @@
       await loadStats();
     } catch (err) {
       showToast('❌ 批量删除失败', 'error');
+    }
+  }
+
+  async function handleBatchMerge() {
+    if (selectedIds.size < 2) {
+      showToast('❌ 请至少选择 2 条记录进行合并', 'error');
+      return;
+    }
+
+    // 只支持文本和代码类型的合并
+    const selectedRecords = records.filter(r => selectedIds.has(r.id));
+    const mergeableRecords = selectedRecords.filter(r => r.type === 'text' || r.type === 'code');
+    
+    if (mergeableRecords.length < 2) {
+      showToast('❌ 请至少选择 2 条文本或代码记录', 'error');
+      return;
+    }
+
+    // 显示合并对话框
+    showMergeDialog(mergeableRecords);
+  }
+
+  function showMergeDialog(mergeableRecords) {
+    const overlay = $('#mergeOverlay');
+    const preview = $('#mergePreview');
+    const previewCount = $('#mergePreviewCount');
+    const customSep = $('#customSeparator');
+
+    // 更新预览
+    previewCount.textContent = mergeableRecords.length;
+    updateMergePreview(mergeableRecords);
+
+    // 显示对话框
+    overlay.classList.add('show');
+
+    // 监听分隔符变化
+    $$('input[name="mergeSeparator"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        customSep.style.display = radio.value === 'custom' ? 'block' : 'none';
+        updateMergePreview(mergeableRecords);
+      });
+    });
+
+    customSep.addEventListener('input', () => updateMergePreview(mergeableRecords));
+  }
+
+  function updateMergePreview(records) {
+    const preview = $('#mergePreview');
+    const separator = getSelectedSeparator();
+    
+    // 按时间排序（旧的在前面）
+    const sorted = [...records].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    
+    // 生成预览
+    const contents = sorted.map(r => {
+      let content = r.content;
+      if (content.length > 100) {
+        content = content.substring(0, 100) + '...';
+      }
+      return escapeHtml(content);
+    });
+    
+    preview.innerHTML = contents.join(`<span style="color:var(--primary);font-weight:bold">[${escapeHtml(separator)}]</span>`);
+  }
+
+  function getSelectedSeparator() {
+    const selected = $('input[name="mergeSeparator"]:checked');
+    if (selected.value === 'custom') {
+      return $('#customSeparator').value || '';
+    }
+    return selected.value;
+  }
+
+  async function handleConfirmMerge() {
+    const selectedRecords = records.filter(r => selectedIds.has(r.id) && (r.type === 'text' || r.type === 'code'));
+    const separator = getSelectedSeparator();
+    const keepOriginals = $('#mergeKeepOriginals').checked;
+
+    try {
+      // 按时间排序
+      const sorted = [...selectedRecords].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      
+      // 合并内容
+      const mergedContent = sorted.map(r => r.content).join(separator);
+      
+      // 收集所有标签
+      const allTags = new Set();
+      sorted.forEach(r => {
+        if (r.tags) {
+          r.tags.split(',').forEach(tag => allTags.add(tag.trim()));
+        }
+      });
+      
+      // 确定类型（如果有代码，优先代码）
+      const hasCode = sorted.some(r => r.type === 'code');
+      const mergedType = hasCode ? 'code' : 'text';
+      
+      // 保存合并后的记录
+      const mergedRecord = await window.ClawBoard.saveRecord({
+        type: mergedType,
+        content: mergedContent,
+        tags: Array.from(allTags).join(', '),
+        merged_from: sorted.map(r => r.id).join(','),
+        is_merged: true
+      });
+
+      // 如果不保留原始记录，删除它们
+      if (!keepOriginals) {
+        for (const r of sorted) {
+          await window.ClawBoard.deleteRecord(r.id);
+        }
+      }
+
+      showToast(`✅ 已合并 ${sorted.length} 条记录`, 'success');
+      $('#mergeOverlay').classList.remove('show');
+      setMultiSelectMode(false);
+      await loadRecords();
+      await loadStats();
+    } catch (err) {
+      console.error('合并失败:', err);
+      showToast('❌ 合并失败', 'error');
     }
   }
 

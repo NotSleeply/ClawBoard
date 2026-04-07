@@ -106,6 +106,15 @@ class Database {
       // 列已存在，忽略
     }
 
+    // 添加合并相关列（如果不存在）- v0.23.0 合并功能
+    ['merged_from', 'is_merged'].forEach(col => {
+      try {
+        this.db.run(`ALTER TABLE records ADD COLUMN ${col} TEXT`);
+      } catch (e) {
+        // 列已存在，忽略
+      }
+    });
+
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_type ON records(type)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_favorite ON records(favorite)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_created ON records(created_at DESC)`);
@@ -139,15 +148,15 @@ class Database {
   }
 
   // 添加记录
-  addRecord({ type, content, summary, source, source_app, source_title, source_url, tags = '[]', ai_summary = null, embedding = null, language = null, encrypted = false, ocr_text = null }) {
+  addRecord({ type, content, summary, source, source_app, source_title, source_url, tags = '[]', ai_summary = null, embedding = null, language = null, encrypted = false, ocr_text = null, merged_from = null, is_merged = false }) {
     let finalContent = content;
     if (encrypted && this.encryptionKey) {
       finalContent = this._encrypt(content, this.encryptionKey);
     }
 
     this.db.run(
-      `INSERT INTO records (type, content, summary, source, source_app, source_title, source_url, tags, ai_summary, embedding, language, encrypted, ocr_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [type, finalContent, summary, source || 'clipboard', source_app || null, source_title || null, source_url || null, tags, ai_summary, embedding, language, encrypted ? 1 : 0, ocr_text]
+      `INSERT INTO records (type, content, summary, source, source_app, source_title, source_url, tags, ai_summary, embedding, language, encrypted, ocr_text, merged_from, is_merged) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [type, finalContent, summary, source || 'clipboard', source_app || null, source_title || null, source_url || null, tags, ai_summary, embedding, language, encrypted ? 1 : 0, ocr_text, merged_from, is_merged ? 1 : 0]
     );
 
     // 自动清理旧记录（保留收藏）

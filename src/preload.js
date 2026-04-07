@@ -48,6 +48,9 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   ocrRecognize: (imagePath) => ipcRenderer.invoke('ocr-recognize', imagePath),
   getOCRText: (id) => ipcRenderer.invoke('get-ocr-text', id),
   
+  // v0.23.0: 保存记录（用于合并功能）
+  saveRecord: (record) => ipcRenderer.invoke('save-record', record),
+  
   // 事件监听
   onNewRecord: (callback) => {
     ipcRenderer.on('new-record', (event, record) => callback(record));
