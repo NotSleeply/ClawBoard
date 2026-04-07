@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   addTag: (recordId, tag) => ipcRenderer.invoke('add-tag', { recordId, tag }),
   removeTag: (recordId, tag) => ipcRenderer.invoke('remove-tag', { recordId, tag }),
   deleteTag: (tag) => ipcRenderer.invoke('delete-tag', tag),
+  findSimilar: (content) => ipcRenderer.invoke('find-similar', content),
+  findDuplicates: () => ipcRenderer.invoke('find-duplicates'),
+  cleanupDuplicates: () => ipcRenderer.invoke('cleanup-duplicates'),
   
   // 搜索相关
   search: (query) => ipcRenderer.invoke('search', query),
