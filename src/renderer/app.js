@@ -23,6 +23,12 @@
   let currentTag = null;
   // 预设标签颜色
   const tagColors = ['#f97316', '#3b82f6', '#22c55e', '#a855f7', '#ec4899', '#eab308', '#06b6d4', '#ef4444'];
+  
+  // 分组相关状态
+  let groups = [];
+  let currentGroupId = null; // null = 全部记录
+  let draggedRecord = null;
+  let draggedGroup = null;
 
   // ==================== DOM 元素 ====================
   const $ = (sel) => document.querySelector(sel);
@@ -43,6 +49,7 @@
   async function init() {
     setupEventListeners();
     initShortcutRecording();  // 初始化快捷键录制
+    await loadGroups();
     await loadRecords();
     await loadStats();
     setupIpcListeners();
@@ -190,6 +197,41 @@
     $('#btnBatchFavorite').addEventListener('click', handleBatchFavorite);
     $('#btnBatchDelete').addEventListener('click', handleBatchDelete);
     $('#btnBatchExport').addEventListener('click', handleBatchExport);
+    $('#btnBatchMoveToGroup').addEventListener('click', handleBatchMoveToGroup);
+
+    // 分组管理
+    $('#btnAddGroup').addEventListener('click', () => showGroupDialog());
+    $('#btnCloseGroup').addEventListener('click', () => $('#groupOverlay').classList.remove('show'));
+    $('#btnCancelGroup').addEventListener('click', () => $('#groupOverlay').classList.remove('show'));
+    $('#btnConfirmGroup').addEventListener('click', handleConfirmGroup);
+    $('#btnDeleteGroup').addEventListener('click', handleDeleteGroup);
+    $('#groupOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#groupOverlay')) $('#groupOverlay').classList.remove('show');
+    });
+
+    // 图标选择
+    $$('.icon-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        $$('.icon-option').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        $('#selectedGroupIcon').value = btn.dataset.icon;
+      });
+    });
+
+    // 颜色选择
+    $$('.color-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        $$('.color-option').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        $('#selectedGroupColor').value = btn.dataset.color;
+      });
+    });
+
+    // 移动到分组
+    $('#btnCloseMoveToGroup').addEventListener('click', () => $('#moveToGroupOverlay').classList.remove('show'));
+    $('#moveToGroupOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#moveToGroupOverlay')) $('#moveToGroupOverlay').classList.remove('show');
+    });
 
     // 合并对话框
     $('#btnCloseMerge').addEventListener('click', () => {
@@ -340,6 +382,11 @@
         options.tag = currentTag;
       }
 
+      // 按分组筛选
+      if (currentGroupId !== null) {
+        options.groupId = currentGroupId;
+      }
+
       if (searchQuery) {
         options.search = searchQuery;
         records = await window.ClawBoard.search(searchQuery);
@@ -354,6 +401,214 @@
       isLoading = false;
       loading.classList.remove('show');
     }
+  }
+
+  // ==================== 分组管理 ====================
+  async function loadGroups() {
+    try {
+      groups = await window.ClawBoard.getAllGroups();
+      renderGroups();
+    } catch (err) {
+      console.error('加载分组失败:', err);
+    }
+  }
+
+  function renderGroups() {
+    const groupsList = $('#groupsList');
+    groupsList.innerHTML = `
+      <div class="group-item ${currentGroupId === null ? 'active' : ''}" data-group-id="">
+        <span class="group-icon">📋</span>
+        <span class="group-name">全部记录</span>
+      </div>
+    `;
+
+    groups.forEach(group => {
+      const groupEl = document.createElement('div');
+      groupEl.className = `group-item ${currentGroupId === group.id ? 'active' : ''}`;
+      groupEl.dataset.groupId = group.id;
+      groupEl.draggable = true;
+      groupEl.innerHTML = `
+        <span class="group-icon" style="color:${group.color}">${group.icon}</span>
+        <span class="group-name">${escapeHtml(group.name)}</span>
+        <button class="group-edit" title="编辑">✏️</button>
+      `;
+
+      // 点击选择分组
+      groupEl.querySelector('.group-name').addEventListener('click', () => selectGroup(group.id));
+
+      // 点击编辑
+      groupEl.querySelector('.group-edit').addEventListener('click', (e) => {
+        e.stopPropagation();
+        showGroupDialog(group);
+      });
+
+      // 拖拽记录到分组
+      groupEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        groupEl.classList.add('drag-over');
+      });
+      groupEl.addEventListener('dragleave', () => {
+        groupEl.classList.remove('drag-over');
+      });
+      groupEl.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        groupEl.classList.remove('drag-over');
+        if (draggedRecord) {
+          await window.ClawBoard.moveRecordToGroup(draggedRecord, group.id);
+          showToast(`已移动到 ${group.name}`, 'success');
+          draggedRecord = null;
+          loadRecords();
+        }
+      });
+
+      groupsList.appendChild(groupEl);
+    });
+
+    // "全部记录"点击事件
+    groupsList.querySelector('[data-group-id=""]').addEventListener('click', () => selectGroup(null));
+  }
+
+  function selectGroup(groupId) {
+    currentGroupId = groupId;
+    renderGroups();
+    loadRecords();
+  }
+
+  function showGroupDialog(group = null) {
+    const overlay = $('#groupOverlay');
+    const title = $('#groupDialogTitle');
+    const nameInput = $('#groupName');
+    const confirmBtn = $('#btnConfirmGroup');
+    const deleteBtn = $('#btnDeleteGroup');
+    const iconInput = $('#selectedGroupIcon');
+    const colorInput = $('#selectedGroupColor');
+
+    if (group) {
+      title.textContent = '✏️ 编辑分组';
+      nameInput.value = group.name;
+      confirmBtn.textContent = '保存';
+      deleteBtn.style.display = 'inline-block';
+      iconInput.value = group.icon;
+      colorInput.value = group.color;
+      overlay.dataset.groupId = group.id;
+
+      // 更新选中状态
+      $$('.icon-option').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.icon === group.icon);
+      });
+      $$('.color-option').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.color === group.color);
+      });
+    } else {
+      title.textContent = '📁 新建分组';
+      nameInput.value = '';
+      confirmBtn.textContent = '创建';
+      deleteBtn.style.display = 'none';
+      iconInput.value = '📁';
+      colorInput.value = '#3b82f6';
+      overlay.dataset.groupId = '';
+
+      // 重置选中状态
+      $$('.icon-option').forEach((btn, i) => btn.classList.toggle('selected', i === 0));
+      $$('.color-option').forEach((btn, i) => btn.classList.toggle('selected', i === 0));
+    }
+
+    overlay.classList.add('show');
+    nameInput.focus();
+  }
+
+  async function handleConfirmGroup() {
+    const overlay = $('#groupOverlay');
+    const groupId = overlay.dataset.groupId;
+    const name = $('#groupName').value.trim();
+    const icon = $('#selectedGroupIcon').value;
+    const color = $('#selectedGroupColor').value;
+
+    if (!name) {
+      showToast('请输入分组名称', 'error');
+      return;
+    }
+
+    try {
+      if (groupId) {
+        await window.ClawBoard.updateGroup(parseInt(groupId), { name, icon, color });
+        showToast('✅ 分组已更新', 'success');
+      } else {
+        await window.ClawBoard.createGroup(name, color, icon);
+        showToast('✅ 分组已创建', 'success');
+      }
+      overlay.classList.remove('show');
+      await loadGroups();
+    } catch (err) {
+      showToast('❌ 操作失败', 'error');
+    }
+  }
+
+  async function handleDeleteGroup() {
+    const overlay = $('#groupOverlay');
+    const groupId = overlay.dataset.groupId;
+    if (!groupId) return;
+
+    if (!confirm('确定要删除这个分组吗？分组内的记录将移到"未分组"。')) return;
+
+    try {
+      await window.ClawBoard.deleteGroup(parseInt(groupId));
+      showToast('🗑️ 分组已删除', 'success');
+      overlay.classList.remove('show');
+      if (currentGroupId === parseInt(groupId)) {
+        currentGroupId = null;
+      }
+      await loadGroups();
+      await loadRecords();
+    } catch (err) {
+      showToast('❌ 删除失败', 'error');
+    }
+  }
+
+  async function handleBatchMoveToGroup() {
+    if (selectedIds.size === 0) return;
+    await showMoveToGroupDialog();
+  }
+
+  async function showMoveToGroupDialog() {
+    const overlay = $('#moveToGroupOverlay');
+    const list = $('#moveToGroupList');
+
+    // 渲染分组列表
+    let html = `
+      <div class="move-group-item" data-group-id="">
+        <span class="group-icon">📋</span>
+        <span>未分组</span>
+      </div>
+    `;
+
+    for (const group of groups) {
+      html += `
+        <div class="move-group-item" data-group-id="${group.id}">
+          <span class="group-icon" style="color:${group.color}">${group.icon}</span>
+          <span>${escapeHtml(group.name)}</span>
+        </div>
+      `;
+    }
+
+    list.innerHTML = html;
+
+    // 绑定点击事件
+    list.querySelectorAll('.move-group-item').forEach(item => {
+      item.addEventListener('click', async () => {
+        const targetGroupId = item.dataset.groupId === '' ? null : parseInt(item.dataset.groupId);
+        const ids = Array.from(selectedIds);
+        for (const id of ids) {
+          await window.ClawBoard.moveRecordToGroup(id, targetGroupId);
+        }
+        overlay.classList.remove('show');
+        setMultiSelectMode(false);
+        showToast(`已移动 ${ids.length} 条记录`, 'success');
+        await loadRecords();
+      });
+    });
+
+    overlay.classList.add('show');
   }
 
   async function loadStats() {
@@ -807,6 +1062,38 @@
       } else {
         openDetailPanel(record);
       }
+    });
+
+    // 拖拽排序
+    card.draggable = true;
+    card.addEventListener('dragstart', (e) => {
+      draggedRecord = record.id;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      draggedRecord = null;
+    });
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    card.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      if (!draggedRecord || draggedRecord === record.id) return;
+      
+      // 交换排序顺序
+      const draggedRecordData = records.find(r => r.id === draggedRecord);
+      if (!draggedRecordData) return;
+      
+      const updates = [
+        { id: draggedRecord, sort_order: record.sort_order || 0, group_id: draggedRecordData.group_id },
+        { id: record.id, sort_order: (record.sort_order || 0) + 1, group_id: record.group_id }
+      ];
+      
+      await window.ClawBoard.batchUpdateSortOrder(updates);
+      await loadRecords();
     });
 
     return card;

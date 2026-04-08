@@ -51,6 +51,16 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   // v0.23.0: 保存记录（用于合并功能）
   saveRecord: (record) => ipcRenderer.invoke('save-record', record),
   
+  // v0.24.0: 分组管理
+  getAllGroups: () => ipcRenderer.invoke('get-all-groups'),
+  createGroup: (name, color, icon) => ipcRenderer.invoke('create-group', { name, color, icon }),
+  updateGroup: (id, updates) => ipcRenderer.invoke('update-group', { id, ...updates }),
+  deleteGroup: (id) => ipcRenderer.invoke('delete-group', id),
+  toggleGroupCollapsed: (id) => ipcRenderer.invoke('toggle-group-collapsed', id),
+  moveRecordToGroup: (recordId, groupId) => ipcRenderer.invoke('move-record-to-group', { recordId, groupId }),
+  updateRecordSortOrder: (recordId, newOrder, newGroupId) => ipcRenderer.invoke('update-record-sort-order', { recordId, newOrder, newGroupId }),
+  batchUpdateSortOrder: (updates) => ipcRenderer.invoke('batch-update-sort-order', updates),
+  
   // 事件监听
   onNewRecord: (callback) => {
     ipcRenderer.on('new-record', (event, record) => callback(record));
