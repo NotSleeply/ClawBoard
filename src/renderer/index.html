@@ -7,6 +7,7 @@
   <title>🦞 ClawBoard</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles_extra.css">
   <!-- Highlight.js 代码高亮样式 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -56,8 +57,23 @@
     <button class="batch-btn" id="btnBatchMerge" title="合并内容">🔗 合并</button>
     <button class="batch-btn" id="btnBatchFavorite" title="批量收藏">⭐ 收藏</button>
     <button class="batch-btn" id="btnBatchExport" title="批量导出">📥 导出</button>
+    <button class="batch-btn" id="btnBatchMoveToGroup" title="移动到分组">📁 移动</button>
     <button class="batch-btn danger" id="btnBatchDelete" title="批量删除">🗑️ 删除</button>
     <button class="batch-close" id="btnExitMultiSelect">取消</button>
+  </div>
+
+  <!-- 分组侧边栏 -->
+  <div class="groups-sidebar" id="groupsSidebar">
+    <div class="groups-header">
+      <span>📁 分组</span>
+      <button class="icon-btn-sm" id="btnAddGroup" title="新建分组">+</button>
+    </div>
+    <div class="groups-list" id="groupsList">
+      <div class="group-item active" data-group-id="">
+        <span class="group-icon">📋</span>
+        <span class="group-name">全部记录</span>
+      </div>
+    </div>
   </div>
 
   <!-- 主内容 -->
@@ -343,6 +359,68 @@
       <div class="settings-footer">
         <button class="btn-secondary" id="btnCancelMerge">取消</button>
         <button class="btn-primary" id="btnConfirmMerge">确认合并</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新建分组对话框 -->
+  <div class="settings-overlay" id="groupOverlay">
+    <div class="encryption-panel" style="width:400px">
+      <div class="encryption-header">
+        <h2 id="groupDialogTitle">📁 新建分组</h2>
+        <button class="detail-close" id="btnCloseGroup">×</button>
+      </div>
+      <div class="encryption-body">
+        <div class="setting-item">
+          <label>分组名称</label>
+          <input type="text" id="groupName" placeholder="例如：工作、代码片段">
+        </div>
+        <div class="setting-item">
+          <label>分组图标</label>
+          <div class="group-icon-picker">
+            <button class="icon-option selected" data-icon="📁">📁</button>
+            <button class="icon-option" data-icon="💼">💼</button>
+            <button class="icon-option" data-icon="🏠">🏠</button>
+            <button class="icon-option" data-icon="💻">💻</button>
+            <button class="icon-option" data-icon="🎨">🎨</button>
+            <button class="icon-option" data-icon="📝">📝</button>
+            <button class="icon-option" data-icon="🔗">🔗</button>
+            <button class="icon-option" data-icon="📚">📚</button>
+          </div>
+          <input type="hidden" id="selectedGroupIcon" value="📁">
+        </div>
+        <div class="setting-item">
+          <label>分组颜色</label>
+          <div class="group-color-picker">
+            <button class="color-option selected" data-color="#3b82f6" style="background:#3b82f6"></button>
+            <button class="color-option" data-color="#22c55e" style="background:#22c55e"></button>
+            <button class="color-option" data-color="#f97316" style="background:#f97316"></button>
+            <button class="color-option" data-color="#a855f7" style="background:#a855f7"></button>
+            <button class="color-option" data-color="#ec4899" style="background:#ec4899"></button>
+            <button class="color-option" data-color="#eab308" style="background:#eab308"></button>
+            <button class="color-option" data-color="#06b6d4" style="background:#06b6d4"></button>
+            <button class="color-option" data-color="#ef4444" style="background:#ef4444"></button>
+          </div>
+          <input type="hidden" id="selectedGroupColor" value="#3b82f6">
+        </div>
+      </div>
+      <div class="settings-footer">
+        <button class="btn-secondary" id="btnDeleteGroup" style="display:none">删除分组</button>
+        <button class="btn-secondary" id="btnCancelGroup">取消</button>
+        <button class="btn-primary" id="btnConfirmGroup">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 移动到分组对话框 -->
+  <div class="settings-overlay" id="moveToGroupOverlay">
+    <div class="encryption-panel" style="width:360px">
+      <div class="encryption-header">
+        <h2>📁 移动到分组</h2>
+        <button class="detail-close" id="btnCloseMoveToGroup">×</button>
+      </div>
+      <div class="encryption-body">
+        <div class="move-to-group-list" id="moveToGroupList"></div>
       </div>
     </div>
   </div>

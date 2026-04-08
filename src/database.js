@@ -115,6 +115,31 @@ class Database {
       }
     });
 
+    // 添加分组和排序相关列（如果不存在）- v0.24.0 分组管理
+    try {
+      this.db.run(`ALTER TABLE records ADD COLUMN sort_order INTEGER DEFAULT 0`);
+    } catch (e) {
+      // 列已存在，忽略
+    }
+    try {
+      this.db.run(`ALTER TABLE records ADD COLUMN group_id INTEGER`);
+    } catch (e) {
+      // 列已存在，忽略
+    }
+
+    // 创建分组表
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        color TEXT DEFAULT '#3b82f6',
+        icon TEXT DEFAULT '📁',
+        collapsed INTEGER DEFAULT 0,
+        sort_order INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_type ON records(type)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_favorite ON records(favorite)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_created ON records(created_at DESC)`);
@@ -836,6 +861,158 @@ class Database {
       this._save();
       this.db.close();
     }
+  }
+
+  // ==================== 分组管理 ====================
+  // 获取所有分组
+  getAllGroups() {
+    const result = this.db.exec(`SELECT * FROM groups ORDER BY sort_order ASC, created_at DESC`);
+    if (result.length === 0) return [];
+    return result[0].values.map(row => {
+      const group = {};
+      result[0].columns.forEach((col, i) => group[col] = row[i]);
+      return group;
+    });
+  }
+
+  // 创建分组
+  createGroup(name, color = '#3b82f6', icon = '📁') {
+    // 获取最大排序值
+    const maxOrder = this.db.exec(`SELECT MAX(sort_order) FROM groups`)[0]?.values[0][0] || 0;
+    
+    this.db.run(
+      `INSERT INTO groups (name, color, icon, sort_order) VALUES (?, ?, ?, ?)`,
+      [name, color, icon, maxOrder + 1]
+    );
+    const id = this.db.exec(`SELECT last_insert_rowid() as id`)[0].values[0][0];
+    this._save();
+    return this.getGroup(id);
+  }
+
+  // 获取单个分组
+  getGroup(id) {
+    const result = this.db.exec(`SELECT * FROM groups WHERE id = ?`, [id]);
+    if (result.length === 0 || result[0].values.length === 0) return null;
+    const group = {};
+    result[0].columns.forEach((col, i) => group[col] = result[0].values[0][i]);
+    return group;
+  }
+
+  // 更新分组
+  updateGroup(id, { name, color, icon, collapsed, sort_order }) {
+    const updates = [];
+    const params = [];
+    
+    if (name !== undefined) { updates.push('name = ?'); params.push(name); }
+    if (color !== undefined) { updates.push('color = ?'); params.push(color); }
+    if (icon !== undefined) { updates.push('icon = ?'); params.push(icon); }
+    if (collapsed !== undefined) { updates.push('collapsed = ?'); params.push(collapsed ? 1 : 0); }
+    if (sort_order !== undefined) { updates.push('sort_order = ?'); params.push(sort_order); }
+    
+    if (updates.length === 0) return this.getGroup(id);
+    
+    params.push(id);
+    this.db.run(`UPDATE groups SET ${updates.join(', ')} WHERE id = ?`, params);
+    this._save();
+    return this.getGroup(id);
+  }
+
+  // 删除分组（将记录移到未分组）
+  deleteGroup(id) {
+    // 先将分组中的记录移到未分组
+    this.db.run(`UPDATE records SET group_id = NULL WHERE group_id = ?`, [id]);
+    this.db.run(`DELETE FROM groups WHERE id = ?`, [id]);
+    this._save();
+    return true;
+  }
+
+  // 切换分组折叠状态
+  toggleGroupCollapsed(id) {
+    const group = this.getGroup(id);
+    if (!group) return false;
+    this.db.run(`UPDATE groups SET collapsed = NOT collapsed WHERE id = ?`, [id]);
+    this._save();
+    return true;
+  }
+
+  // 移动记录到分组
+  moveRecordToGroup(recordId, groupId) {
+    this.db.run(
+      `UPDATE records SET group_id = ? WHERE id = ?`,
+      [groupId, recordId]
+    );
+    this._save();
+    return true;
+  }
+
+  // 获取分组中的记录
+  getRecords({ type, limit = 50, offset = 0, search, favorite, sourceApp, tag, groupId } = {}) {
+    let sql = 'SELECT * FROM records WHERE 1=1';
+    const params = [];
+
+    if (type) {
+      sql += ' AND type = ?';
+      params.push(type);
+    }
+
+    if (favorite) {
+      sql += ' AND favorite = 1';
+    }
+
+    if (search) {
+      sql += ' AND (content LIKE ? OR summary LIKE ? OR ocr_text LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      sql += ' AND encrypted = 0';
+    }
+
+    if (sourceApp) {
+      sql += ' AND source_app = ?';
+      params.push(sourceApp);
+    }
+
+    if (tag) {
+      sql += ' AND tags LIKE ?';
+      params.push(`%"${tag}"%`);
+    }
+
+    if (groupId !== undefined) {
+      if (groupId === null) {
+        sql += ' AND group_id IS NULL';
+      } else {
+        sql += ' AND group_id = ?';
+        params.push(groupId);
+      }
+    }
+
+    sql += ' ORDER BY sort_order ASC, created_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const result = this.db.exec(sql, params);
+    if (result.length === 0) return [];
+    return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
+  }
+
+  // 更新记录排序
+  updateRecordSortOrder(recordId, newOrder, newGroupId = null) {
+    this.db.run(
+      `UPDATE records SET sort_order = ?, group_id = ? WHERE id = ?`,
+      [newOrder, newGroupId, recordId]
+    );
+    this._save();
+    return true;
+  }
+
+  // 批量更新排序
+  batchUpdateSortOrder(updates) {
+    // updates: [{ id, sort_order, group_id }]
+    for (const update of updates) {
+      this.db.run(
+        `UPDATE records SET sort_order = ?, group_id = ? WHERE id = ?`,
+        [update.sort_order, update.group_id, update.id]
+      );
+    }
+    this._save();
+    return true;
   }
 
   // 辅助：将列和值转为对象

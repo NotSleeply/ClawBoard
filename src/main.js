@@ -606,6 +606,87 @@ ipcMain.handle('save-record', async (event, record) => {
   }
 });
 
+// ==================== 分组管理 ====================
+// 获取所有分组
+ipcMain.handle('get-all-groups', async () => {
+  try {
+    return db.getAllGroups();
+  } catch (err) {
+    log.error('get-all-groups error:', err);
+    return [];
+  }
+});
+
+// 创建分组
+ipcMain.handle('create-group', async (event, { name, color, icon }) => {
+  try {
+    return db.createGroup(name, color, icon);
+  } catch (err) {
+    log.error('create-group error:', err);
+    return null;
+  }
+});
+
+// 更新分组
+ipcMain.handle('update-group', async (event, { id, ...updates }) => {
+  try {
+    return db.updateGroup(id, updates);
+  } catch (err) {
+    log.error('update-group error:', err);
+    return null;
+  }
+});
+
+// 删除分组
+ipcMain.handle('delete-group', async (event, id) => {
+  try {
+    return db.deleteGroup(id);
+  } catch (err) {
+    log.error('delete-group error:', err);
+    return false;
+  }
+});
+
+// 切换分组折叠状态
+ipcMain.handle('toggle-group-collapsed', async (event, id) => {
+  try {
+    return db.toggleGroupCollapsed(id);
+  } catch (err) {
+    log.error('toggle-group-collapsed error:', err);
+    return false;
+  }
+});
+
+// 移动记录到分组
+ipcMain.handle('move-record-to-group', async (event, { recordId, groupId }) => {
+  try {
+    return db.moveRecordToGroup(recordId, groupId);
+  } catch (err) {
+    log.error('move-record-to-group error:', err);
+    return false;
+  }
+});
+
+// 更新记录排序
+ipcMain.handle('update-record-sort-order', async (event, { recordId, newOrder, newGroupId }) => {
+  try {
+    return db.updateRecordSortOrder(recordId, newOrder, newGroupId);
+  } catch (err) {
+    log.error('update-record-sort-order error:', err);
+    return false;
+  }
+});
+
+// 批量更新排序
+ipcMain.handle('batch-update-sort-order', async (event, updates) => {
+  try {
+    return db.batchUpdateSortOrder(updates);
+  } catch (err) {
+    log.error('batch-update-sort-order error:', err);
+    return false;
+  }
+});
+
 // 应用启动
 app.whenReady().then(async () => {
   log.info('应用准备就绪');
