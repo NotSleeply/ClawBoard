@@ -233,6 +233,15 @@
       if (e.target === $('#moveToGroupOverlay')) $('#moveToGroupOverlay').classList.remove('show');
     });
 
+    // 统计导出
+    $('#btnCloseExport').addEventListener('click', () => $('#exportOverlay').classList.remove('show'));
+    $('#exportOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#exportOverlay')) $('#exportOverlay').classList.remove('show');
+    });
+    $('#btnExportStatsJSON').addEventListener('click', () => handleExportStats('json'));
+    $('#btnExportStatsCSV').addEventListener('click', () => handleExportStats('csv'));
+    $('#btnExportRecords').addEventListener('click', handleExportRecords);
+
     // 合并对话框
     $('#btnCloseMerge').addEventListener('click', () => {
       $('#mergeOverlay').classList.remove('show');
@@ -261,6 +270,24 @@
       $('#statsOverlay').classList.add('show');
       await loadDetailedStats();
     });
+
+    // 统计导出按钮
+    const originalLoadDetailedStats = loadDetailedStats;
+    window.loadDetailedStats = async function() {
+      await originalLoadDetailedStats();
+      // 添加导出按钮
+      const statsContent = $('#statsContent');
+      const exportBtn = document.createElement('button');
+      exportBtn.className = 'btn-secondary';
+      exportBtn.style.marginTop = '1rem';
+      exportBtn.style.width = '100%';
+      exportBtn.textContent = '📥 导出统计报告';
+      exportBtn.addEventListener('click', () => {
+        $('#statsOverlay').classList.remove('show');
+        $('#exportOverlay').classList.add('show');
+      });
+      statsContent.appendChild(exportBtn);
+    };
 
     // 标签面板
     $('#btnTags').addEventListener('click', async () => {
@@ -562,6 +589,81 @@
       await loadRecords();
     } catch (err) {
       showToast('❌ 删除失败', 'error');
+    }
+  }
+
+  // ==================== 统计导出 ====================
+  async function handleExportStats(format) {
+    try {
+      showToast('正在生成统计报告...', '');
+      const stats = await window.ClawBoard.getStatsForExport();
+      if (!stats) {
+        showToast('❌ 获取统计数据失败', 'error');
+        return;
+      }
+
+      let content;
+      let filename;
+      const timestamp = new Date().toISOString().slice(0, 10);
+
+      if (format === 'csv') {
+        // 生成 CSV 格式
+        const rows = ['类别,项目,数值'];
+        rows.push(`总统计,总记录数,${stats.summary.total}`);
+        rows.push(`总统计,今日新增,${stats.summary.today}`);
+        rows.push(`总统计,本周新增,${stats.summary.week}`);
+        rows.push(`总统计,收藏数,${stats.summary.favorite}`);
+        rows.push(`总统计,加密数,${stats.summary.encrypted}`);
+        rows.push(`类型分布,文字,${stats.detailed.typePercent.text || 0}%`);
+        rows.push(`类型分布,代码,${stats.detailed.typePercent.code || 0}%`);
+        rows.push(`类型分布,文件,${stats.detailed.typePercent.file || 0}%`);
+        rows.push(`类型分布,图片,${stats.detailed.typePercent.image || 0}%`);
+        content = rows.join('\n');
+        filename = `clawboard_stats_${timestamp}.csv`;
+      } else {
+        content = JSON.stringify(stats, null, 2);
+        filename = `clawboard_stats_${timestamp}.json`;
+      }
+
+      const result = await window.ClawBoard.saveExportFile(content, filename);
+      if (result.success) {
+        showToast('✅ 统计报告已保存', 'success');
+      } else if (!result.canceled) {
+        showToast('❌ 保存失败', 'error');
+      }
+    } catch (err) {
+      console.error('导出统计失败:', err);
+      showToast('❌ 导出失败', 'error');
+    }
+  }
+
+  async function handleExportRecords() {
+    try {
+      const format = $('#exportFormat').value;
+      const type = $('#exportType').value;
+      const favorite = $('#exportFavorite').checked;
+
+      showToast('正在导出记录...', '');
+      const content = await window.ClawBoard.exportRecords(format, { type, favorite });
+
+      if (!content) {
+        showToast('❌ 无记录可导出', 'error');
+        return;
+      }
+
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `clawboard_records_${timestamp}.${format}`;
+
+      const result = await window.ClawBoard.saveExportFile(content, filename);
+      if (result.success) {
+        showToast('✅ 记录已导出', 'success');
+        $('#exportOverlay').classList.remove('show');
+      } else if (!result.canceled) {
+        showToast('❌ 保存失败', 'error');
+      }
+    } catch (err) {
+      console.error('导出记录失败:', err);
+      showToast('❌ 导出失败', 'error');
     }
   }
 

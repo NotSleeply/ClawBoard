@@ -60,6 +60,11 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   moveRecordToGroup: (recordId, groupId) => ipcRenderer.invoke('move-record-to-group', { recordId, groupId }),
   updateRecordSortOrder: (recordId, newOrder, newGroupId) => ipcRenderer.invoke('update-record-sort-order', { recordId, newOrder, newGroupId }),
   batchUpdateSortOrder: (updates) => ipcRenderer.invoke('batch-update-sort-order', updates),
+
+  // v0.25.0: 统计导出
+  getStatsForExport: () => ipcRenderer.invoke('get-stats-for-export'),
+  exportRecords: (format, options) => ipcRenderer.invoke('export-records', { format, options }),
+  saveExportFile: (content, filename) => ipcRenderer.invoke('save-export-file', { content, filename }),
   
   // 事件监听
   onNewRecord: (callback) => {

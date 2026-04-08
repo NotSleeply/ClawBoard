@@ -687,6 +687,48 @@ ipcMain.handle('batch-update-sort-order', async (event, updates) => {
   }
 });
 
+// v0.25.0: 统计导出
+ipcMain.handle('get-stats-for-export', async () => {
+  try {
+    return db.getDetailedStatsForExport();
+  } catch (err) {
+    log.error('get-stats-for-export error:', err);
+    return null;
+  }
+});
+
+// v0.25.0: 导出记录
+ipcMain.handle('export-records', async (event, { format, options }) => {
+  try {
+    return db.exportRecords(format, options);
+  } catch (err) {
+    log.error('export-records error:', err);
+    return null;
+  }
+});
+
+// v0.25.0: 保存导出文件
+ipcMain.handle('save-export-file', async (event, { content, filename }) => {
+  try {
+    const { dialog } = require('electron');
+    const fs = require('fs');
+    const result = await dialog.showSaveDialog({
+      defaultPath: filename,
+      filters: [
+        { name: 'JSON', extensions: ['json'] },
+        { name: 'CSV', extensions: ['csv'] },
+        { name: '所有文件', extensions: ['*'] }
+      ]
+    });
+    if (result.canceled) return { success: false, canceled: true };
+    fs.writeFileSync(result.filePath, content, 'utf8');
+    return { success: true, path: result.filePath };
+  } catch (err) {
+    log.error('save-export-file error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
 // 应用启动
 app.whenReady().then(async () => {
   log.info('应用准备就绪');

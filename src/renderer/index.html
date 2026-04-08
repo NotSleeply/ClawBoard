@@ -425,6 +425,56 @@
     </div>
   </div>
 
+  <!-- 统计导出对话框 -->
+  <div class="settings-overlay" id="exportOverlay">
+    <div class="encryption-panel" style="width:480px;max-height:80vh">
+      <div class="encryption-header">
+        <h2>📊 统计导出</h2>
+        <button class="detail-close" id="btnCloseExport">×</button>
+      </div>
+      <div class="encryption-body">
+        <div class="export-section">
+          <h3>📈 完整统计报告</h3>
+          <p class="export-desc">导出包含所有统计数据的详细报告</p>
+          <div class="export-actions">
+            <button class="export-btn" id="btnExportStatsJSON">📋 JSON 报告</button>
+            <button class="export-btn" id="btnExportStatsCSV">📊 CSV 报告</button>
+          </div>
+        </div>
+        <div class="export-section">
+          <h3>📋 记录导出</h3>
+          <p class="export-desc">导出剪贴板历史记录</p>
+          <div class="export-filters">
+            <div class="export-filter-item">
+              <label>格式</label>
+              <select id="exportFormat">
+                <option value="json">JSON</option>
+                <option value="csv">CSV</option>
+              </select>
+            </div>
+            <div class="export-filter-item">
+              <label>类型</label>
+              <select id="exportType">
+                <option value="">全部</option>
+                <option value="text">文字</option>
+                <option value="code">代码</option>
+                <option value="file">文件</option>
+                <option value="image">图片</option>
+              </select>
+            </div>
+            <div class="export-filter-item">
+              <label>
+                <input type="checkbox" id="exportFavorite">
+                仅收藏
+              </label>
+            </div>
+          </div>
+          <button class="export-btn full" id="btnExportRecords">📥 导出记录</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast 通知 -->
   <div class="toast" id="toast">
     <span id="toastMessage"></span>
