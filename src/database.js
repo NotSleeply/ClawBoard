@@ -1015,6 +1015,129 @@ class Database {
     return true;
   }
 
+  // v0.25.0: 统计数据导出
+  getDetailedStatsForExport() {
+    const stats = this.getStats();
+    const detailedStats = this.getDetailedStats();
+
+    // 按类型获取记录
+    const typeRecords = {};
+    const types = ['text', 'code', 'file', 'image'];
+    for (const type of types) {
+      const result = this.db.exec(
+        `SELECT id, content, created_at FROM records WHERE type = ? ORDER BY created_at DESC`,
+        [type]
+      );
+      if (result.length > 0) {
+        typeRecords[type] = result[0].values.map(row => ({
+          id: row[0],
+          content: row[1],
+          created_at: row[2]
+        }));
+      } else {
+        typeRecords[type] = [];
+      }
+    }
+
+    // 按来源应用获取记录
+    const sourceRecords = {};
+    const sourceResult = this.db.exec(
+      `SELECT source_app, COUNT(*) as count FROM records WHERE source_app IS NOT NULL GROUP BY source_app ORDER BY count DESC LIMIT 20`
+    );
+    if (sourceResult.length > 0) {
+      sourceResult[0].values.forEach(row => {
+        sourceRecords[row[0]] = row[1];
+      });
+    }
+
+    // 按标签统计
+    const tagRecords = {};
+    const tagResult = this.db.exec(`SELECT id, tags FROM records WHERE tags IS NOT NULL AND tags != ''`);
+    if (tagResult.length > 0) {
+      tagResult[0].values.forEach(row => {
+        try {
+          const tags = JSON.parse(row[1]);
+          tags.forEach(tag => {
+            tagRecords[tag] = (tagRecords[tag] || 0) + 1;
+          });
+        } catch (e) {}
+      });
+    }
+
+    return {
+      summary: stats,
+      detailed: detailedStats,
+      byType: typeRecords,
+      bySource: sourceRecords,
+      byTag: tagRecords
+    };
+  }
+
+  // 导出记录为指定格式
+  exportRecords(format = 'json', options = {}) {
+    let sql = 'SELECT * FROM records WHERE 1=1';
+    const params = [];
+
+    if (options.type) {
+      sql += ' AND type = ?';
+      params.push(options.type);
+    }
+
+    if (options.startDate) {
+      sql += ' AND created_at >= ?';
+      params.push(options.startDate);
+    }
+
+    if (options.endDate) {
+      sql += ' AND created_at <= ?';
+      params.push(options.endDate);
+    }
+
+    if (options.favorite) {
+      sql += ' AND favorite = 1';
+    }
+
+    sql += ' ORDER BY created_at DESC';
+
+    const result = this.db.exec(sql, params);
+    if (result.length === 0) return [];
+
+    const records = result[0].values.map(row => this._rowToRecord(result[0].columns, row));
+
+    switch (format) {
+      case 'csv':
+        return this._recordsToCSV(records);
+      case 'json':
+      default:
+        return JSON.stringify(records, null, 2);
+    }
+  }
+
+  _recordsToCSV(records) {
+    if (records.length === 0) return '';
+
+    const headers = ['id', 'type', 'content', 'created_at', 'favorite', 'source_app', 'language', 'tags'];
+    const rows = [headers.join(',')];
+
+    for (const record of records) {
+      const row = headers.map(h => {
+        let value = record[h];
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string') {
+          // 处理 CSV 中的特殊字符
+          value = value.replace(/"/g, '""');
+          if (value.includes(',') || value.includes('\n') || value.includes('"')) {
+            value = `"${value}"`;
+          }
+        }
+        return value;
+      });
+      rows.push(row.join(','));
+    }
+
+    return rows.join('\n');
+  }
+
   // 辅助：将列和值转为对象
   _rowToRecord(columns, values) {
     if (!values) return null;
