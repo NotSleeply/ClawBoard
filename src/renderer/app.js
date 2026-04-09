@@ -952,6 +952,42 @@
         </div>
       `;
 
+      // 系统健康状态 (v0.26.0)
+      try {
+        const health = await window.ClawBoard.getSystemHealth();
+        if (health) {
+          const memPercent = health.memoryTotal > 0 ? Math.round((health.memoryUsed / health.memoryTotal) * 100) : 0;
+          html += `
+            <div class="stats-section">
+              <div class="stats-section-title">💻 系统状态</div>
+              <div class="stats-health-grid">
+                <div class="stats-health-item">
+                  <span class="health-label">内存占用</span>
+                  <div class="health-bar">
+                    <div class="health-bar-fill" style="width:${memPercent}%;background:${memPercent > 80 ? 'var(--danger)' : 'var(--accent)'}"></div>
+                  </div>
+                  <span class="health-value">${health.memoryUsed} MB / ${health.memoryTotal} MB (${memPercent}%)</span>
+                </div>
+                <div class="stats-health-item">
+                  <span class="health-label">进程内存(RSS)</span>
+                  <span class="health-value">${health.rss} MB</span>
+                </div>
+                <div class="stats-health-item">
+                  <span class="health-label">数据库大小</span>
+                  <span class="health-value">${health.dbSizeMB} MB</span>
+                </div>
+                <div class="stats-health-item">
+                  <span class="health-label">运行时长</span>
+                  <span class="health-value">${health.uptimeFormatted}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.error('获取系统健康状态失败:', e);
+      }
+
       content.innerHTML = html;
     } catch (err) {
       loading.style.display = 'none';
