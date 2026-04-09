@@ -234,6 +234,14 @@ input{font-family:inherit;outline:none}
 .stats-peak-hours{display:flex;gap:0.8rem;flex-wrap:wrap}
 .stats-peak-hour{padding:0.4rem 0.8rem;background:var(--accent-bg);border-radius:8px;font-size:0.85rem;color:var(--accent)}
 
+/* 系统健康状态 (v0.26.0) */
+.stats-health-grid{display:flex;flex-direction:column;gap:0.8rem}
+.stats-health-item{display:flex;flex-direction:column;gap:0.3rem}
+.health-label{font-size:0.8rem;color:var(--muted)}
+.health-bar{height:6px;background:var(--surface);border-radius:3px;overflow:hidden}
+.health-bar-fill{height:100%;border-radius:3px;transition:width 0.5s}
+.health-value{font-size:0.85rem;color:var(--text);font-weight:500}
+
 /* 标签系统 */
 .tags-panel{width:480px}
 .tags-list{display:flex;flex-direction:column;gap:0.6rem;max-height:400px;overflow-y:auto}
