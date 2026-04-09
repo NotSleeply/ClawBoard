@@ -271,6 +271,20 @@
       await loadDetailedStats();
     });
 
+    // 运行状态面板
+    $('#btnRuntimeStats').addEventListener('click', async () => {
+      $('#runtimeStatsOverlay').classList.add('show');
+      await loadRuntimeStats();
+    });
+    $('#btnCloseRuntimeStats').addEventListener('click', () => {
+      $('#runtimeStatsOverlay').classList.remove('show');
+    });
+    $('#runtimeStatsOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#runtimeStatsOverlay')) {
+        $('#runtimeStatsOverlay').classList.remove('show');
+      }
+    });
+
     // 统计导出按钮
     const originalLoadDetailedStats = loadDetailedStats;
     window.loadDetailedStats = async function() {
@@ -719,6 +733,97 @@
       totalCount.textContent = stats.total;
     } catch (err) {
       console.error('加载统计失败:', err);
+    }
+  }
+
+  // v0.26.0: 加载运行时状态
+  async function loadRuntimeStats() {
+    const loading = $('#runtimeStatsLoading');
+    const content = $('#runtimeStatsContent');
+    loading.style.display = 'flex';
+
+    try {
+      const stats = await window.ClawBoard.getRuntimeStats();
+      loading.style.display = 'none';
+
+      if (!stats) {
+        content.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">加载失败</p>';
+        return;
+      }
+
+      // 渲染运行时状态面板
+      let html = `
+        <div class="runtime-stats-grid">
+          <div class="runtime-stats-card">
+            <div class="runtime-stats-icon">📋</div>
+            <div class="runtime-stats-info">
+              <div class="runtime-stats-value">${stats.records.total}</div>
+              <div class="runtime-stats-label">总记录</div>
+            </div>
+          </div>
+          <div class="runtime-stats-card">
+            <div class="runtime-stats-icon">💾</div>
+            <div class="runtime-stats-info">
+              <div class="runtime-stats-value">${stats.database.sizeFormatted}</div>
+              <div class="runtime-stats-label">数据库</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="runtime-stats-section">
+          <div class="runtime-stats-section-title">📊 记录统计</div>
+          <div class="runtime-stats-detail">
+            <div class="detail-row">
+              <span class="detail-label">📝 文字</span>
+              <span class="detail-value">${stats.records.text}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">💻 代码</span>
+              <span class="detail-value">${stats.records.code}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">📁 文件</span>
+              <span class="detail-value">${stats.records.file}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">🖼️ 图片</span>
+              <span class="detail-value">${stats.records.image}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">⭐ 收藏</span>
+              <span class="detail-value">${stats.records.favorite}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="runtime-stats-section">
+          <div class="runtime-stats-section-title">⚙️ 设置</div>
+          <div class="runtime-stats-detail">
+            <div class="detail-row">
+              <span class="detail-label">🔢 最大记录数</span>
+              <span class="detail-value">${stats.settings.maxRecords}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">🧹 自动清理</span>
+              <span class="detail-value">${stats.settings.autoCleanup ? '✅ 开启' : '❌ 关闭'}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">🔒 加密存储</span>
+              <span class="detail-value">${stats.settings.encryption ? '✅ 已启用' : '❌ 未启用'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="runtime-stats-footer">
+          <span class="version-info">${stats.version}</span>
+        </div>
+      `;
+
+      content.innerHTML = html;
+    } catch (err) {
+      console.error('加载运行时状态失败:', err);
+      loading.style.display = 'none';
+      content.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">加载失败</p>';
     }
   }
 

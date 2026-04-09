@@ -1151,6 +1151,47 @@ class Database {
     }
     return record;
   }
+
+  // v0.26.0: 获取运行时健康监控数据
+  getRuntimeStats() {
+    const stats = this.getStats();
+    
+    // 获取数据库文件大小
+    let dbSize = 0;
+    try {
+      const dbInfo = fs.statSync(this.dbPath);
+      dbSize = dbInfo.size;
+    } catch (e) {
+      dbSize = 0;
+    }
+
+    // 获取设置信息
+    const settings = this.getSettings();
+
+    return {
+      records: stats,
+      database: {
+        path: this.dbPath,
+        size: dbSize,
+        sizeFormatted: this._formatBytes(dbSize),
+      },
+      settings: {
+        maxRecords: settings.maxRecords || 1000,
+        autoCleanup: settings.autoCleanup !== false,
+        encryption: settings.encryptionPassword ? true : false,
+      },
+      version: 'v0.26.0-dev',
+    };
+  }
+
+  // 格式化字节大小
+  _formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
 }
 
 module.exports = Database;

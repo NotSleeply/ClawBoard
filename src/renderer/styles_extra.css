@@ -48,3 +48,20 @@
 .export-filter-item label{font-size:0.85rem;color:var(--text);display:block;margin-bottom:0.3rem}
 .export-filter-item select{width:100%;height:32px;padding:0 0.6rem;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:0.85rem}
 .export-filter-item input[type="checkbox"]{width:16px;height:16px;accent-color:var(--accent)}
+
+ /* v0.26.0: 运行时健康监控样式 */
+.runtime-stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;margin-bottom:1rem}
+.runtime-stats-card{display:flex;align-items:center;gap:0.8rem;padding:1rem;background:var(--surface);border-radius:12px;border:1px solid var(--border)}
+.runtime-stats-icon{font-size:1.5rem}
+.runtime-stats-info{flex:1}
+.runtime-stats-value{font-size:1.25rem;font-weight:700;color:var(--text)}
+.runtime-stats-label{font-size:0.8rem;color:var(--muted)}
+.runtime-stats-section{margin-bottom:1rem}
+.runtime-stats-section-title{font-size:0.9rem;font-weight:600;color:var(--text);margin-bottom:0.6rem;padding-bottom:0.4rem;border-bottom:1px solid var(--border)}
+.runtime-stats-detail{display:flex;flex-direction:column;gap:0.4rem}
+.detail-row{display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0}
+.detail-label{font-size:0.85rem;color:var(--muted)}
+.detail-value{font-size:0.85rem;color:var(--text);font-weight:500}
+.runtime-stats-footer{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);text-align:center}
+.version-info{font-size:0.8rem;color:var(--muted)}
+.runtime-stats-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;color:var(--muted)}
