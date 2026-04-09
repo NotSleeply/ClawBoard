@@ -729,6 +729,16 @@ ipcMain.handle('save-export-file', async (event, { content, filename }) => {
   }
 });
 
+// v0.26.0: 获取运行时健康监控数据
+ipcMain.handle('get-runtime-stats', async () => {
+  try {
+    return db.getRuntimeStats();
+  } catch (err) {
+    log.error('get-runtime-stats error:', err);
+    return null;
+  }
+});
+
 // 应用启动
 app.whenReady().then(async () => {
   log.info('应用准备就绪');

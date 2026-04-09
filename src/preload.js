@@ -66,6 +66,9 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   exportRecords: (format, options) => ipcRenderer.invoke('export-records', { format, options }),
   saveExportFile: (content, filename) => ipcRenderer.invoke('save-export-file', { content, filename }),
   
+  // v0.26.0: 运行时健康监控
+  getRuntimeStats: () => ipcRenderer.invoke('get-runtime-stats'),
+  
   // 事件监听
   onNewRecord: (callback) => {
     ipcRenderer.on('new-record', (event, record) => callback(record));
