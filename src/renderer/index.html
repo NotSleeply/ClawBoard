@@ -38,6 +38,7 @@
         <span id="totalCount">0</span>
       </span>
       <button class="icon-btn" id="btnSettings" title="设置">⚙️</button>
+      <button class="icon-btn" id="btnPinnedManager" title="置顶管理">📌</button>
     </div>
   </header>
 
@@ -206,6 +207,60 @@
         <div class="runtime-stats-loading" id="runtimeStatsLoading">
           <div class="spinner"></div>
           <span>加载中...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 置顶管理面板 -->
+  <div class="settings-overlay" id="pinnedManagerOverlay">
+    <div class="settings-panel" style="width:600px;max-height:80vh">
+      <div class="settings-header">
+        <h2>📌 置顶管理</h2>
+        <button class="detail-close" id="btnClosePinnedManager">×</button>
+      </div>
+      <div class="settings-body pinned-manager-body">
+        <!-- 统计概览 -->
+        <div class="pinned-stats" id="pinnedStats">
+          <div class="pinned-stat-item">
+            <span class="stat-value" id="pinnedTotal">0</span>
+            <span class="stat-label">总计</span>
+          </div>
+          <div class="pinned-stat-item">
+            <span class="stat-value" id="pinnedThisWeek">0</span>
+            <span class="stat-label">本周新增</span>
+          </div>
+          <div class="pinned-stat-item">
+            <span class="stat-value" id="pinnedWithTags">0</span>
+            <span class="stat-label">已标签</span>
+          </div>
+        </div>
+        <!-- 搜索和筛选 -->
+        <div class="pinned-toolbar">
+          <input type="text" id="pinnedSearchInput" placeholder="搜索置顶内容..." class="pinned-search">
+          <select id="pinnedTypeFilter" class="pinned-filter">
+            <option value="">全部类型</option>
+            <option value="text">文字</option>
+            <option value="code">代码</option>
+            <option value="file">文件</option>
+            <option value="image">图片</option>
+          </select>
+          <select id="pinnedTagFilter" class="pinned-filter">
+            <option value="">全部标签</option>
+          </select>
+        </div>
+        <!-- 批量操作栏 -->
+        <div class="pinned-batch-bar" id="pinnedBatchBar" style="display:none">
+          <span class="batch-count">已选 <strong id="pinnedSelectedCount">0</strong> 条</span>
+          <button class="batch-btn" id="btnPinnedBatchUnfavorite" title="批量取消置顶">⭐ 取消置顶</button>
+          <button class="batch-btn" id="btnPinnedBatchMoveToGroup" title="移动到分组">📁 移动</button>
+          <button class="batch-btn danger" id="btnPinnedBatchDelete" title="批量删除">🗑️ 删除</button>
+        </div>
+        <!-- 置顶列表 -->
+        <div class="pinned-list" id="pinnedList">
+          <div class="loading" id="pinnedLoading">
+            <div class="spinner"></div>
+          </div>
         </div>
       </div>
     </div>

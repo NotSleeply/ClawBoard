@@ -68,6 +68,12 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   
   // v0.26.0: 运行时健康监控
   getRuntimeStats: () => ipcRenderer.invoke('get-runtime-stats'),
+
+  // v0.27.0: 置顶记录管理
+  getPinnedRecords: (options) => ipcRenderer.invoke('get-pinned-records', options),
+  updatePinnedRecord: (id, updates) => ipcRenderer.invoke('update-pinned-record', id, updates),
+  batchUpdatePinned: (ids, options) => ipcRenderer.invoke('batch-update-pinned', ids, options),
+  getPinnedStats: () => ipcRenderer.invoke('get-pinned-stats'),
   
   // 事件监听
   onNewRecord: (callback) => {

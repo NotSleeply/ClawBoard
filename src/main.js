@@ -770,6 +770,43 @@ ipcMain.handle('get-runtime-stats', async () => {
   }
 });
 
+// v0.27.0: 置顶记录管理
+ipcMain.handle('get-pinned-records', async (_, options) => {
+  try {
+    return db.getPinnedRecords(options || {});
+  } catch (err) {
+    log.error('get-pinned-records error:', err);
+    return [];
+  }
+});
+
+ipcMain.handle('update-pinned-record', async (_, id, updates) => {
+  try {
+    return db.updatePinnedRecord(id, updates);
+  } catch (err) {
+    log.error('update-pinned-record error:', err);
+    return null;
+  }
+});
+
+ipcMain.handle('batch-update-pinned', async (_, ids, options) => {
+  try {
+    return db.batchUpdatePinned(ids, options);
+  } catch (err) {
+    log.error('batch-update-pinned error:', err);
+    return { updated: 0, deleted: 0 };
+  }
+});
+
+ipcMain.handle('get-pinned-stats', async () => {
+  try {
+    return db.getPinnedStats();
+  } catch (err) {
+    log.error('get-pinned-stats error:', err);
+    return null;
+  }
+});
+
 // 应用启动
 app.whenReady().then(async () => {
   log.info('应用准备就绪');
