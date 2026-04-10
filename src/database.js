@@ -85,15 +85,16 @@ class Database {
         language TEXT,
         locked INTEGER DEFAULT 0,
         encrypted INTEGER DEFAULT 0,
+        synced INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // 添加新列（如果不存在）
-    ['source_app', 'source_title', 'source_url'].forEach(col => {
+    ['source_app', 'source_title', 'source_url', 'synced'].forEach(col => {
       try {
-        this.db.run(`ALTER TABLE records ADD COLUMN ${col} TEXT`);
+        this.db.run(`ALTER TABLE records ADD COLUMN ${col} ${col === 'synced' ? 'INTEGER DEFAULT 0' : 'TEXT'}`);
       } catch (e) {
         // 列已存在，忽略
       }
@@ -1337,6 +1338,321 @@ class Database {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  // v0.28.0: 云端同步功能
+
+  /**
+   * 获取同步元数据
+   */
+  getSyncMetadata() {
+    const stats = this.getStats();
+    const settings = this.getSettings();
+    
+    // 获取上次同步时间
+    let lastSyncTime = null;
+    try {
+      const syncInfo = this.db.exec(`
+        SELECT value FROM settings WHERE key = 'last_sync_time'
+      `);
+      if (syncInfo.length > 0 && syncInfo[0].values.length > 0) {
+        lastSyncTime = syncInfo[0].values[0][0];
+      }
+    } catch (e) {}
+
+    // 获取同步配置
+    let syncConfig = null;
+    try {
+      const configResult = this.db.exec(`
+        SELECT value FROM settings WHERE key = 'sync_config'
+      `);
+      if (configResult.length > 0 && configResult[0].values.length > 0) {
+        syncConfig = JSON.parse(configResult[0].values[0][0]);
+      }
+    } catch (e) {
+      syncConfig = null;
+    }
+
+    return {
+      lastSyncTime,
+      totalRecords: stats.total,
+      syncedRecords: this._getSyncedCount(),
+      pendingRecords: stats.total - this._getSyncedCount(),
+      config: syncConfig,
+    };
+  }
+
+  _getSyncedCount() {
+    try {
+      const result = this.db.exec(`
+        SELECT COUNT(*) FROM records WHERE synced = 1
+      `);
+      return result[0]?.values[0][0] || 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /**
+   * 保存同步配置
+   */
+  saveSyncConfig(config) {
+    this.db.run(`
+      INSERT OR REPLACE INTO settings (key, value) VALUES ('sync_config', ?)
+    `, [JSON.stringify(config)]);
+    this._save();
+    return true;
+  }
+
+  /**
+   * 更新最后同步时间
+   */
+  updateLastSyncTime() {
+    const now = new Date().toISOString();
+    this.db.run(`
+      INSERT OR REPLACE INTO settings (key, value) VALUES ('last_sync_time', ?)
+    `, [now]);
+    this._save();
+    return now;
+  }
+
+  /**
+   * 获取可同步的记录（用于上传）
+   * @param {Object} options - 筛选选项
+   * @param {boolean} options.onlyFavorites - 仅同步收藏
+   * @param {string} options.since - 仅获取指定时间后的记录
+   * @param {number} options.limit - 限制数量
+   */
+  getSyncableRecords({ onlyFavorites = false, since = null, limit = 100 } = {}) {
+    let sql = 'SELECT * FROM records WHERE 1=1';
+    const params = [];
+
+    if (onlyFavorites) {
+      sql += ' AND favorite = 1';
+    }
+
+    if (since) {
+      sql += ' AND updated_at >= ?';
+      params.push(since);
+    }
+
+    sql += ' ORDER BY updated_at DESC LIMIT ?';
+    params.push(limit);
+
+    const result = this.db.exec(sql, params);
+    if (result.length === 0) return [];
+
+    return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
+  }
+
+  /**
+   * 导出数据用于同步（支持加密）
+   * @param {Object} options - 导出选项
+   */
+  exportForSync({ 
+    records = null,     // 指定记录，不指定则导出所有
+    includeSettings = true,
+    encrypt = false,
+    encryptionKey = null
+  } = {}) {
+    // 获取要导出的记录
+    const recordsToExport = records || this.getSyncableRecords({ limit: 10000 });
+
+    // 构建导出数据
+    const exportData = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      recordCount: recordsToExport.length,
+      records: recordsToExport.map(r => ({
+        ...r,
+        // 不包含敏感字段
+        synced: undefined,
+      })),
+    };
+
+    if (includeSettings) {
+      exportData.settings = this.getSettings();
+    }
+
+    // 如果需要加密
+    if (encrypt && encryptionKey) {
+      const crypto = require('crypto');
+      const iv = crypto.randomBytes(16);
+      const key = crypto.scryptSync(encryptionKey, 'salt', 32);
+      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+      
+      let encrypted = cipher.update(JSON.stringify(exportData), 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      const authTag = cipher.getAuthTag().toString('hex');
+
+      return {
+        encrypted: true,
+        iv: iv.toString('hex'),
+        authTag,
+        data: encrypted,
+      };
+    }
+
+    return {
+      encrypted: false,
+      data: exportData,
+    };
+  }
+
+  /**
+   * 从同步数据导入
+   * @param {Object} syncData - 同步数据
+   * @param {string} encryptionKey - 解密密钥（如果数据加密）
+   * @param {Object} options - 导入选项
+   */
+  importFromSync(syncData, encryptionKey = null, { 
+    conflictMode = 'newer',  // newer: 保留较新的, local: 保留本地, remote: 保留远程
+    skipExisting = true,
+  } = {}) {
+    let importData = syncData;
+
+    // 如果数据加密，先解密
+    if (syncData.encrypted && encryptionKey) {
+      try {
+        const crypto = require('crypto');
+        const iv = Buffer.from(syncData.iv, 'hex');
+        const authTag = Buffer.from(syncData.authTag, 'hex');
+        const key = crypto.scryptSync(encryptionKey, 'salt', 32);
+        const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+        decipher.setAuthTag(authTag);
+
+        let decrypted = decipher.update(syncData.data, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        importData = JSON.parse(decrypted);
+      } catch (e) {
+        throw new Error('解密失败，请检查密钥是否正确');
+      }
+    }
+
+    if (!importData.records) {
+      throw new Error('无效的同步数据格式');
+    }
+
+    let imported = 0;
+    let skipped = 0;
+    let conflicts = 0;
+
+    for (const record of importData.records) {
+      const existing = this.db.exec(`
+        SELECT * FROM records WHERE content = ? AND type = ?
+      `, [record.content, record.type]);
+
+      if (existing.length > 0 && existing[0].values.length > 0) {
+        if (skipExisting) {
+          skipped++;
+          continue;
+        }
+
+        if (conflictMode === 'newer') {
+          const existingRecord = this._rowToRecord(existing[0].columns, existing[0].values[0]);
+          const existingTime = new Date(existingRecord.updated_at);
+          const incomingTime = new Date(record.updated_at);
+
+          if (incomingTime > existingTime) {
+            // 更新本地记录
+            this.db.run(`
+              UPDATE records SET 
+                content = ?, summary = ?, tags = ?, favorite = ?,
+                updated_at = ?, synced = 1
+              WHERE id = ?
+            `, [record.content, record.summary, record.tags, record.favorite, record.updated_at, existingRecord.id]);
+            imported++;
+          } else {
+            conflicts++;
+          }
+        }
+      } else {
+        // 新增记录
+        this.db.run(`
+          INSERT INTO records (content, type, summary, tags, favorite, source_app, encrypted, created_at, updated_at, synced)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        `, [
+          record.content,
+          record.type,
+          record.summary,
+          record.tags,
+          record.favorite,
+          record.source_app,
+          record.encrypted,
+          record.created_at,
+          record.updated_at
+        ]);
+        imported++;
+      }
+    }
+
+    this._save();
+
+    return {
+      imported,
+      skipped,
+      conflicts,
+      total: importData.records.length,
+    };
+  }
+
+  /**
+   * 标记记录为已同步
+   */
+  markAsSynced(ids) {
+    if (!Array.isArray(ids) || ids.length === 0) return 0;
+
+    const placeholders = ids.map(() => '?').join(',');
+    this.db.run(`UPDATE records SET synced = 1 WHERE id IN (${placeholders})`, ids);
+    this._save();
+    return ids.length;
+  }
+
+  /**
+   * 获取同步统计
+   */
+  getSyncStats() {
+    const total = this.getStats().total;
+    const synced = this._getSyncedCount();
+    const pending = total - synced;
+
+    // 获取待同步记录的类型分布
+    const byType = {};
+    try {
+      const result = this.db.exec(`
+        SELECT type, COUNT(*) as count
+        FROM records WHERE synced = 0
+        GROUP BY type
+      `);
+      if (result.length > 0) {
+        result[0].values.forEach(([type, count]) => {
+          byType[type] = count;
+        });
+      }
+    } catch (e) {}
+
+    // 获取最早和最新的待同步记录时间
+    let oldestPending = null;
+    let newestPending = null;
+    try {
+      const timeResult = this.db.exec(`
+        SELECT MIN(created_at), MAX(created_at) FROM records WHERE synced = 0
+      `);
+      if (timeResult.length > 0 && timeResult[0].values[0][0]) {
+        oldestPending = timeResult[0].values[0][0];
+        newestPending = timeResult[0].values[0][1];
+      }
+    } catch (e) {}
+
+    return {
+      total,
+      synced,
+      pending,
+      syncProgress: total > 0 ? Math.round((synced / total) * 100) : 100,
+      byType,
+      oldestPending,
+      newestPending,
+    };
   }
 }
 

@@ -83,6 +83,16 @@ contextBridge.exposeInMainWorld('ClawBoard', {
     ipcRenderer.on('focus-search', () => callback());
   },
   
+  // v0.28.0: 云端同步
+  getSyncMetadata: () => ipcRenderer.invoke('get-sync-metadata'),
+  saveSyncConfig: (config) => ipcRenderer.invoke('save-sync-config', config),
+  getSyncStats: () => ipcRenderer.invoke('get-sync-stats'),
+  exportForSync: (options) => ipcRenderer.invoke('export-for-sync', options),
+  importFromSync: (syncData, encryptionKey, options) => ipcRenderer.invoke('import-from-sync', syncData, encryptionKey, options),
+  testWebDAVConnection: (config) => ipcRenderer.invoke('test-webdav-connection', config),
+  syncToWebDAV: (config) => ipcRenderer.invoke('sync-to-webdav', config),
+  syncFromWebDAV: (config) => ipcRenderer.invoke('sync-from-webdav', config),
+
   // 移除监听
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
