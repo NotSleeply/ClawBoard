@@ -1152,6 +1152,152 @@ class Database {
     return record;
   }
 
+  // v0.27.0: 获取所有置顶记录（支持分页和搜索）
+  getPinnedRecords({ search, limit = 100, offset = 0, tag } = {}) {
+    let sql = 'SELECT * FROM records WHERE favorite = 1';
+    const params = [];
+
+    if (search) {
+      sql += ' AND (content LIKE ? OR summary LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`);
+      sql += ' AND encrypted = 0';
+    }
+
+    if (tag) {
+      sql += ' AND tags LIKE ?';
+      params.push(`%"${tag}"%`);
+    }
+
+    sql += ' ORDER BY updated_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const result = this.db.exec(sql, params);
+    if (result.length === 0) return [];
+    return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
+  }
+
+  // v0.27.0: 更新置顶记录内容
+  updatePinnedRecord(id, { content, tags, summary }) {
+    const record = this.getRecord(id);
+    if (!record) return null;
+
+    // 只能更新已置顶的记录
+    if (!record.favorite) return null;
+
+    const updates = [];
+    const params = [];
+
+    if (content !== undefined) {
+      updates.push('content = ?');
+      params.push(content);
+    }
+    if (tags !== undefined) {
+      updates.push('tags = ?');
+      params.push(typeof tags === 'string' ? tags : JSON.stringify(tags));
+    }
+    if (summary !== undefined) {
+      updates.push('summary = ?');
+      params.push(summary);
+    }
+
+    if (updates.length === 0) return record;
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(id);
+
+    this.db.run(`UPDATE records SET ${updates.join(', ')} WHERE id = ?`, params);
+    this._save();
+    return this.getRecord(id);
+  }
+
+  // v0.27.0: 批量更新置顶记录
+  batchUpdatePinned(ids, { favorite, tags, groupId, delete: shouldDelete }) {
+    if (!Array.isArray(ids) || ids.length === 0) return { updated: 0, deleted: 0 };
+
+    const placeholders = ids.map(() => '?').join(',');
+
+    if (shouldDelete) {
+      // 批量删除
+      this.db.run(`DELETE FROM records WHERE id IN (${placeholders}) AND favorite = 1`, ids);
+      this._save();
+      return { updated: 0, deleted: ids.length };
+    }
+
+    let updated = 0;
+    if (favorite !== undefined) {
+      this.db.run(`UPDATE records SET favorite = ? WHERE id IN (${placeholders})`, [favorite ? 1 : 0, ...ids]);
+      updated += this.db.getRowsModified();
+    }
+    if (tags !== undefined) {
+      const tagsJson = typeof tags === 'string' ? tags : JSON.stringify(tags);
+      this.db.run(`UPDATE records SET tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, [tagsJson, ...ids]);
+      updated += this.db.getRowsModified();
+    }
+    if (groupId !== undefined) {
+      this.db.run(`UPDATE records SET group_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, [groupId, ...ids]);
+      updated += this.db.getRowsModified();
+    }
+
+    if (updated > 0) this._save();
+    return { updated, deleted: 0 };
+  }
+
+  // v0.27.0: 获取置顶记录统计
+  getPinnedStats() {
+    const total = this.db.exec(`SELECT COUNT(*) FROM records WHERE favorite = 1`)[0]?.values[0][0] || 0;
+
+    // 按类型分布
+    const byType = {};
+    const typeResult = this.db.exec(`
+      SELECT type, COUNT(*) as count
+      FROM records WHERE favorite = 1
+      GROUP BY type
+    `);
+    if (typeResult.length > 0) {
+      typeResult[0].values.forEach(([type, count]) => {
+        byType[type] = count;
+      });
+    }
+
+    // 按来源应用分布
+    const bySource = {};
+    const sourceResult = this.db.exec(`
+      SELECT source_app, COUNT(*) as count
+      FROM records WHERE favorite = 1 AND source_app IS NOT NULL
+      GROUP BY source_app
+      ORDER BY count DESC
+      LIMIT 10
+    `);
+    if (sourceResult.length > 0) {
+      sourceResult[0].values.forEach(([app, count]) => {
+        bySource[app] = count;
+      });
+    }
+
+    // 带标签的置顶记录数
+    const withTags = this.db.exec(`
+      SELECT COUNT(*) FROM records
+      WHERE favorite = 1 AND tags IS NOT NULL AND tags != '[]' AND tags != ''
+    `)[0]?.values[0][0] || 0;
+
+    // 最近一周新增的置顶记录
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const recentWeek = this.db.exec(`
+      SELECT COUNT(*) FROM records
+      WHERE favorite = 1 AND updated_at >= ?
+    `, [weekAgo.toISOString()])[0]?.values[0][0] || 0;
+
+    return {
+      total,
+      byType,
+      bySource,
+      withTags,
+      withoutTags: total - withTags,
+      recentWeek,
+    };
+  }
+
   // v0.26.0: 获取运行时健康监控数据
   getRuntimeStats() {
     const stats = this.getStats();

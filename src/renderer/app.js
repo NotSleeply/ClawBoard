@@ -285,6 +285,31 @@
       }
     });
 
+    // 置顶管理面板 v0.27.0
+    $('#btnPinnedManager').addEventListener('click', async () => {
+      $('#pinnedManagerOverlay').classList.add('show');
+      await loadPinnedManager();
+    });
+    $('#btnClosePinnedManager').addEventListener('click', () => {
+      $('#pinnedManagerOverlay').classList.remove('show');
+    });
+    $('#pinnedManagerOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#pinnedManagerOverlay')) {
+        $('#pinnedManagerOverlay').classList.remove('show');
+      }
+    });
+
+    // 置顶管理搜索和筛选
+    $('#pinnedSearchInput').addEventListener('input', debounce(async () => {
+      await loadPinnedList();
+    }, 300));
+    $('#pinnedTypeFilter').addEventListener('change', async () => {
+      await loadPinnedList();
+    });
+    $('#pinnedTagFilter').addEventListener('change', async () => {
+      await loadPinnedList();
+    });
+
     // 统计导出按钮
     const originalLoadDetailedStats = loadDetailedStats;
     window.loadDetailedStats = async function() {
@@ -826,6 +851,187 @@
       content.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">加载失败</p>';
     }
   }
+
+  // v0.27.0: 置顶管理面板
+  let pinnedSelectedIds = new Set();
+
+  async function loadPinnedManager() {
+    await loadPinnedStats();
+    await loadPinnedList();
+    await loadPinnedTags();
+  }
+
+  async function loadPinnedStats() {
+    try {
+      const stats = await window.ClawBoard.getPinnedStats();
+      if (stats) {
+        $('#pinnedTotal').textContent = stats.total;
+        $('#pinnedThisWeek').textContent = stats.recentWeek;
+        $('#pinnedWithTags').textContent = stats.withTags;
+      }
+    } catch (err) {
+      console.error('加载置顶统计失败:', err);
+    }
+  }
+
+  async function loadPinnedTags() {
+    try {
+      const tags = await window.ClawBoard.getAllTags();
+      const select = $('#pinnedTagFilter');
+      select.innerHTML = '<option value="">全部标签</option>';
+      tags.forEach(tagInfo => {
+        const option = document.createElement('option');
+        option.value = tagInfo.tag;
+        option.textContent = `${tagInfo.tag} (${tagInfo.count})`;
+        select.appendChild(option);
+      });
+    } catch (err) {
+      console.error('加载标签失败:', err);
+    }
+  }
+
+  async function loadPinnedList() {
+    const loading = $('#pinnedLoading');
+    const list = $('#pinnedList');
+    loading.style.display = 'flex';
+    list.innerHTML = '';
+    pinnedSelectedIds.clear();
+    updatePinnedBatchBar();
+
+    try {
+      const search = $('#pinnedSearchInput').value;
+      const type = $('#pinnedTypeFilter').value;
+      const tag = $('#pinnedTagFilter').value;
+
+      const records = await window.ClawBoard.getPinnedRecords({
+        search: search || undefined,
+        type: type || undefined,
+        tag: tag || undefined,
+      });
+
+      loading.style.display = 'none';
+
+      if (!records || records.length === 0) {
+        list.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">暂无置顶记录</p>';
+        return;
+      }
+
+      records.forEach(record => {
+        const item = createPinnedItem(record);
+        list.appendChild(item);
+      });
+    } catch (err) {
+      console.error('加载置顶列表失败:', err);
+      loading.style.display = 'none';
+      list.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">加载失败</p>';
+    }
+  }
+
+  function createPinnedItem(record) {
+    const item = document.createElement('div');
+    item.className = 'record-item pinned-item';
+    item.dataset.id = record.id;
+
+    const typeIcon = {
+      text: '📝',
+      code: '💻',
+      file: '📁',
+      image: '🖼️',
+    }[record.type] || '📋';
+
+    const content = record.encrypted ? '🔒 加密内容' : record.content;
+    const preview = content.length > 100 ? content.substring(0, 100) + '...' : content;
+
+    let tagsHtml = '';
+    if (record.tags && record.tags !== '[]') {
+      try {
+        const tags = JSON.parse(record.tags);
+        if (tags.length > 0) {
+          tagsHtml = '<div class="record-tags">' + tags.map(t => `<span class="record-tag">${t}</span>`).join('') + '</div>';
+        }
+      } catch (e) {}
+    }
+
+    item.innerHTML = `
+      <div class="record-checkbox-wrapper">
+        <input type="checkbox" class="pinned-checkbox" data-id="${record.id}">
+      </div>
+      <div class="record-type-icon">${typeIcon}</div>
+      <div class="record-content-wrapper">
+        <div class="record-content-preview">${escapeHtml(preview)}</div>
+        ${tagsHtml}
+        <div class="record-meta">
+          <span class="record-time">${formatTime(record.created_at)}</span>
+          ${record.source_app ? `<span class="record-source">📱 ${record.source_app}</span>` : ''}
+        </div>
+      </div>
+      <div class="record-actions">
+        <button class="record-btn pinned-edit-btn" data-id="${record.id}" title="编辑">✏️</button>
+        <button class="record-btn pinned-copy-btn" data-id="${record.id}" title="复制">📋</button>
+        <button class="record-btn danger pinned-remove-btn" data-id="${record.id}" title="取消置顶">⭐</button>
+      </div>
+    `;
+
+    // 复选框事件
+    const checkbox = item.querySelector('.pinned-checkbox');
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) {
+        pinnedSelectedIds.add(record.id);
+      } else {
+        pinnedSelectedIds.delete(record.id);
+      }
+      updatePinnedBatchBar();
+    });
+
+    // 复制按钮
+    item.querySelector('.pinned-copy-btn').addEventListener('click', async () => {
+      const fullRecord = await window.ClawBoard.getRecord(record.id);
+      if (fullRecord && !fullRecord.encrypted) {
+        await window.ClawBoard.copyToClipboard(fullRecord.content);
+        showToast('已复制到剪贴板');
+      }
+    });
+
+    // 取消置顶按钮
+    item.querySelector('.pinned-remove-btn').addEventListener('click', async () => {
+      if (confirm('确定取消置顶？')) {
+        await window.ClawBoard.toggleFavorite(record.id);
+        await loadPinnedList();
+        await loadPinnedStats();
+        showToast('已取消置顶');
+      }
+    });
+
+    return item;
+  }
+
+  function updatePinnedBatchBar() {
+    const batchBar = $('#pinnedBatchBar');
+    const count = pinnedSelectedIds.size;
+    $('#pinnedSelectedCount').textContent = count;
+    batchBar.style.display = count > 0 ? 'flex' : 'none';
+  }
+
+  // 置顶批量操作
+  $('#btnPinnedBatchUnfavorite').addEventListener('click', async () => {
+    if (pinnedSelectedIds.size === 0) return;
+    if (confirm(`确定取消置顶 ${pinnedSelectedIds.size} 条记录？`)) {
+      await window.ClawBoard.batchUpdatePinned([...pinnedSelectedIds], { favorite: false });
+      await loadPinnedList();
+      await loadPinnedStats();
+      showToast('已批量取消置顶');
+    }
+  });
+
+  $('#btnPinnedBatchDelete').addEventListener('click', async () => {
+    if (pinnedSelectedIds.size === 0) return;
+    if (confirm(`确定删除 ${pinnedSelectedIds.size} 条置顶记录？`)) {
+      await window.ClawBoard.batchUpdatePinned([...pinnedSelectedIds], { delete: true });
+      await loadPinnedList();
+      await loadPinnedStats();
+      showToast('已批量删除');
+    }
+  });
 
   async function loadDetailedStats() {
     const loading = $('#statsLoading');
