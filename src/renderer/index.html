@@ -39,6 +39,7 @@
       </span>
       <button class="icon-btn" id="btnSettings" title="设置">⚙️</button>
       <button class="icon-btn" id="btnPinnedManager" title="置顶管理">📌</button>
+      <button class="icon-btn" id="btnCloudSync" title="云端同步">☁️</button>
     </div>
   </header>
 
@@ -260,6 +261,112 @@
         <div class="pinned-list" id="pinnedList">
           <div class="loading" id="pinnedLoading">
             <div class="spinner"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 云端同步面板 v0.28.0 -->
+  <div class="settings-overlay" id="cloudSyncOverlay">
+    <div class="settings-panel" style="width:500px">
+      <div class="settings-header">
+        <h2>☁️ 云端同步</h2>
+        <button class="detail-close" id="btnCloseCloudSync">×</button>
+      </div>
+      <div class="settings-body">
+        <!-- 同步状态 -->
+        <div class="sync-status" id="syncStatus">
+          <div class="sync-status-icon">☁️</div>
+          <div class="sync-status-info">
+            <div class="sync-status-text" id="syncStatusText">未配置</div>
+            <div class="sync-status-detail" id="syncStatusDetail">点击配置 WebDAV 同步</div>
+          </div>
+        </div>
+        
+        <!-- 同步进度 -->
+        <div class="sync-progress" id="syncProgress" style="display:none">
+          <div class="sync-progress-bar">
+            <div class="sync-progress-fill" id="syncProgressFill"></div>
+          </div>
+          <div class="sync-progress-text" id="syncProgressText">同步中...</div>
+        </div>
+
+        <!-- WebDAV 配置 -->
+        <div class="sync-config">
+          <h3>WebDAV 配置</h3>
+          <div class="sync-config-form">
+            <div class="setting-item">
+              <label>服务器地址</label>
+              <input type="text" id="syncServer" placeholder="https://dav.example.com" value="">
+            </div>
+            <div class="setting-item">
+              <label>同步路径</label>
+              <input type="text" id="syncPath" placeholder="/dav/clipboard" value="/">
+            </div>
+            <div class="setting-item">
+              <label>用户名</label>
+              <input type="text" id="syncUsername" placeholder="用户名" value="">
+            </div>
+            <div class="setting-item">
+              <label>密码</label>
+              <input type="password" id="syncPassword" placeholder="密码" value="">
+            </div>
+            <div class="setting-item">
+              <label>
+                <input type="checkbox" id="syncEncrypt" checked>
+                端到端加密
+              </label>
+              <small style="color:var(--muted);margin-left:1.5rem">启用后需要输入加密密钥</small>
+            </div>
+            <div class="setting-item" id="syncEncryptKeyItem" style="display:none">
+              <label>加密密钥</label>
+              <input type="password" id="syncEncryptKey" placeholder="设置加密密钥（用于保护云端数据）" value="">
+            </div>
+            <div class="setting-item">
+              <label>
+                <input type="checkbox" id="syncOnlyFavorites">
+                仅同步收藏
+              </label>
+            </div>
+          </div>
+          <div class="sync-actions">
+            <button class="sync-btn" id="btnTestConnection">🔗 测试连接</button>
+            <button class="sync-btn primary" id="btnSaveSyncConfig">💾 保存配置</button>
+          </div>
+        </div>
+
+        <!-- 同步操作 -->
+        <div class="sync-operations">
+          <h3>同步操作</h3>
+          <div class="sync-op-buttons">
+            <button class="sync-op-btn" id="btnSyncUpload" disabled>
+              <span class="op-icon">⬆️</span>
+              <span class="op-text">上传到云端</span>
+            </button>
+            <button class="sync-op-btn" id="btnSyncDownload" disabled>
+              <span class="op-icon">⬇️</span>
+              <span class="op-text">从云端下载</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 同步统计 -->
+        <div class="sync-stats" id="syncStats" style="display:none">
+          <h3>📊 同步统计</h3>
+          <div class="sync-stats-grid">
+            <div class="sync-stat-item">
+              <span class="sync-stat-value" id="syncTotalRecords">0</span>
+              <span class="sync-stat-label">总记录</span>
+            </div>
+            <div class="sync-stat-item">
+              <span class="sync-stat-value" id="syncSyncedRecords">0</span>
+              <span class="sync-stat-label">已同步</span>
+            </div>
+            <div class="sync-stat-item">
+              <span class="sync-stat-value" id="syncPendingRecords">0</span>
+              <span class="sync-stat-label">待同步</span>
+            </div>
           </div>
         </div>
       </div>

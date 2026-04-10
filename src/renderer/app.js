@@ -310,6 +310,199 @@
       await loadPinnedList();
     });
 
+    // 云端同步面板 v0.28.0
+    $('#btnCloudSync').addEventListener('click', async () => {
+      $('#cloudSyncOverlay').classList.add('show');
+      await loadSyncPanel();
+    });
+    $('#btnCloseCloudSync').addEventListener('click', () => {
+      $('#cloudSyncOverlay').classList.remove('show');
+    });
+    $('#cloudSyncOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#cloudSyncOverlay')) {
+        $('#cloudSyncOverlay').classList.remove('show');
+      }
+    });
+
+    // 加密开关
+    $('#syncEncrypt').addEventListener('change', (e) => {
+      $('#syncEncryptKeyItem').style.display = e.target.checked ? 'block' : 'none';
+    });
+
+    // 测试连接
+    $('#btnTestConnection').addEventListener('click', async () => {
+      const config = getSyncConfigFromForm();
+      if (!config.host) {
+        showToast('请填写服务器地址', 'error');
+        return;
+      }
+      
+      $('#btnTestConnection').disabled = true;
+      $('#btnTestConnection').textContent = '🔄 测试中...';
+      
+      try {
+        const result = await window.ClawBoard.testWebDAVConnection(config);
+        if (result.success) {
+          showToast('连接成功！');
+        } else {
+          showToast(`连接失败: ${result.error || result.status}`, 'error');
+        }
+      } catch (err) {
+        showToast('测试失败: ' + err.message, 'error');
+      }
+      
+      $('#btnTestConnection').disabled = false;
+      $('#btnTestConnection').textContent = '🔗 测试连接';
+    });
+
+    // 保存配置
+    $('#btnSaveSyncConfig').addEventListener('click', async () => {
+      const config = getSyncConfigFromForm();
+      
+      try {
+        await window.ClawBoard.saveSyncConfig(config);
+        showToast('配置已保存');
+        await loadSyncPanel();
+      } catch (err) {
+        showToast('保存失败: ' + err.message, 'error');
+      }
+    });
+
+    // 上传
+    $('#btnSyncUpload').addEventListener('click', async () => {
+      const config = getSyncConfigFromForm();
+      if (!config.host) {
+        showToast('请先配置并保存 WebDAV', 'error');
+        return;
+      }
+      
+      if (!confirm('确定要上传到云端吗？这将覆盖云端的数据。')) return;
+      
+      $('#syncProgress').style.display = 'block';
+      $('#syncProgressText').textContent = '上传中...';
+      $('#syncProgressFill').style.width = '0%';
+      
+      try {
+        const result = await window.ClawBoard.syncToWebDAV(config);
+        if (result.success) {
+          $('#syncProgressFill').style.width = '100%';
+          $('#syncProgressText').textContent = `上传完成！${result.recordCount} 条记录已同步`;
+          showToast(`上传成功！${result.recordCount} 条记录`);
+          await loadSyncPanel();
+        } else {
+          showToast(`上传失败: ${result.error || result.status}`, 'error');
+          $('#syncProgress').style.display = 'none';
+        }
+      } catch (err) {
+        showToast('上传失败: ' + err.message, 'error');
+        $('#syncProgress').style.display = 'none';
+      }
+    });
+
+    // 下载
+    $('#btnSyncDownload').addEventListener('click', async () => {
+      const config = getSyncConfigFromForm();
+      if (!config.host) {
+        showToast('请先配置并保存 WebDAV', 'error');
+        return;
+      }
+      
+      if (!confirm('确定要从云端下载吗？这将导入云端数据到本地。')) return;
+      
+      $('#syncProgress').style.display = 'block';
+      $('#syncProgressText').textContent = '下载中...';
+      $('#syncProgressFill').style.width = '0%';
+      
+      try {
+        const result = await window.ClawBoard.syncFromWebDAV(config);
+        if (result.success) {
+          $('#syncProgressFill').style.width = '100%';
+          $('#syncProgressText').textContent = `下载完成！导入 ${result.imported} 条记录`;
+          showToast(`下载成功！导入 ${result.imported} 条记录`);
+          await loadSyncPanel();
+        } else {
+          showToast(`下载失败: ${result.error || result.status}`, 'error');
+          $('#syncProgress').style.display = 'none';
+        }
+      } catch (err) {
+        showToast('下载失败: ' + err.message, 'error');
+        $('#syncProgress').style.display = 'none';
+      }
+    });
+
+    function getSyncConfigFromForm() {
+      const serverUrl = $('#syncServer').value.trim();
+      let host = serverUrl;
+      let protocol = 'https';
+      
+      // 解析 URL
+      if (serverUrl.startsWith('http://')) {
+        protocol = 'http';
+        host = serverUrl.replace('http://', '').split('/')[0];
+      } else if (serverUrl.startsWith('https://')) {
+        host = serverUrl.replace('https://', '').split('/')[0];
+      }
+      
+      const port = host.includes(':') ? parseInt(host.split(':')[1]) : (protocol === 'https' ? 443 : 80);
+      if (host.includes(':')) host = host.split(':')[0];
+      
+      return {
+        protocol,
+        host,
+        port,
+        path: $('#syncPath').value.trim() || '/',
+        username: $('#syncUsername').value.trim(),
+        password: $('#syncPassword').value,
+        encrypt: $('#syncEncrypt').checked,
+        encryptionKey: $('#syncEncryptKey').value,
+        onlyFavorites: $('#syncOnlyFavorites').checked,
+      };
+    }
+
+    async function loadSyncPanel() {
+      try {
+        // 加载同步元数据
+        const metadata = await window.ClawBoard.getSyncMetadata();
+        
+        // 更新状态显示
+        if (metadata.config && metadata.config.host) {
+          $('#syncServer').value = `${metadata.config.protocol}://${metadata.config.host}:${metadata.config.port}`;
+          $('#syncPath').value = metadata.config.path || '/';
+          $('#syncUsername').value = metadata.config.username || '';
+          $('#syncPassword').value = metadata.config.password || '';
+          $('#syncEncrypt').checked = metadata.config.encrypt !== false;
+          $('#syncOnlyFavorites').checked = metadata.config.onlyFavorites || false;
+          $('#syncEncryptKeyItem').style.display = metadata.config.encrypt ? 'block' : 'none';
+          $('#syncEncryptKey').value = metadata.config.encryptionKey || '';
+          
+          $('#syncStatusText').textContent = '已配置';
+          $('#syncStatusDetail').textContent = metadata.lastSyncTime 
+            ? `上次同步: ${formatTime(metadata.lastSyncTime)}`
+            : '从未同步';
+          $('#syncStatusIcon').textContent = '☁️';
+          
+          $('#btnSyncUpload').disabled = false;
+          $('#btnSyncDownload').disabled = false;
+        } else {
+          $('#syncStatusText').textContent = '未配置';
+          $('#syncStatusDetail').textContent = '点击配置 WebDAV 同步';
+          $('#btnSyncUpload').disabled = true;
+          $('#btnSyncDownload').disabled = true;
+        }
+        
+        // 加载同步统计
+        const stats = await window.ClawBoard.getSyncStats();
+        if (stats) {
+          $('#syncStats').style.display = 'block';
+          $('#syncTotalRecords').textContent = stats.total;
+          $('#syncSyncedRecords').textContent = stats.synced;
+          $('#syncPendingRecords').textContent = stats.pending;
+        }
+      } catch (err) {
+        console.error('加载同步面板失败:', err);
+      }
+    }
+
     // 统计导出按钮
     const originalLoadDetailedStats = loadDetailedStats;
     window.loadDetailedStats = async function() {
