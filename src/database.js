@@ -128,6 +128,13 @@ class Database {
       // 列已存在，忽略
     }
 
+    // 添加备注列（如果不存在）- v0.30.0 条目备注功能
+    try {
+      this.db.run(`ALTER TABLE records ADD COLUMN note TEXT DEFAULT ''`);
+    } catch (e) {
+      // 列已存在，忽略
+    }
+
     // 创建分组表
     this.db.run(`
       CREATE TABLE IF NOT EXISTS groups (
@@ -417,8 +424,8 @@ class Database {
     }
 
     if (search) {
-      sql += ' AND (content LIKE ? OR summary LIKE ? OR ocr_text LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      sql += ' AND (content LIKE ? OR summary LIKE ? OR ocr_text LIKE ? OR note LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
       // 加密记录不参与搜索
       sql += ' AND encrypted = 0';
     }
@@ -671,6 +678,13 @@ class Database {
   // 切换收藏
   toggleFavorite(id) {
     this.db.run(`UPDATE records SET favorite = NOT favorite, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
+    this._save();
+    return true;
+  }
+
+  // 更新备注
+  updateNote(id, note) {
+    this.db.run(`UPDATE records SET note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [note, id]);
     this._save();
     return true;
   }
