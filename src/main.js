@@ -201,6 +201,16 @@ function setupIPC() {
     }
   });
 
+  // 更新备注
+  ipcMain.handle('update-note', async (event, { id, note }) => {
+    try {
+      return db.updateNote(id, note);
+    } catch (err) {
+      log.error('update-note error:', err);
+      return false;
+    }
+  });
+
   // 删除记录
   ipcMain.handle('delete-record', async (event, id) => {
     try {

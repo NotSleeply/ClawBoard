@@ -40,7 +40,7 @@ input{font-family:inherit;outline:none}
 
 .main{position:fixed;top:108px;left:0;right:0;bottom:0;padding:1rem 1.5rem;overflow-y:auto;transition:right 0.3s}
 
-.record-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem 1.2rem;margin-bottom:0.8rem;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden}
+.record-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem 1.2rem;margin-bottom:0.8rem;cursor:pointer;transition:all 0.2s;position:relative;overflow:visible}
 .record-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);opacity:0;transition:opacity 0.2s}
 .record-card:hover{border-color:rgba(249,115,22,0.3);transform:translateX(2px)}
 .record-card:hover::before{opacity:1}
@@ -258,6 +258,16 @@ input{font-family:inherit;outline:none}
 .btn-sm{padding:0.3rem 0.6rem;font-size:0.8rem}
 .record-tags{display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.3rem}
 .record-tag{padding:0.1rem 0.4rem;background:var(--accent-bg);color:var(--accent);border-radius:4px;font-size:0.7rem}
+.record-note-btn{background:none;border:none;cursor:pointer;opacity:0.4;font-size:0.85rem;padding:0;margin-left:0.2rem;transition:opacity 0.2s}
+.record-note-btn:hover,.record-note-btn.has-note{opacity:1}
+.record-note{font-size:0.75rem;color:var(--muted);margin-top:0.3rem;display:flex;align-items:flex-start;gap:0.3rem}
+.record-note::before{content:'📝';flex-shrink:0}
+.note-editor-popup{position:absolute;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.6rem;min-width:250px;max-width:350px;box-shadow:0 4px 16px rgba(0,0,0,0.3)}
+.note-textarea{width:100%;resize:vertical;font-size:0.85rem;padding:0.4rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:inherit;min-height:60px}
+.note-editor-actions{display:flex;gap:0.4rem;margin-top:0.4rem;justify-content:flex-end}
+.btn-note-save,.btn-note-cancel{padding:0.3rem 0.8rem;border-radius:6px;font-size:0.8rem;cursor:pointer;border:none}
+.btn-note-save{background:var(--accent);color:#fff}
+.btn-note-cancel{background:var(--surface);color:var(--text);border:1px solid var(--border)}
 .tags-presets{display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.5rem}
 .tag-preset{padding:0.3rem 0.6rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:0.8rem;cursor:pointer;transition:all 0.2s}
 .tag-preset:hover{border-color:var(--accent);background:var(--accent-bg)}
@@ -275,6 +285,12 @@ input{font-family:inherit;outline:none}
 .ocr-copy-btn{margin-top:0.8rem;padding:0.4rem 0.8rem;border-radius:6px;background:var(--accent-bg);color:var(--accent);font-size:0.8rem;transition:all 0.2s;border:1px solid transparent}
 .ocr-copy-btn:hover{background:var(--accent);color:#fff}
 .ocr-badge{font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(59,130,246,0.15);color:#93c5fd;margin-left:0.3rem}
+
+/* v0.30.0: 详情面板备注 */
+.detail-note-section{padding:0.8rem 1.5rem;border-top:1px solid var(--border);background:var(--surface2)}
+.detail-note-label{font-size:0.8rem;color:var(--muted);margin-bottom:0.4rem;font-weight:600}
+.detail-note-input{width:100%;min-height:60px;resize:vertical;padding:0.5rem;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:inherit;font-size:0.85rem}
+.detail-note-input:focus{outline:none;border-color:var(--accent)}
 
 /* v0.23.0: 内容合并样式 */
 .merge-separator-options{display:flex;gap:0.5rem;flex-wrap:wrap}

@@ -580,6 +580,27 @@
       $('#newTagInput').focus();
     });
 
+    // v0.30.0: 备注按钮
+    $('#btnNote').addEventListener('click', () => {
+      const section = $('#detailNoteSection');
+      const wasVisible = section.style.display !== 'none';
+      if (wasVisible) {
+        // 保存并关闭
+        saveDetailNote();
+        section.style.display = 'none';
+      } else {
+        section.style.display = 'block';
+        $('#detailNoteInput').focus();
+      }
+    });
+
+    // 备注输入框失焦自动保存
+    $('#detailNoteInput').addEventListener('blur', () => {
+      if ($('#detailNoteSection').style.display !== 'none') {
+        saveDetailNote();
+      }
+    });
+
     // v0.17.0: OCR 复制按钮
     $('#btnCopyOCR').addEventListener('click', handleCopyOCR);
 
@@ -1691,6 +1712,12 @@
       }
     } catch (e) {}
 
+    // 备注
+    const noteText = record.note || '';
+    const noteHtml = noteText
+      ? `<div class="record-note" title="${escapeHtml(noteText)}">📝 ${escapeHtml(noteText.length > 40 ? noteText.substring(0, 38) + '...' : noteText)}</div>`
+      : '';
+
     // 多选模式下显示复选框
     const checkboxHtml = isMultiSelectMode
       ? `<span class="record-checkbox ${selectedIds.has(record.id) ? 'checked' : ''}">${selectedIds.has(record.id) ? '✓' : ''}</span>`
@@ -1705,9 +1732,13 @@
         <span class="record-fav" title="${record.favorite ? '取消收藏' : '收藏'}">
           ${record.favorite ? '★' : '☆'}
         </span>
+        <button class="record-note-btn ${noteText ? 'has-note' : ''}" data-id="${record.id}" title="${noteText ? '查看/编辑备注' : '添加备注'}">
+          📝
+        </button>
       </div>
       <div class="record-content ${record.type}">${formatContent(record)}</div>
       ${tagsHtml}
+      ${noteHtml}
     `;
 
     card.addEventListener('click', (e) => {
@@ -1717,6 +1748,13 @@
       } else {
         openDetailPanel(record);
       }
+    });
+
+    // 备注按钮 - 内联编辑
+    const noteBtn = card.querySelector('.record-note-btn');
+    noteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showNoteEditor(record, noteBtn);
     });
 
     // 拖拽排序
@@ -1848,6 +1886,14 @@
     const btnFav = $('#btnFavorite');
     btnFav.textContent = record.favorite ? '☆ 取消收藏' : '☆ 收藏';
 
+    // v0.30.0: 显示备注
+    const noteSection = $('#detailNoteSection');
+    const noteInput = $('#detailNoteInput');
+    noteInput.value = record.note || '';
+    if (record.note) {
+      noteSection.style.display = 'block';
+    }
+
     // 显示/隐藏预览模式按钮（仅文字类型支持 Markdown 预览）
     const previewModes = $('#previewModes');
     if (record.type === 'text' && isMarkdown(record.content)) {
@@ -1939,6 +1985,10 @@
   }
 
   function closeDetailPanel() {
+    // v0.30.0: 保存备注
+    if ($('#detailNoteSection').style.display !== 'none') {
+      saveDetailNote();
+    }
     detailPanel.classList.remove('open');
     selectedRecord = null;
   }
@@ -2573,6 +2623,100 @@
       clearTimeout(timer);
       timer = setTimeout(() => fn.apply(this, args), delay);
     };
+  }
+
+  function saveDetailNote() {
+    if (!selectedRecord) return;
+    const note = $('#detailNoteInput').value.trim();
+    window.ClawBoard.updateNote(selectedRecord.id, note);
+    selectedRecord.note = note;
+    // 更新卡片上的备注显示
+    const card = document.querySelector(`.record-card[data-id="${selectedRecord.id}"]`);
+    if (card) {
+      const btn = card.querySelector('.record-note-btn');
+      const noteEl = card.querySelector('.record-note');
+      if (btn) {
+        btn.classList.toggle('has-note', !!note);
+        btn.title = note ? '查看/编辑备注' : '添加备注';
+      }
+      if (note) {
+        const contentDiv = card.querySelector('.record-content');
+        if (noteEl) {
+          noteEl.textContent = '📝 ' + note;
+        } else {
+          const newNote = document.createElement('div');
+          newNote.className = 'record-note';
+          newNote.textContent = '📝 ' + note;
+          contentDiv.after(newNote);
+        }
+      } else if (noteEl) {
+        noteEl.remove();
+      }
+    }
+  }
+
+  function showNoteEditor(record, btn) {
+    // 如果已经有一个编辑框在显示，先移除
+    const existing = document.querySelector('.note-editor-popup');
+    if (existing) existing.remove();
+
+    const popup = document.createElement('div');
+    popup.className = 'note-editor-popup';
+    popup.innerHTML = `
+      <textarea class="note-textarea" placeholder="添加备注..." rows="3">${escapeHtml(record.note || '')}</textarea>
+      <div class="note-editor-actions">
+        <button class="btn-note-save">保存</button>
+        <button class="btn-note-cancel">取消</button>
+      </div>
+    `;
+
+    btn.parentNode.insertBefore(popup, btn.nextSibling);
+
+    const textarea = popup.querySelector('.note-textarea');
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+    popup.querySelector('.btn-note-save').addEventListener('click', async () => {
+      const note = textarea.value.trim();
+      await window.ClawBoard.updateNote(record.id, note);
+      // 更新卡片 UI
+      const card = btn.closest('.record-card');
+      if (card) {
+        const noteEl = card.querySelector('.record-note');
+        if (note) {
+          if (noteEl) {
+            noteEl.textContent = '📝 ' + note;
+            noteEl.title = note;
+          } else {
+            const contentDiv = card.querySelector('.record-content');
+            const newNote = document.createElement('div');
+            newNote.className = 'record-note';
+            newNote.textContent = '📝 ' + note;
+            newNote.title = note;
+            contentDiv.after(newNote);
+          }
+        } else if (noteEl) {
+          noteEl.remove();
+        }
+        btn.classList.toggle('has-note', !!note);
+        btn.title = note ? '查看/编辑备注' : '添加备注';
+      }
+      popup.remove();
+      showToast(note ? '✅ 备注已保存' : '✅ 备注已清除', 'success');
+    });
+
+    popup.querySelector('.btn-note-cancel').addEventListener('click', () => {
+      popup.remove();
+    });
+
+    // 点击外部关闭
+    const handleOutside = (e) => {
+      if (!popup.contains(e.target) && e.target !== btn) {
+        popup.remove();
+        document.removeEventListener('click', handleOutside);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', handleOutside), 50);
   }
 
   function showToast(message, type = '') {
