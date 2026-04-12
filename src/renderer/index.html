@@ -384,6 +384,7 @@
       <div class="settings-tabs">
         <button class="settings-tab active" data-tab="general">通用</button>
         <button class="settings-tab" data-tab="shortcuts">快捷键</button>
+        <button class="settings-tab" data-tab="notifications">通知</button>
       </div>
       <div class="settings-body">
         <!-- 通用设置 -->
@@ -455,6 +456,45 @@
           </div>
           <div class="setting-item" style="margin-top:1rem">
             <button class="btn-secondary" id="btnResetShortcuts">重置为默认</button>
+          </div>
+        </div>
+
+        <!-- v0.29.0: 通知设置 -->
+        <div class="settings-tab-content" id="settingsNotifications" style="display:none">
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="settingNotificationEnabled">
+              启用剪贴板捕获通知
+            </label>
+            <small style="color:var(--muted);margin-left:1.5rem;display:block;margin-top:0.25rem">复制内容时显示系统通知</small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="settingNotificationSound">
+              启用声音反馈
+            </label>
+            <small style="color:var(--muted);margin-left:1.5rem;display:block;margin-top:0.25rem">捕获内容时播放提示音</small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="settingNotificationPreview" checked>
+              显示内容预览
+            </label>
+            <small style="color:var(--muted);margin-left:1.5rem;display:block;margin-top:0.25rem">在通知中显示剪贴板内容预览</small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="settingNotificationIgnoreLarge" checked>
+              忽略大文本通知
+            </label>
+            <small style="color:var(--muted);margin-left:1.5rem;display:block;margin-top:0.25rem">超过设定字符数的内容不显示通知</small>
+          </div>
+          <div class="setting-item">
+            <label>大文本阈值（字符数）</label>
+            <input type="number" id="settingNotificationLargeThreshold" min="100" max="10000" value="1000">
+          </div>
+          <div class="setting-item" style="margin-top:1rem">
+            <button class="btn-secondary" id="btnTestNotification">🔔 测试通知</button>
           </div>
         </div>
       </div>

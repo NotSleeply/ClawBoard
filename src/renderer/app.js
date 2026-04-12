@@ -1417,6 +1417,13 @@
       $('#shortcutEscape').dataset.value = shortcuts.escape || 'Escape';
       $('#shortcutSelectAll').value = shortcuts.selectAll || 'Ctrl+A';
       $('#shortcutSelectAll').dataset.value = shortcuts.selectAll || 'Ctrl+A';
+
+      // v0.29.0: 加载通知设置
+      $('#settingNotificationEnabled').checked = settings.notificationEnabled || false;
+      $('#settingNotificationSound').checked = settings.notificationSound || false;
+      $('#settingNotificationPreview').checked = settings.notificationPreview !== false;
+      $('#settingNotificationIgnoreLarge').checked = settings.notificationIgnoreLarge !== false;
+      $('#settingNotificationLargeThreshold').value = settings.notificationLargeThreshold || 1000;
     } catch (err) {
       console.error('加载设置失败:', err);
     }
@@ -2402,6 +2409,15 @@
       selectAll: $('#shortcutSelectAll').dataset.value || $('#shortcutSelectAll').value,
     };
 
+    // v0.29.0: 收集通知设置
+    const notificationSettings = {
+      enabled: $('#settingNotificationEnabled').checked,
+      soundEnabled: $('#settingNotificationSound').checked,
+      showPreview: $('#settingNotificationPreview').checked,
+      ignoreLargeText: $('#settingNotificationIgnoreLarge').checked,
+      largeTextThreshold: parseInt($('#settingNotificationLargeThreshold').value) || 1000
+    };
+
     try {
       // 先保存设置
       await window.ClawBoard.saveSettings(settings);
@@ -2409,6 +2425,8 @@
       await window.ClawBoard.saveShortcuts(shortcuts);
       // 更新全局快捷键
       await window.ClawBoard.updateShortcut(shortcuts.global);
+      // v0.29.0: 保存通知设置
+      await window.ClawBoard.updateNotificationSettings(notificationSettings);
       applyTheme(settings.theme);
       settingsOverlay.classList.remove('show');
       showToast('✅ 设置已保存', 'success');
@@ -2417,8 +2435,21 @@
     }
   }
 
+  // v0.29.0: 测试通知
+  async function handleTestNotification() {
+    try {
+      await window.ClawBoard.testNotification();
+      showToast('🔔 测试通知已发送', 'success');
+    } catch (err) {
+      showToast('❌ 通知测试失败', 'error');
+    }
+  }
+
   // 添加重置快捷键按钮事件监听
   $('#btnResetShortcuts').addEventListener('click', resetShortcuts);
+
+  // v0.29.0: 测试通知按钮
+  $('#btnTestNotification').addEventListener('click', handleTestNotification);
 
   // ==================== 工具函数 ====================
   // 默认快捷键配置
