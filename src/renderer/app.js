@@ -1417,6 +1417,22 @@
       $('#shortcutEscape').dataset.value = shortcuts.escape || 'Escape';
       $('#shortcutSelectAll').value = shortcuts.selectAll || 'Ctrl+A';
       $('#shortcutSelectAll').dataset.value = shortcuts.selectAll || 'Ctrl+A';
+
+      // 加载通知设置
+      try {
+        const notifySettings = await window.ClawBoard.getNotificationSettings();
+        $('#settingNotifyEnabled').checked = notifySettings.enabled || false;
+        $('#settingNotifySound').checked = notifySettings.soundEnabled !== false;
+        $('#settingNotifyPreview').checked = notifySettings.showPreview !== false;
+        $('#settingNotifyMinLen').value = notifySettings.minContentLength || 0;
+        const dur = notifySettings.durationSeconds;
+        if (dur !== undefined) {
+          const opt = $(`#settingNotifyDuration option[value="${dur}"]`);
+          if (opt) opt.selected = true;
+        }
+      } catch (e) {
+        console.error('加载通知设置失败:', e);
+      }
     } catch (err) {
       console.error('加载设置失败:', err);
     }
@@ -2407,6 +2423,15 @@
       await window.ClawBoard.saveSettings(settings);
       // 保存快捷键设置
       await window.ClawBoard.saveShortcuts(shortcuts);
+      // 保存通知设置
+      const notifySettings = {
+        enabled: $('#settingNotifyEnabled').checked,
+        soundEnabled: $('#settingNotifySound').checked,
+        showPreview: $('#settingNotifyPreview').checked,
+        minContentLength: parseInt($('#settingNotifyMinLen').value) || 0,
+        durationSeconds: parseInt($('#settingNotifyDuration').value) || 3,
+      };
+      await window.ClawBoard.saveNotificationSettings(notifySettings);
       // 更新全局快捷键
       await window.ClawBoard.updateShortcut(shortcuts.global);
       applyTheme(settings.theme);
@@ -2419,6 +2444,16 @@
 
   // 添加重置快捷键按钮事件监听
   $('#btnResetShortcuts').addEventListener('click', resetShortcuts);
+
+  // 测试通知按钮
+  $('#btnTestNotification').addEventListener('click', async () => {
+    await window.ClawBoard.showClipboardNotification({
+      type: 'text',
+      preview: '这是一条测试通知，用于验证通知功能是否正常工作。',
+      source: 'Test'
+    });
+    showToast('🔔 通知已发送', 'success');
+  });
 
   // ==================== 工具函数 ====================
   // 默认快捷键配置

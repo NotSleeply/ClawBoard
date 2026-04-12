@@ -1656,4 +1656,59 @@ class Database {
   }
 }
 
+  // 获取通知与声音设置
+  getNotificationSettings() {
+    try {
+      const result = this.db.exec(`SELECT key, value FROM settings WHERE key LIKE 'notify_%'`);
+      const settings = {
+        enabled: false,
+        soundEnabled: true,
+        durationSeconds: 3,
+        showPreview: true,
+        minContentLength: 0,
+        excludedApps: [],
+      };
+      if (result.length > 0) {
+        for (const row of result[0].values) {
+          const key = row[0];
+          const value = row[1];
+          if (key === 'notify_enabled') settings.enabled = value === 'true';
+          else if (key === 'notify_sound_enabled') settings.soundEnabled = value === 'true';
+          else if (key === 'notify_duration') settings.durationSeconds = parseInt(value) || 3;
+          else if (key === 'notify_show_preview') settings.showPreview = value === 'true';
+          else if (key === 'notify_min_length') settings.minContentLength = parseInt(value) || 0;
+          else if (key === 'notify_excluded_apps') {
+            try { settings.excludedApps = JSON.parse(value); } catch(e) {}
+          }
+        }
+      }
+      return settings;
+    } catch (e) {
+      console.error('获取通知设置失败:', e);
+      return { enabled: false, soundEnabled: true, durationSeconds: 3, showPreview: true, minContentLength: 0, excludedApps: [] };
+    }
+  }
+
+  // 保存通知与声音设置
+  saveNotificationSettings(settings) {
+    try {
+      const updates = [
+        ['notify_enabled', settings.enabled ? 'true' : 'false'],
+        ['notify_sound_enabled', settings.soundEnabled ? 'true' : 'false'],
+        ['notify_duration', String(settings.durationSeconds || 3)],
+        ['notify_show_preview', settings.showPreview ? 'true' : 'false'],
+        ['notify_min_length', String(settings.minContentLength || 0)],
+        ['notify_excluded_apps', JSON.stringify(settings.excludedApps || [])],
+      ];
+      for (const [key, value] of updates) {
+        this.db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, [key, value]);
+      }
+      return true;
+    } catch (e) {
+      console.error('保存通知设置失败:', e);
+      return false;
+    }
+  }
+}
+
 module.exports = Database;
