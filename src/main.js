@@ -3,7 +3,7 @@
  * 负责窗口管理、系统托盘、IPC 通信
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, clipboard, nativeImage, shell, dialog, globalShortcut } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, clipboard, nativeImage, shell, dialog, globalShortcut, Notification } = require('electron');
 const path = require('path');
 const log = require('electron-log');
 
@@ -23,6 +23,15 @@ let tray = null;
 let db = null;
 let clipboardWatcher = null;
 let ocrService = null; // v0.17.0 OCR服务实例
+
+// v0.29.0: 通知与声音设置
+let notificationSettings = {
+  enabled: false,
+  soundEnabled: false,
+  showPreview: true,
+  ignoreLargeText: true,
+  largeTextThreshold: 1000
+};
 
 // 单实例锁
 const gotTheLock = app.requestSingleInstanceLock();
@@ -392,10 +401,60 @@ function setupIPC() {
           path: app.getPath('exe')
         });
       }
+      // v0.29.0: 更新通知设置
+      updateNotificationSettings(settings);
       return db.saveSettings(settings);
     } catch (err) {
       log.error('save-settings error:', err);
       return false;
+    }
+  });
+
+  // v0.29.0: 通知设置相关 IPC
+  ipcMain.handle('get-notification-settings', async () => {
+    try {
+      return {
+        enabled: notificationSettings.enabled,
+        soundEnabled: notificationSettings.soundEnabled,
+        showPreview: notificationSettings.showPreview,
+        ignoreLargeText: notificationSettings.ignoreLargeText,
+        largeTextThreshold: notificationSettings.largeTextThreshold
+      };
+    } catch (err) {
+      log.error('get-notification-settings error:', err);
+      return null;
+    }
+  });
+
+  ipcMain.handle('update-notification-settings', async (event, settings) => {
+    try {
+      updateNotificationSettings(settings);
+      // 同时保存到数据库
+      const dbSettings = db.getSettings();
+      dbSettings.notificationEnabled = settings.enabled;
+      dbSettings.notificationSound = settings.soundEnabled;
+      dbSettings.notificationPreview = settings.showPreview;
+      dbSettings.notificationIgnoreLarge = settings.ignoreLargeText;
+      dbSettings.notificationLargeThreshold = settings.largeTextThreshold;
+      return db.saveSettings(dbSettings);
+    } catch (err) {
+      log.error('update-notification-settings error:', err);
+      return false;
+    }
+  });
+
+  // v0.29.0: 测试通知
+  ipcMain.handle('test-notification', async () => {
+    try {
+      showClipboardNotification({
+        type: 'text',
+        content: '这是一条测试通知 📋 ClawBoard 通知功能已启用！',
+        id: 'test'
+      });
+      return { success: true };
+    } catch (err) {
+      log.error('test-notification error:', err);
+      return { success: false, error: err.message };
     }
   });
 
@@ -972,6 +1031,9 @@ app.whenReady().then(async () => {
   clipboardWatcher = new ClipboardWatcher(db, clipboard, log, AI, ocrService);
   clipboardWatcher.start();
 
+  // v0.29.0: 将通知函数暴露给全局，供剪贴板模块调用
+  global.showClipboardNotification = showClipboardNotification;
+
   // 创建窗口和托盘
   createWindow();
   createTray();
@@ -984,6 +1046,9 @@ app.whenReady().then(async () => {
       path: app.getPath('exe')
     });
   }
+
+  // v0.29.0: 加载通知设置
+  updateNotificationSettings(settings);
 
   // 注册全局快捷键（从设置读取）
   registerGlobalShortcut(settings);
@@ -1026,6 +1091,118 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   log.error('Unhandled Rejection:', reason);
 });
+
+// v0.29.0: 播放通知声音
+function playNotificationSound() {
+  try {
+    // 使用系统默认声音
+    const { exec } = require('child_process');
+    if (process.platform === 'win32') {
+      // Windows: 使用 PowerShell 播放系统声音
+      exec('powershell -c "[System.Media.SystemSounds]::Beep.Play()"', { windowsHide: true });
+    } else if (process.platform === 'darwin') {
+      // macOS: 使用 afplay
+      exec('afplay /System/Library/Sounds/Glass.aiff');
+    } else {
+      // Linux: 使用 canberra-gtk-play 或 paplay
+      exec('canberra-gtk-play -i message', (err) => {
+        if (err) {
+          exec('paplay /usr/share/sounds/freedesktop/stereo/message.oga', () => {});
+        }
+      });
+    }
+  } catch (err) {
+    log.warn('播放通知声音失败:', err.message);
+  }
+}
+
+// v0.29.0: 显示剪贴板捕获通知
+function showClipboardNotification(record) {
+  if (!notificationSettings.enabled) return;
+  
+  try {
+    // 检查是否为大文本
+    const contentLength = record.content ? record.content.length : 0;
+    if (notificationSettings.ignoreLargeText && contentLength > notificationSettings.largeTextThreshold) {
+      return;
+    }
+
+    // 准备通知内容
+    let title = '📋 已捕获剪贴板';
+    let body = '';
+    
+    switch (record.type) {
+      case 'text':
+        title = '📝 已捕获文字';
+        body = notificationSettings.showPreview 
+          ? (record.content || '').substring(0, 100) + (contentLength > 100 ? '...' : '')
+          : `文字内容 (${contentLength} 字符)`;
+        break;
+      case 'code':
+        title = '💻 已捕获代码';
+        body = notificationSettings.showPreview
+          ? (record.content || '').substring(0, 100) + (contentLength > 100 ? '...' : '')
+          : `代码片段 (${contentLength} 字符)`;
+        break;
+      case 'image':
+        title = '🖼️ 已捕获图片';
+        body = '图片已保存到剪贴板历史';
+        break;
+      case 'file':
+        title = '📁 已捕获文件';
+        body = notificationSettings.showPreview
+          ? (record.content || '').substring(0, 100)
+          : '文件路径已保存';
+        break;
+      default:
+        body = notificationSettings.showPreview
+          ? (record.content || '').substring(0, 100)
+          : '新内容已捕获';
+    }
+
+    // 创建通知
+    const notification = new Notification({
+      title: title,
+      body: body,
+      icon: path.join(__dirname, '../assets/icon.png'),
+      silent: !notificationSettings.soundEnabled, // 如果启用自定义声音，则静音系统通知声音
+      timeoutType: 'default'
+    });
+
+    notification.on('click', () => {
+      // 点击通知时打开主窗口
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+        // 可以在这里选中对应的记录
+        mainWindow.webContents.send('select-record', record.id);
+      }
+    });
+
+    notification.show();
+
+    // 播放自定义声音（如果启用且系统通知声音被静音）
+    if (notificationSettings.soundEnabled && notificationSettings.enabled) {
+      playNotificationSound();
+    }
+
+    log.info('已显示剪贴板捕获通知:', record.type);
+  } catch (err) {
+    log.warn('显示通知失败:', err.message);
+  }
+}
+
+// v0.29.0: 更新通知设置
+function updateNotificationSettings(settings) {
+  notificationSettings = {
+    enabled: settings?.notificationEnabled ?? false,
+    soundEnabled: settings?.notificationSound ?? false,
+    showPreview: settings?.notificationPreview ?? true,
+    ignoreLargeText: settings?.notificationIgnoreLarge ?? true,
+    largeTextThreshold: settings?.notificationLargeThreshold ?? 1000
+  };
+  log.info('通知设置已更新:', notificationSettings);
+}
 
 // 注册全局快捷键
 let currentShortcut = null;

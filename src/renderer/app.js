@@ -1418,18 +1418,15 @@
       $('#shortcutSelectAll').value = shortcuts.selectAll || 'Ctrl+A';
       $('#shortcutSelectAll').dataset.value = shortcuts.selectAll || 'Ctrl+A';
 
-      // 加载通知设置
+      // v0.29.0: 加载通知设置
       try {
         const notifySettings = await window.ClawBoard.getNotificationSettings();
-        $('#settingNotifyEnabled').checked = notifySettings.enabled || false;
-        $('#settingNotifySound').checked = notifySettings.soundEnabled !== false;
-        $('#settingNotifyPreview').checked = notifySettings.showPreview !== false;
-        $('#settingNotifyMinLen').value = notifySettings.minContentLength || 0;
-        const dur = notifySettings.durationSeconds;
-        if (dur !== undefined) {
-          const opt = $(`#settingNotifyDuration option[value="${dur}"]`);
-          if (opt) opt.selected = true;
-        }
+        $('#settingNotificationEnabled').checked = notifySettings.enabled || false;
+        $('#settingNotificationSound').checked = notifySettings.soundEnabled || false;
+        $('#settingNotificationPreview').checked = notifySettings.showPreview !== false;
+        $('#settingNotificationIgnoreLarge').checked = notifySettings.ignoreLargeText !== false;
+        const thresh = notifySettings.largeTextThreshold || notifySettings.minContentLength;
+        if (thresh) $('#settingNotificationLargeThreshold').value = thresh;
       } catch (e) {
         console.error('加载通知设置失败:', e);
       }
@@ -2418,20 +2415,29 @@
       selectAll: $('#shortcutSelectAll').dataset.value || $('#shortcutSelectAll').value,
     };
 
+    // v0.29.0: 收集通知设置
+    const notificationSettings = {
+      enabled: $('#settingNotificationEnabled').checked,
+      soundEnabled: $('#settingNotificationSound').checked,
+      showPreview: $('#settingNotificationPreview').checked,
+      ignoreLargeText: $('#settingNotificationIgnoreLarge').checked,
+      largeTextThreshold: parseInt($('#settingNotificationLargeThreshold').value) || 1000
+    };
+
     try {
       // 先保存设置
       await window.ClawBoard.saveSettings(settings);
       // 保存快捷键设置
       await window.ClawBoard.saveShortcuts(shortcuts);
-      // 保存通知设置
-      const notifySettings = {
-        enabled: $('#settingNotifyEnabled').checked,
-        soundEnabled: $('#settingNotifySound').checked,
-        showPreview: $('#settingNotifyPreview').checked,
-        minContentLength: parseInt($('#settingNotifyMinLen').value) || 0,
-        durationSeconds: parseInt($('#settingNotifyDuration').value) || 3,
+      // v0.29.0: 保存通知设置
+      const notificationSettings = {
+        enabled: $('#settingNotificationEnabled').checked,
+        soundEnabled: $('#settingNotificationSound').checked,
+        showPreview: $('#settingNotificationPreview').checked,
+        ignoreLargeText: $('#settingNotificationIgnoreLarge').checked,
+        largeTextThreshold: parseInt($('#settingNotificationLargeThreshold').value) || 1000,
       };
-      await window.ClawBoard.saveNotificationSettings(notifySettings);
+      await window.ClawBoard.updateNotificationSettings(notificationSettings);
       // 更新全局快捷键
       await window.ClawBoard.updateShortcut(shortcuts.global);
       applyTheme(settings.theme);
@@ -2442,18 +2448,21 @@
     }
   }
 
+  // v0.29.0: 测试通知
+  async function handleTestNotification() {
+    try {
+      await window.ClawBoard.testNotification();
+      showToast('🔔 测试通知已发送', 'success');
+    } catch (err) {
+      showToast('❌ 通知测试失败', 'error');
+    }
+  }
+
   // 添加重置快捷键按钮事件监听
   $('#btnResetShortcuts').addEventListener('click', resetShortcuts);
 
-  // 测试通知按钮
-  $('#btnTestNotification').addEventListener('click', async () => {
-    await window.ClawBoard.showClipboardNotification({
-      type: 'text',
-      preview: '这是一条测试通知，用于验证通知功能是否正常工作。',
-      source: 'Test'
-    });
-    showToast('🔔 通知已发送', 'success');
-  });
+  // v0.29.0: 测试通知按钮
+  $('#btnTestNotification').addEventListener('click', handleTestNotification);
 
   // ==================== 工具函数 ====================
   // 默认快捷键配置

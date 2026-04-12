@@ -114,6 +114,11 @@ class ClipboardWatcher {
       if (global.mainWindow && !global.mainWindow.isDestroyed()) {
         global.mainWindow.webContents.send('new-record', record);
       }
+
+      // v0.29.0: 触发系统通知
+      if (global.showClipboardNotification) {
+        global.showClipboardNotification(record);
+      }
     }).catch(err => {
       this.log.warn('AI 处理失败，使用默认摘要:', err.message);
       // 降级处理
@@ -128,6 +133,11 @@ class ClipboardWatcher {
 
       if (global.mainWindow && !global.mainWindow.isDestroyed()) {
         global.mainWindow.webContents.send('new-record', record);
+      }
+
+      // v0.29.0: 触发系统通知
+      if (global.showClipboardNotification) {
+        global.showClipboardNotification(record);
       }
     });
   }
@@ -205,6 +215,11 @@ class ClipboardWatcher {
       });
 
       this.log.info(`新图片记录: ${filename}`);
+
+      // v0.29.0: 触发系统通知
+      if (global.showClipboardNotification) {
+        global.showClipboardNotification(record);
+      }
     } catch (err) {
       this.log.error('保存图片失败:', err);
     }
