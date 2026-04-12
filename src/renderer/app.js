@@ -1419,11 +1419,17 @@
       $('#shortcutSelectAll').dataset.value = shortcuts.selectAll || 'Ctrl+A';
 
       // v0.29.0: 加载通知设置
-      $('#settingNotificationEnabled').checked = settings.notificationEnabled || false;
-      $('#settingNotificationSound').checked = settings.notificationSound || false;
-      $('#settingNotificationPreview').checked = settings.notificationPreview !== false;
-      $('#settingNotificationIgnoreLarge').checked = settings.notificationIgnoreLarge !== false;
-      $('#settingNotificationLargeThreshold').value = settings.notificationLargeThreshold || 1000;
+      try {
+        const notifySettings = await window.ClawBoard.getNotificationSettings();
+        $('#settingNotificationEnabled').checked = notifySettings.enabled || false;
+        $('#settingNotificationSound').checked = notifySettings.soundEnabled || false;
+        $('#settingNotificationPreview').checked = notifySettings.showPreview !== false;
+        $('#settingNotificationIgnoreLarge').checked = notifySettings.ignoreLargeText !== false;
+        const thresh = notifySettings.largeTextThreshold || notifySettings.minContentLength;
+        if (thresh) $('#settingNotificationLargeThreshold').value = thresh;
+      } catch (e) {
+        console.error('加载通知设置失败:', e);
+      }
     } catch (err) {
       console.error('加载设置失败:', err);
     }
@@ -2423,10 +2429,17 @@
       await window.ClawBoard.saveSettings(settings);
       // 保存快捷键设置
       await window.ClawBoard.saveShortcuts(shortcuts);
+      // v0.29.0: 保存通知设置
+      const notificationSettings = {
+        enabled: $('#settingNotificationEnabled').checked,
+        soundEnabled: $('#settingNotificationSound').checked,
+        showPreview: $('#settingNotificationPreview').checked,
+        ignoreLargeText: $('#settingNotificationIgnoreLarge').checked,
+        largeTextThreshold: parseInt($('#settingNotificationLargeThreshold').value) || 1000,
+      };
+      await window.ClawBoard.updateNotificationSettings(notificationSettings);
       // 更新全局快捷键
       await window.ClawBoard.updateShortcut(shortcuts.global);
-      // v0.29.0: 保存通知设置
-      await window.ClawBoard.updateNotificationSettings(notificationSettings);
       applyTheme(settings.theme);
       settingsOverlay.classList.remove('show');
       showToast('✅ 设置已保存', 'success');

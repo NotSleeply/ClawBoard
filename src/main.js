@@ -1251,3 +1251,71 @@ ipcMain.handle('update-shortcut', async (event, shortcut) => {
     return { success: false, message: err.message };
   }
 });
+
+// v0.29.0: 通知与声音功能
+// 播放提示音
+function playNotificationSound() {
+  try {
+    // Electron Notification 使用系统默认音效，silent 参数控制是否静音
+    return { success: true };
+  } catch (e) {
+    log.error('播放提示音失败:', e);
+  }
+}
+
+// 获取通知设置
+ipcMain.handle('get-notification-settings', async () => {
+  try {
+    return db.getNotificationSettings();
+  } catch (err) {
+    log.error('get-notification-settings error:', err);
+    return { enabled: false, soundEnabled: true, durationSeconds: 3, showPreview: true, minContentLength: 0, excludedApps: [] };
+  }
+});
+
+// 保存通知设置
+ipcMain.handle('save-notification-settings', async (_, settings) => {
+  try {
+    db.saveNotificationSettings(settings);
+    return { success: true };
+  } catch (err) {
+    log.error('save-notification-settings error:', err);
+    return { success: false, message: err.message };
+  }
+});
+
+// 发送剪贴板捕获通知
+ipcMain.handle('show-clipboard-notification', async (_, { type, preview, source }) => {
+  try {
+    const notifySettings = db.getNotificationSettings();
+    if (!notifySettings.enabled) return { success: false, reason: 'disabled' };
+    
+    const contentLength = (preview || '').length;
+    if (contentLength < notifySettings.minContentLength) return { success: false, reason: 'too_short' };
+    
+    // 发送桌面通知
+    const { Notification } = require('electron');
+    
+    let body = '';
+    if (notifySettings.showPreview) {
+      const truncated = contentLength > 100 ? preview.substring(0, 100) + '...' : preview;
+      body = truncated;
+    } else {
+      const typeLabels = { text: '文本', code: '代码', image: '图片', file: '文件', url: '链接' };
+      body = typeLabels[type] || '新内容';
+    }
+    
+    const notification = new Notification({
+      title: '📋 ClawBoard 已捕获',
+      body,
+      silent: !notifySettings.soundEnabled,
+      timeoutType: 'default',
+    });
+    
+    notification.show();
+    return { success: true };
+  } catch (err) {
+    log.error('show-clipboard-notification error:', err);
+    return { success: false, message: err.message };
+  }
+});
