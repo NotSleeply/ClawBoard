@@ -93,6 +93,11 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   syncToWebDAV: (config) => ipcRenderer.invoke('sync-to-webdav', config),
   syncFromWebDAV: (config) => ipcRenderer.invoke('sync-from-webdav', config),
 
+  // v0.29.0: 通知设置
+  getNotificationSettings: () => ipcRenderer.invoke('get-notification-settings'),
+  updateNotificationSettings: (settings) => ipcRenderer.invoke('update-notification-settings', settings),
+  testNotification: () => ipcRenderer.invoke('test-notification'),
+
   // 移除监听
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
