@@ -1451,6 +1451,17 @@
       } catch (e) {
         console.error('加载通知设置失败:', e);
       }
+
+      // v0.31.0: 加载自动过期设置
+      try {
+        const expirySettings = await window.ClawBoard.getAutoExpirySettings();
+        $('#settingExpiryEnabled').checked = expirySettings.enabled || false;
+        $('#settingExpiryDays').value = expirySettings.days || 30;
+        $('#settingExpiryKeepFavorites').checked = expirySettings.keepFavorites !== false;
+        loadExpiryStats();
+      } catch (e) {
+        console.error('加载自动过期设置失败:', e);
+      }
     } catch (err) {
       console.error('加载设置失败:', err);
     }
@@ -2488,6 +2499,13 @@
         largeTextThreshold: parseInt($('#settingNotificationLargeThreshold').value) || 1000,
       };
       await window.ClawBoard.updateNotificationSettings(notificationSettings);
+      // v0.31.0: 保存自动过期设置
+      const expirySettings = {
+        enabled: $('#settingExpiryEnabled').checked,
+        days: parseInt($('#settingExpiryDays').value) || 30,
+        keepFavorites: $('#settingExpiryKeepFavorites').checked,
+      };
+      await window.ClawBoard.saveAutoExpirySettings(expirySettings);
       // 更新全局快捷键
       await window.ClawBoard.updateShortcut(shortcuts.global);
       applyTheme(settings.theme);
@@ -2495,6 +2513,17 @@
       showToast('✅ 设置已保存', 'success');
     } catch (err) {
       showToast('❌ 保存失败', 'error');
+    }
+  }
+
+  // v0.31.0: 加载过期统计
+  async function loadExpiryStats() {
+    try {
+      const stats = await window.ClawBoard.getExpiryStats();
+      $('#expiryExpiredCount').textContent = stats.expired;
+      $('#expiryProtectedCount').textContent = stats.protected;
+    } catch (e) {
+      console.error('加载过期统计失败:', e);
     }
   }
 
@@ -2513,6 +2542,31 @@
 
   // v0.29.0: 测试通知按钮
   $('#btnTestNotification').addEventListener('click', handleTestNotification);
+
+  // v0.31.0: 立即清理过期条目
+  $('#btnCleanExpired').addEventListener('click', async () => {
+    try {
+      const result = await window.ClawBoard.cleanExpiredItems();
+      if (result.success) {
+        showToast('🗑️ 已清理 ' + result.count + ' 条过期记录', 'success');
+        loadExpiryStats();
+        loadRecords();
+      } else {
+        showToast('❌ 清理失败', 'error');
+      }
+    } catch (e) {
+      showToast('❌ 清理失败', 'error');
+    }
+  });
+
+  // v0.31.0: 监听过期清理事件
+  window.ClawBoard.onExpiryCleanup((data) => {
+    if (data.count > 0) {
+      showToast('🗑️ 自动清理了 ' + data.count + ' 条过期记录', 'info');
+      loadExpiryStats();
+      loadRecords();
+    }
+  });
 
   // ==================== 工具函数 ====================
   // 默认快捷键配置

@@ -1725,4 +1725,85 @@ class Database {
   }
 }
 
-module.exports = Database;
+
+  // v0.31.0: 自动过期清理
+  getAutoExpirySettings() {
+    try {
+      const get = (key, def) => {
+        const row = this.db.exec(\SELECT value FROM settings WHERE key = ''\);
+        return row.length > 0 && row[0].values.length > 0 ? row[0].values[0][0] : def;
+      };
+      return {
+        enabled: get('expiry_enabled', 'false') === 'true',
+        days: parseInt(get('expiry_days', '30')) || 30,
+        keepFavorites: get('expiry_keep_favorites', 'true') === 'true',
+      };
+    } catch (e) {
+      console.error('获取自动过期设置失败:', e);
+      return { enabled: false, days: 30, keepFavorites: true };
+    }
+  }
+
+  saveAutoExpirySettings(settings) {
+    try {
+      const updates = [
+        ['expiry_enabled', settings.enabled ? 'true' : 'false'],
+        ['expiry_days', String(settings.days || 30)],
+        ['expiry_keep_favorites', settings.keepFavorites ? 'true' : 'false'],
+      ];
+      for (const [key, value] of updates) {
+        this.db.run(\INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)\, [key, value]);
+      }
+      return true;
+    } catch (e) {
+      console.error('保存自动过期设置失败:', e);
+      return false;
+    }
+  }
+
+  cleanExpiredItems() {
+    try {
+      const settings = this.getAutoExpirySettings();
+      if (!settings.enabled || settings.days <= 0) return 0;
+      const cutoffDate = new Date(Date.now() - settings.days * 86400000).toISOString();
+      let query;
+      if (settings.keepFavorites) {
+        query = \DELETE FROM clipboard_history WHERE created_at < '' AND favorite = 0\;
+      } else {
+        query = \DELETE FROM clipboard_history WHERE created_at < ''\;
+      }
+      this.db.run(query);
+      const result = this.db.exec('SELECT changes() as count');
+      return result.length > 0 && result[0].values.length > 0 ? result[0].values[0][0] : 0;
+    } catch (e) {
+      console.error('清理过期条目失败:', e);
+      return 0;
+    }
+  }
+
+  getExpiryStats() {
+    try {
+      const settings = this.getAutoExpirySettings();
+      if (!settings.enabled || settings.days <= 0) return { total: 0, expired: 0, protected: 0 };
+      const cutoffDate = new Date(Date.now() - settings.days * 86400000).toISOString();
+      const getTotal = () => {
+        const r = this.db.exec(\SELECT COUNT(*) FROM clipboard_history WHERE created_at < ''\);
+        return r.length > 0 && r[0].values.length > 0 ? r[0].values[0][0] : 0;
+      };
+      const getExpired = () => {
+        const q = settings.keepFavorites
+          ? \SELECT COUNT(*) FROM clipboard_history WHERE created_at < '' AND favorite = 0          : \SELECT COUNT(*) FROM clipboard_history WHERE created_at < ''\;
+        const r = this.db.exec(q);
+        return r.length > 0 && r[0].values.length > 0 ? r[0].values[0][0] : 0;
+      };
+      const getProtected = () => {
+        const r = this.db.exec(\SELECT COUNT(*) FROM clipboard_history WHERE created_at < '' AND favorite = 1\);
+        return r.length > 0 && r[0].values.length > 0 ? r[0].values[0][0] : 0;
+      };
+      return { total: getTotal(), expired: getExpired(), protected: getProtected() };
+    } catch (e) {
+      console.error('获取过期统计失败:', e);
+      return { total: 0, expired: 0, protected: 0 };
+    }
+  }
+\nmodule.exports = Database;

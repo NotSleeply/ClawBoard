@@ -303,3 +303,7 @@ input{font-family:inherit;outline:none}
 .record-card.merged-card{border-color:rgba(168,85,247,0.2);background:rgba(168,85,247,0.05)}
 .record-card.merged-card::before{background:#a855f7}
 .merged-badge{font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(168,85,247,0.15);color:#c4b5fd;margin-left:0.3rem}
+
+/* v0.31.0: 数据管理 - 自动过期 */
+.expiry-stats{padding:0.8rem 1rem;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:0.85rem;color:var(--text)}
+.expiry-stats strong{color:var(--accent)}

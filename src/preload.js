@@ -98,6 +98,12 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   getNotificationSettings: () => ipcRenderer.invoke('get-notification-settings'),
   saveNotificationSettings: (settings) => ipcRenderer.invoke('save-notification-settings', settings),
   showClipboardNotification: (data) => ipcRenderer.invoke('show-clipboard-notification', data),
+  // v0.31.0: 自动过期清理
+  getAutoExpirySettings: () => ipcRenderer.invoke('get-auto-expiry-settings'),
+  saveAutoExpirySettings: (settings) => ipcRenderer.invoke('save-auto-expiry-settings', settings),
+  getExpiryStats: () => ipcRenderer.invoke('get-expiry-stats'),
+  cleanExpiredItems: () => ipcRenderer.invoke('clean-expired-items'),
+  onExpiryCleanup: (callback) => ipcRenderer.on('expiry-cleanup', (_, data) => callback(data)),
 
   // v0.31.0: 智能粘贴
   getSmartPasteTypes: () => ipcRenderer.invoke('get-smart-paste-types'),
