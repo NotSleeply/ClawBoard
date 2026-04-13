@@ -17,12 +17,16 @@ const ClipboardWatcher = require('./clipboard');
 const Database = require('./database');
 const AI = require('./ai');
 const OCRService = require('./ocr'); // v0.17.0 OCR服务
+const SmartPaste = require('./smart-paste'); // v0.31.0 智能粘贴
+const IgnoreRules = require('./ignore-rules'); // v0.31.0 忽略规则
 
 let mainWindow = null;
 let tray = null;
 let db = null;
 let clipboardWatcher = null;
 let ocrService = null; // v0.17.0 OCR服务实例
+let smartPaste = null; // v0.31.0 智能粘贴实例
+let ignoreRules = null; // v0.31.0 忽略规则实例
 
 // v0.29.0: 通知与声音设置
 let notificationSettings = {
@@ -1327,5 +1331,118 @@ ipcMain.handle('show-clipboard-notification', async (_, { type, preview, source 
   } catch (err) {
     log.error('show-clipboard-notification error:', err);
     return { success: false, message: err.message };
+  }
+});
+
+// ==================== v0.31.0: 智能粘贴功能 ====================
+
+// 获取可用的智能粘贴类型
+ipcMain.handle('get-smart-paste-types', async () => {
+  try {
+    if (!smartPaste) {
+      smartPaste = new SmartPaste();
+    }
+    return smartPaste.getAvailableTypes();
+  } catch (err) {
+    log.error('get-smart-paste-types error:', err);
+    return [];
+  }
+});
+
+// 执行智能粘贴转换
+ipcMain.handle('smart-paste-transform', async (_, { content, type, options }) => {
+  try {
+    if (!smartPaste) {
+      smartPaste = new SmartPaste();
+    }
+    const result = smartPaste.transform(content, type, options);
+    return { success: true, result };
+  } catch (err) {
+    log.error('smart-paste-transform error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 智能粘贴到剪贴板
+ipcMain.handle('smart-paste-to-clipboard', async (_, { content, type, options }) => {
+  try {
+    if (!smartPaste) {
+      smartPaste = new SmartPaste();
+    }
+    const result = smartPaste.transform(content, type, options);
+    clipboard.writeText(result);
+    return { success: true, result };
+  } catch (err) {
+    log.error('smart-paste-to-clipboard error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 获取忽略规则
+ipcMain.handle('get-ignore-rules', async () => {
+  try {
+    if (!ignoreRules) {
+      ignoreRules = new IgnoreRules();
+    }
+    return ignoreRules.getRules();
+  } catch (err) {
+    log.error('get-ignore-rules error:', err);
+    return null;
+  }
+});
+
+// 保存忽略规则
+ipcMain.handle('save-ignore-rules', async (_, rules) => {
+  try {
+    if (!ignoreRules) {
+      ignoreRules = new IgnoreRules();
+    }
+    // 更新规则
+    ignoreRules.rules = rules;
+    return { success: true };
+  } catch (err) {
+    log.error('save-ignore-rules error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 添加忽略应用
+ipcMain.handle('add-ignored-app', async (_, pattern) => {
+  try {
+    if (!ignoreRules) {
+      ignoreRules = new IgnoreRules();
+    }
+    ignoreRules.addIgnoredApp(pattern);
+    return { success: true };
+  } catch (err) {
+    log.error('add-ignored-app error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 移除忽略应用
+ipcMain.handle('remove-ignored-app', async (_, pattern) => {
+  try {
+    if (!ignoreRules) {
+      ignoreRules = new IgnoreRules();
+    }
+    ignoreRules.removeIgnoredApp(pattern);
+    return { success: true };
+  } catch (err) {
+    log.error('remove-ignored-app error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 测试内容是否应该被忽略
+ipcMain.handle('test-ignore-rules', async (_, { content, metadata }) => {
+  try {
+    if (!ignoreRules) {
+      ignoreRules = new IgnoreRules();
+    }
+    return ignoreRules.shouldIgnore(content, metadata);
+  } catch (err) {
+    log.error('test-ignore-rules error:', err);
+    return { shouldIgnore: false, reason: '' };
   }
 });

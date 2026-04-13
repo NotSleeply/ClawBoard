@@ -99,6 +99,18 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   saveNotificationSettings: (settings) => ipcRenderer.invoke('save-notification-settings', settings),
   showClipboardNotification: (data) => ipcRenderer.invoke('show-clipboard-notification', data),
 
+  // v0.31.0: 智能粘贴
+  getSmartPasteTypes: () => ipcRenderer.invoke('get-smart-paste-types'),
+  smartPasteTransform: (content, type, options) => ipcRenderer.invoke('smart-paste-transform', { content, type, options }),
+  smartPasteToClipboard: (content, type, options) => ipcRenderer.invoke('smart-paste-to-clipboard', { content, type, options }),
+
+  // v0.31.0: 忽略规则
+  getIgnoreRules: () => ipcRenderer.invoke('get-ignore-rules'),
+  saveIgnoreRules: (rules) => ipcRenderer.invoke('save-ignore-rules', rules),
+  addIgnoredApp: (pattern) => ipcRenderer.invoke('add-ignored-app', pattern),
+  removeIgnoredApp: (pattern) => ipcRenderer.invoke('remove-ignored-app', pattern),
+  testIgnoreRules: (content, metadata) => ipcRenderer.invoke('test-ignore-rules', { content, metadata }),
+
   // 移除监听
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
