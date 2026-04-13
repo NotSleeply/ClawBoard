@@ -26,7 +26,8 @@ let db = null;
 let clipboardWatcher = null;
 let ocrService = null; // v0.17.0 OCR服务实例
 let smartPaste = null; // v0.31.0 智能粘贴实例
-let ignoreRules = null; // v0.31.0 忽略规则实例
+let ignoreRules = null; // v0.31.0
+let autoExpiryTimer = null; // v0.31.0 忽略规则实例
 
 // v0.29.0: 通知与声音设置
 let notificationSettings = {
@@ -1048,6 +1049,9 @@ app.whenReady().then(async () => {
   // v0.29.0: 将通知函数暴露给全局，供剪贴板模块调用
   global.showClipboardNotification = showClipboardNotification;
 
+  // v0.31.0: 启动自动过期清理定时器
+  startAutoExpiryTimer();
+
   // 创建窗口和托盘
   createWindow();
   createTray();
@@ -1131,6 +1135,32 @@ function playNotificationSound() {
 }
 
 // v0.29.0: 显示剪贴板捕获通知
+
+// v0.31.0: 自动过期清理定时器
+function startAutoExpiryTimer() {
+  if (autoExpiryTimer) clearInterval(autoExpiryTimer);
+  if (!db) return;
+  const settings = db.getAutoExpirySettings();
+  if (!settings.enabled) return;
+  autoExpiryTimer = setInterval(() => {
+    try {
+      const count = db.cleanExpiredItems();
+      if (count > 0) {
+        log.info('自动过期清理: 删除了 ' + count + ' 条过期记录');
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('expiry-cleanup', { count });
+        }
+      }
+    } catch (err) {
+      log.error('自动过期清理失败:', err);
+    }
+  }, 3600000);
+  const count = db.cleanExpiredItems();
+  if (count > 0) {
+    log.info('启动时自动过期清理: 删除了 ' + count + ' 条过期记录');
+  }
+}
+
 function showClipboardNotification(record) {
   if (!notificationSettings.enabled) return;
   
@@ -1444,5 +1474,45 @@ ipcMain.handle('test-ignore-rules', async (_, { content, metadata }) => {
   } catch (err) {
     log.error('test-ignore-rules error:', err);
     return { shouldIgnore: false, reason: '' };
+  }
+});\n
+// ==================== v0.31.0: 自动过期清理 ====================
+
+ipcMain.handle('get-auto-expiry-settings', async () => {
+  try {
+    return db.getAutoExpirySettings();
+  } catch (err) {
+    log.error('get-auto-expiry-settings error:', err);
+    return { enabled: false, days: 30, keepFavorites: true };
+  }
+});
+
+ipcMain.handle('save-auto-expiry-settings', async (_, settings) => {
+  try {
+    db.saveAutoExpirySettings(settings);
+    startAutoExpiryTimer();
+    return { success: true };
+  } catch (err) {
+    log.error('save-auto-expiry-settings error:', err);
+    return { success: false, message: err.message };
+  }
+});
+
+ipcMain.handle('get-expiry-stats', async () => {
+  try {
+    return db.getExpiryStats();
+  } catch (err) {
+    log.error('get-expiry-stats error:', err);
+    return { total: 0, expired: 0, protected: 0 };
+  }
+});
+
+ipcMain.handle('clean-expired-items', async () => {
+  try {
+    const count = db.cleanExpiredItems();
+    return { success: true, count };
+  } catch (err) {
+    log.error('clean-expired-items error:', err);
+    return { success: false, count: 0, message: err.message };
   }
 });
