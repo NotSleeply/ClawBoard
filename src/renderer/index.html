@@ -391,6 +391,7 @@
         <button class="settings-tab" data-tab="shortcuts">快捷键</button>
         <button class="settings-tab" data-tab="notifications">🔔 通知</button>
         <button class="settings-tab" data-tab="expiry">🗑️ 数据管理</button>
+        <button class="settings-tab" data-tab="hotkeys">⚡ 快捷模板</button>
       </div>
       <div class="settings-body">
         <!-- 通用设置 -->
@@ -535,6 +536,19 @@
           </div>
           <div class="setting-item" style="margin-top:1rem">
             <button class="btn-secondary" id="btnCleanExpired">🗑️ 立即清理过期条目</button>
+          </div>
+        </div>
+
+        <!-- v0.32.0: 快捷键模板 -->
+        <div class="settings-tab-content" id="settingsHotkeys" style="display:none">
+          <div style="margin-bottom:0.8rem;color:var(--muted);font-size:0.85rem">
+            为常用内容绑定全局快捷键 <strong>Ctrl+Shift+1~9</strong>，触发后自动写入剪贴板。
+          </div>
+          <div id="hotkeySlotsList" style="display:flex;flex-direction:column;gap:0.5rem">
+            <!-- 动态渲染 9 个槽位 -->
+          </div>
+          <div style="margin-top:1rem;padding:0.8rem;background:var(--surface2);border-radius:8px;font-size:0.82rem;color:var(--muted)">
+            💡 支持模板变量：<code>{{date}}</code> 日期、<code>{{time}}</code> 时间、<code>{{datetime}}</code> 日期时间、<code>{{clipboard}}</code> 当前剪贴板
           </div>
         </div>
       </div>

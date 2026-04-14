@@ -117,6 +117,14 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   removeIgnoredApp: (pattern) => ipcRenderer.invoke('remove-ignored-app', pattern),
   testIgnoreRules: (content, metadata) => ipcRenderer.invoke('test-ignore-rules', { content, metadata }),
 
+  // v0.32.0: 快捷键模板系统
+  hotkeyGetAllSlots: () => ipcRenderer.invoke('hotkey-get-all-slots'),
+  hotkeyBind: (slot, label, content, isTemplate) => ipcRenderer.invoke('hotkey-bind', { slot, label, content, isTemplate }),
+  hotkeyBindFromItem: (slot, clipboardItem) => ipcRenderer.invoke('hotkey-bind-from-item', { slot, clipboardItem }),
+  hotkeyUnbind: (slot) => ipcRenderer.invoke('hotkey-unbind', { slot }),
+  hotkeyRenderTemplate: (content) => ipcRenderer.invoke('hotkey-render-template', { content }),
+  onHotkeyTriggered: (callback) => ipcRenderer.on('hotkey-triggered', (_, data) => callback(data)),
+
   // 移除监听
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
