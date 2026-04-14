@@ -120,6 +120,7 @@
         <button class="detail-btn" id="btnNote" title="备注">📝 备注</button>
         <button class="detail-btn" id="btnEncrypt" title="加密" style="display:none">🔒 加密</button>
         <button class="detail-btn" id="btnDecrypt" title="解密" style="display:none">🔓 查看</button>
+        <button class="detail-btn" id="btnTransform" title="格式转换">🔄 转换</button>
         <button class="detail-btn danger" id="btnDelete" title="删除">🗑️ 删除</button>
         <button class="detail-close" id="btnCloseDetail">×</button>
       </div>
@@ -137,6 +138,15 @@
         <div class="ocr-content" id="ocrContent"></div>
         <button class="ocr-copy-btn" id="btnCopyOCR" title="复制识别结果">📋 复制文字</button>
       </div>
+    </div>
+    <!-- v0.33.0: 格式转换面板 -->
+    <div class="transform-panel" id="transformPanel" style="display:none">
+      <div class="transform-header">
+        <span>🔄 格式转换</span>
+        <button class="transform-close" id="btnCloseTransform">×</button>
+      </div>
+      <div class="transform-result" id="transformResult"></div>
+      <div class="transform-actions" id="transformActions"></div>
     </div>
     <div class="detail-footer" id="detailFooter">
       <!-- AI 摘要等 -->

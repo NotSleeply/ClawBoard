@@ -123,6 +123,10 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   hotkeyBindFromItem: (slot, clipboardItem) => ipcRenderer.invoke('hotkey-bind-from-item', { slot, clipboardItem }),
   hotkeyUnbind: (slot) => ipcRenderer.invoke('hotkey-unbind', { slot }),
   hotkeyRenderTemplate: (content) => ipcRenderer.invoke('hotkey-render-template', { content }),
+  // v0.33.0: 格式转换
+  listTransforms: () => ipcRenderer.invoke('list-transforms'),
+  applyTransform: (data) => ipcRenderer.invoke('apply-transform', data),
+  applyTransformCopy: (data) => ipcRenderer.invoke('apply-transform-copy', data),
   onHotkeyTriggered: (callback) => ipcRenderer.on('hotkey-triggered', (_, data) => callback(data)),
 
   // 移除监听
