@@ -127,6 +127,14 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   listTransforms: () => ipcRenderer.invoke('list-transforms'),
   applyTransform: (data) => ipcRenderer.invoke('apply-transform', data),
   applyTransformCopy: (data) => ipcRenderer.invoke('apply-transform-copy', data),
+  // v0.34.0: 导入导出
+  exportRecordsJSON: () => ipcRenderer.invoke('export-records-json'),
+  exportRecordsCSV: () => ipcRenderer.invoke('export-records-csv'),
+  importRecords: (data) => ipcRenderer.invoke('import-records', data),
+  showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
+  showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),
+  writeFile: (data) => ipcRenderer.invoke('write-file', data),
+  readFile: (data) => ipcRenderer.invoke('read-file', data),
   onHotkeyTriggered: (callback) => ipcRenderer.on('hotkey-triggered', (_, data) => callback(data)),
 
   // 移除监听
