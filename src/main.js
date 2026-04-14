@@ -1621,3 +1621,74 @@ ipcMain.handle('apply-transform-copy', async (_, { transformId, text }) => {
     return { success: false, error: err.message };
   }
 });
+// ==================== v0.34.0: 导入导出 ====================
+
+ipcMain.handle('export-records-json', async () => {
+  try {
+    const records = db.exportAllRecords();
+    return { success: true, data: records };
+  } catch (err) {
+    log.error('export-records-json error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('export-records-csv', async () => {
+  try {
+    const csv = db.exportAllRecordsCSV();
+    return { success: true, data: csv };
+  } catch (err) {
+    log.error('export-records-csv error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('import-records', async (_, { records, mode }) => {
+  try {
+    const result = db.importRecords(records, mode);
+    return { success: true, ...result };
+  } catch (err) {
+    log.error('import-records error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('show-save-dialog', async (_, options) => {
+  try {
+    const result = await dialog.showSaveDialog(mainWindow, options);
+    return result;
+  } catch (err) {
+    log.error('show-save-dialog error:', err);
+    return { canceled: true };
+  }
+});
+
+ipcMain.handle('show-open-dialog', async (_, options) => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, options);
+    return result;
+  } catch (err) {
+    log.error('show-open-dialog error:', err);
+    return { canceled: true };
+  }
+});
+
+ipcMain.handle('write-file', async (_, { filePath, content }) => {
+  try {
+    require('fs').writeFileSync(filePath, content, 'utf8');
+    return { success: true };
+  } catch (err) {
+    log.error('write-file error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('read-file', async (_, { filePath }) => {
+  try {
+    const content = require('fs').readFileSync(filePath, 'utf8');
+    return { success: true, content };
+  } catch (err) {
+    log.error('read-file error:', err);
+    return { success: false, error: err.message };
+  }
+});

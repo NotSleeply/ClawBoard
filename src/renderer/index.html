@@ -401,6 +401,7 @@
         <button class="settings-tab" data-tab="shortcuts">快捷键</button>
         <button class="settings-tab" data-tab="notifications">🔔 通知</button>
         <button class="settings-tab" data-tab="expiry">🗑️ 数据管理</button>
+        <button class="settings-tab" data-tab="importExport">📥 导入导出</button>
         <button class="settings-tab" data-tab="hotkeys">⚡ 快捷模板</button>
       </div>
       <div class="settings-body">
@@ -546,6 +547,34 @@
           </div>
           <div class="setting-item" style="margin-top:1rem">
             <button class="btn-secondary" id="btnCleanExpired">🗑️ 立即清理过期条目</button>
+          </div>
+        </div>
+
+        <!-- v0.34.0: 导入导出 -->
+        <div class="settings-tab-content" id="settingsImportExport" style="display:none">
+          <div style="margin-bottom:0.8rem;color:var(--muted);font-size:0.85rem">
+            导出全部历史记录为备份，或从备份文件恢复数据。
+          </div>
+          <div class="setting-item">
+            <label>📤 导出剪贴板历史</label>
+            <div style="display:flex;gap:0.5rem;margin-top:0.5rem">
+              <button class="btn-primary" id="btnExportJSON">导出 JSON（完整备份）</button>
+              <button class="btn-secondary" id="btnExportCSV">导出 CSV（仅文本）</button>
+            </div>
+            <div id="exportStatus" style="margin-top:0.5rem;font-size:0.85rem;color:var(--muted)"></div>
+          </div>
+          <div class="setting-item" style="margin-top:1rem">
+            <label>📥 从备份恢复</label>
+            <button class="btn-primary" id="btnImportJSON">选择 JSON 文件导入</button>
+            <div class="import-mode" style="margin-top:0.5rem">
+              <label style="font-size:0.85rem">
+                <input type="radio" name="importMode" value="merge" checked> 合并（跳过重复）
+              </label>
+              <label style="font-size:0.85rem;margin-left:1rem">
+                <input type="radio" name="importMode" value="replace"> 替换（清空后导入）
+              </label>
+            </div>
+            <div id="importStatus" style="margin-top:0.5rem;font-size:0.85rem;color:var(--muted)"></div>
           </div>
         </div>
 

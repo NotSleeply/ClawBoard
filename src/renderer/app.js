@@ -175,6 +175,11 @@
     $('#btnClearHistory').addEventListener('click', handleClearHistory);
     $('#btnFindDuplicates').addEventListener('click', handleFindDuplicates);
 
+    // v0.34.0: 导入导出按钮
+    $('#btnExportJSON').addEventListener('click', handleExportJSON);
+    $('#btnExportCSV').addEventListener('click', handleExportCSV);
+    $('#btnImportJSON').addEventListener('click', handleImportJSON);
+
     // 详情面板
     $('#btnCloseDetail').addEventListener('click', closeDetailPanel);
     $('#btnCopy').addEventListener('click', handleCopyRecord);
@@ -2479,6 +2484,86 @@
       showToast('🗑️ 已删除', 'success');
     } catch (err) {
       showToast('❌ 删除失败', 'error');
+    }
+  }
+
+  // v0.34.0: 导出 JSON
+  async function handleExportJSON() {
+    const status = $('#exportStatus');
+    status.textContent = '正在导出...';
+    try {
+      const res = await window.ClawBoard.exportRecordsJSON();
+      if (!res.success) throw new Error(res.error);
+      if (!res.data.length) {
+        status.textContent = '暂无记录可导出';
+        return;
+      }
+      const dialogRes = await window.ClawBoard.showSaveDialog({
+        title: '导出 JSON 备份',
+        defaultPath: `clawboard-backup-${new Date().toISOString().slice(0,10)}.json`,
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      });
+      if (dialogRes.canceled) { status.textContent = '已取消'; return; }
+      await window.ClawBoard.writeFile({ filePath: dialogRes.filePath, content: JSON.stringify(res.data, null, 2) });
+      status.textContent = `✅ 成功导出 ${res.data.length} 条记录`;
+      showToast(`📤 已导出 ${res.data.length} 条记录`, 'success');
+    } catch (err) {
+      status.textContent = '❌ 导出失败: ' + err.message;
+      showToast('❌ 导出失败', 'error');
+    }
+  }
+
+  // v0.34.0: 导出 CSV
+  async function handleExportCSV() {
+    const status = $('#exportStatus');
+    status.textContent = '正在导出...';
+    try {
+      const res = await window.ClawBoard.exportRecordsCSV();
+      if (!res.success) throw new Error(res.error);
+      if (!res.data) {
+        status.textContent = '暂无文本记录可导出';
+        return;
+      }
+      const dialogRes = await window.ClawBoard.showSaveDialog({
+        title: '导出 CSV',
+        defaultPath: `clawboard-export-${new Date().toISOString().slice(0,10)}.csv`,
+        filters: [{ name: 'CSV', extensions: ['csv'] }]
+      });
+      if (dialogRes.canceled) { status.textContent = '已取消'; return; }
+      await window.ClawBoard.writeFile({ filePath: dialogRes.filePath, content: res.data });
+      const lines = res.data.split('\n').length - 1;
+      status.textContent = `✅ 成功导出 ${lines} 条文本记录`;
+      showToast(`📤 已导出 ${lines} 条文本记录`, 'success');
+    } catch (err) {
+      status.textContent = '❌ 导出失败: ' + err.message;
+      showToast('❌ 导出失败', 'error');
+    }
+  }
+
+  // v0.34.0: 导入 JSON
+  async function handleImportJSON() {
+    const status = $('#importStatus');
+    status.textContent = '正在导入...';
+    try {
+      const dialogRes = await window.ClawBoard.showOpenDialog({
+        title: '选择备份文件',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        properties: ['openFile']
+      });
+      if (dialogRes.canceled) { status.textContent = '已取消'; return; }
+      const fileRes = await window.ClawBoard.readFile({ filePath: dialogRes.filePaths[0] });
+      if (!fileRes.success) throw new Error(fileRes.error);
+      const records = JSON.parse(fileRes.content);
+      if (!Array.isArray(records)) throw new Error('文件格式错误：需要 JSON 数组');
+      const mode = document.querySelector('input[name="importMode"]:checked').value;
+      const result = await window.ClawBoard.importRecords({ records, mode });
+      if (!result.success) throw new Error(result.error);
+      status.textContent = `✅ 导入完成：新增 ${result.imported} 条，跳过 ${result.skipped} 条重复`;
+      showToast(`📥 导入完成：新增 ${result.imported} 条`, 'success');
+      loadRecords();
+    } catch (err) {
+      status.textContent = '❌ 导入失败: ' + err.message;
+      showToast('❌ 导入失败', 'error');
     }
   }
 

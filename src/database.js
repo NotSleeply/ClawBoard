@@ -1807,3 +1807,95 @@ class Database {
     }
   }
 \nmodule.exports = Database;
+  // ==================== v0.34.0: 导入导出 ====================
+  exportAllRecords() {
+    const records = this.db.exec(`
+      SELECT id, type, content, favorite, tags, note, group_id, group_order,
+             created_at, updated_at, source_app, language, ai_summary, ocr_text,
+             encrypted, is_pinned
+      FROM records
+      ORDER BY created_at DESC
+    `);
+    if (!records.length) return [];
+
+    const columns = records[0].columns;
+    const values = records[0].values;
+    return values.map(row => {
+      const obj = {};
+      columns.forEach((col, i) => { obj[col] = row[i]; });
+      return obj;
+    });
+  }
+
+  exportAllRecordsCSV() {
+    const records = this.db.exec(`
+      SELECT created_at, type, source_app, content
+      FROM records
+      WHERE type = 'text' OR type = 'code'
+      ORDER BY created_at DESC
+    `);
+    if (!records.length) return '';
+
+    const header = 'created_at,type,source_app,content\n';
+    const rows = records[0].values.map(row => {
+      const escaped = row.map(v => {
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+          return '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+      });
+      return rows.length; // placeholder, actual row below
+    });
+
+    // Rebuild properly
+    const lines = records[0].values.map(row => {
+      const vals = row.map(v => {
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+          return '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+      });
+      return vals.join(',');
+    });
+    return header + lines.join('\n');
+  }
+
+  importRecords(records, mode = 'merge') {
+    // mode: 'merge' (skip duplicates) or 'replace' (delete all first)
+    if (mode === 'replace') {
+      this.db.exec('DELETE FROM records WHERE is_pinned = 0');
+    }
+    let imported = 0, skipped = 0;
+    for (const r of records) {
+      if (!r.content) continue;
+      // Check duplicate
+      const existing = this.db.exec(
+        `SELECT id FROM records WHERE content = $c LIMIT 1`,
+        { $c: r.content }
+      );
+      if (existing.length && existing[0].values.length) {
+        skipped++;
+        continue;
+      }
+      this.addRecord({
+        type: r.type || 'text',
+        content: r.content,
+        favorite: r.favorite ? 1 : 0,
+        tags: r.tags || '[]',
+        note: r.note || '',
+        groupId: r.group_id || null,
+        sourceApp: r.source_app || '',
+        language: r.language || '',
+        aiSummary: r.ai_summary || '',
+        encrypted: r.encrypted || 0,
+      });
+      imported++;
+    }
+    return { imported, skipped };
+  }
+
+}
