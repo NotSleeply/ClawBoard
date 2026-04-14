@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ClawBoard - Electron 主进程
  * 负责窗口管理、系统托盘、IPC 通信
  */
@@ -19,6 +19,7 @@ const AI = require('./ai');
 const OCRService = require('./ocr'); // v0.17.0 OCR服务
 const SmartPaste = require('./smart-paste'); // v0.31.0 智能粘贴
 const IgnoreRules = require('./ignore-rules'); // v0.31.0 忽略规则
+const HotkeyTemplates = require('./hotkey-templates'); // v0.32.0 快捷键模板
 
 let mainWindow = null;
 let tray = null;
@@ -28,6 +29,7 @@ let ocrService = null; // v0.17.0 OCR服务实例
 let smartPaste = null; // v0.31.0 智能粘贴实例
 let ignoreRules = null; // v0.31.0
 let autoExpiryTimer = null; // v0.31.0 忽略规则实例
+let hotkeyTemplates = null; // v0.32.0 快捷键模板实例
 
 // v0.29.0: 通知与声音设置
 let notificationSettings = {
@@ -1052,6 +1054,17 @@ app.whenReady().then(async () => {
   // v0.31.0: 启动自动过期清理定时器
   startAutoExpiryTimer();
 
+  // v0.32.0: 初始化快捷键模板系统
+  hotkeyTemplates = new HotkeyTemplates(db.getDb());
+  hotkeyTemplates.registerAll((accelerator, content, label) => {
+    log.info(`[HotkeyTemplates] 触发: ${accelerator} → ${label}`);
+    // 通知渲染进程快捷键已触发
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('hotkey-triggered', { accelerator, content, label });
+    }
+  });
+  log.info('[HotkeyTemplates] 快捷键模板系统已初始化');
+
   // 创建窗口和托盘
   createWindow();
   createTray();
@@ -1514,5 +1527,67 @@ ipcMain.handle('clean-expired-items', async () => {
   } catch (err) {
     log.error('clean-expired-items error:', err);
     return { success: false, count: 0, message: err.message };
+  }
+});
+
+// ==================== v0.32.0: 快捷键模板系统 ====================
+
+ipcMain.handle('hotkey-get-all-slots', async () => {
+  try {
+    if (!hotkeyTemplates) return [];
+    return hotkeyTemplates.getAllSlots();
+  } catch (err) {
+    log.error('hotkey-get-all-slots error:', err);
+    return [];
+  }
+});
+
+ipcMain.handle('hotkey-bind', async (_, { slot, label, content, isTemplate }) => {
+  try {
+    if (!hotkeyTemplates) return { success: false, message: '快捷键模板系统未初始化' };
+    const result = hotkeyTemplates.bind(slot, label, content, isTemplate, (accelerator, rendered, lbl) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('hotkey-triggered', { accelerator, content: rendered, label: lbl });
+      }
+    });
+    return result;
+  } catch (err) {
+    log.error('hotkey-bind error:', err);
+    return { success: false, message: err.message };
+  }
+});
+
+ipcMain.handle('hotkey-bind-from-item', async (_, { slot, clipboardItem }) => {
+  try {
+    if (!hotkeyTemplates) return { success: false, message: '快捷键模板系统未初始化' };
+    const result = hotkeyTemplates.bindFromClipboardItem(slot, clipboardItem, (accelerator, rendered, lbl) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('hotkey-triggered', { accelerator, content: rendered, label: lbl });
+      }
+    });
+    return result;
+  } catch (err) {
+    log.error('hotkey-bind-from-item error:', err);
+    return { success: false, message: err.message };
+  }
+});
+
+ipcMain.handle('hotkey-unbind', async (_, { slot }) => {
+  try {
+    if (!hotkeyTemplates) return false;
+    return hotkeyTemplates.unbindSlot(slot);
+  } catch (err) {
+    log.error('hotkey-unbind error:', err);
+    return false;
+  }
+});
+
+ipcMain.handle('hotkey-render-template', async (_, { content }) => {
+  try {
+    if (!hotkeyTemplates) return content;
+    return hotkeyTemplates.renderTemplate(content);
+  } catch (err) {
+    log.error('hotkey-render-template error:', err);
+    return content;
   }
 });

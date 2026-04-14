@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ClawBoard - 渲染进程应用
  */
 
@@ -156,6 +156,8 @@
         tab.classList.add('active');
         const tabId = 'settings' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1);
         $('#' + tabId).classList.add('show');
+        // v0.32.0: 切换到快捷模板 tab 时加载槽位
+        if (tab.dataset.tab === 'hotkeys') loadHotkeySlots();
       });
     });
 
@@ -2784,3 +2786,5 @@
   // ==================== 启动 ====================
   document.addEventListener('DOMContentLoaded', init);
 })();
+
+
