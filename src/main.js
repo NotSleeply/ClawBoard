@@ -20,6 +20,7 @@ const OCRService = require('./ocr'); // v0.17.0 OCR服务
 const SmartPaste = require('./smart-paste'); // v0.31.0 智能粘贴
 const IgnoreRules = require('./ignore-rules'); // v0.31.0 忽略规则
 const HotkeyTemplates = require('./hotkey-templates'); // v0.32.0 快捷键模板
+const TextTransform = require('./text-transform'); // v0.33.0 格式转换
 
 let mainWindow = null;
 let tray = null;
@@ -1589,5 +1590,34 @@ ipcMain.handle('hotkey-render-template', async (_, { content }) => {
   } catch (err) {
     log.error('hotkey-render-template error:', err);
     return content;
+  }
+});
+
+// ==================== v0.33.0: 格式转换 ====================
+
+const textTransformer = new TextTransform();
+
+ipcMain.handle('list-transforms', async () => {
+  return textTransformer.listTransforms();
+});
+
+ipcMain.handle('apply-transform', async (_, { transformId, text }) => {
+  try {
+    const result = textTransformer.apply(transformId, text);
+    return { success: true, ...result };
+  } catch (err) {
+    log.error('apply-transform error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('apply-transform-copy', async (_, { transformId, text }) => {
+  try {
+    const result = textTransformer.apply(transformId, text);
+    clipboard.writeText(result.result);
+    return { success: true, label: result.label, result: result.result };
+  } catch (err) {
+    log.error('apply-transform-copy error:', err);
+    return { success: false, error: err.message };
   }
 });

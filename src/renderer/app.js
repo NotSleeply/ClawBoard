@@ -636,6 +636,13 @@
       showToast('📋 新记录已添加', 'success');
     });
 
+    // v0.33.0: 加载转换列表
+    try {
+      transformList = await window.ClawBoard.listTransforms();
+    } catch (e) {
+      console.error('加载转换列表失败:', e);
+    }
+
     // 搜索框聚焦
     window.ClawBoard.onFocusSearch(() => {
       searchInput.focus();
@@ -1995,6 +2002,66 @@
     } catch (err) {
       console.error('获取 OCR 文本失败:', err);
     }
+  }
+
+  // v0.33.0: 格式转换面板
+  function showTransformPanel(content) {
+    const panel = $('#transformPanel');
+    const result = $('#transformResult');
+    const actions = $('#transformActions');
+
+    panel.style.display = 'block';
+    result.textContent = '选择一种转换方式...';
+    result.className = 'transform-result';
+
+    // 生成转换按钮
+    actions.innerHTML = '';
+    transformList.forEach(t => {
+      const btn = document.createElement('button');
+      btn.textContent = t.label;
+      btn.title = t.desc;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        result.textContent = '转换中...';
+        result.className = 'transform-result';
+        try {
+          const res = await window.ClawBoard.applyTransform({ transformId: t.id, text: content });
+          if (res.success) {
+            result.textContent = res.result;
+            result.className = 'transform-result';
+            // 显示操作按钮
+            actions.innerHTML = '';
+            const copyBtn = document.createElement('button');
+            copyBtn.textContent = '📋 复制结果';
+            copyBtn.addEventListener('click', async () => {
+              await window.ClawBoard.copyRecord(selectedRecord.id, res.result);
+              showToast('✅ 已复制转换结果', 'success');
+            });
+            const pasteBtn = document.createElement('button');
+            pasteBtn.textContent = '📌 直接粘贴';
+            pasteBtn.addEventListener('click', async () => {
+              await window.ClawBoard.applyTransformCopy({ transformId: t.id, text: content });
+              showToast('✅ 已转换并粘贴', 'success');
+              closeTransformPanel();
+            });
+            actions.appendChild(copyBtn);
+            actions.appendChild(pasteBtn);
+          } else {
+            result.textContent = '❌ ' + (res.error || '转换失败');
+            result.className = 'transform-result error';
+          }
+        } catch (e) {
+          result.textContent = '❌ ' + e.message;
+          result.className = 'transform-result error';
+        }
+        btn.disabled = false;
+      });
+      actions.appendChild(btn);
+    });
+  }
+
+  function closeTransformPanel() {
+    $('#transformPanel').style.display = 'none';
   }
 
   function closeDetailPanel() {

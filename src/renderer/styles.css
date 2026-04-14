@@ -307,3 +307,13 @@ input{font-family:inherit;outline:none}
 /* v0.31.0: 数据管理 - 自动过期 */
 .expiry-stats{padding:0.8rem 1rem;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:0.85rem;color:var(--text)}
 .expiry-stats strong{color:var(--accent)}
+
+/* v0.33.0: 格式转换面板 */
+.transform-panel{background:var(--surface2);border-top:1px solid var(--border);padding:0.75rem;margin-top:auto}
+.transform-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;font-weight:600;font-size:0.9rem}
+.transform-close{background:none;border:none;color:var(--text);font-size:1.2rem;cursor:pointer;padding:0 0.25rem;line-height:1}
+.transform-result{background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:0.5rem;max-height:120px;overflow:auto;font-size:0.85rem;white-space:pre-wrap;word-break:break-all;margin-bottom:0.5rem;font-family:monospace}
+.transform-result.error{color:var(--danger)}
+.transform-actions{display:flex;gap:0.5rem;flex-wrap:wrap}
+.transform-actions button{background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.6rem;border-radius:4px;cursor:pointer;font-size:0.8rem}
+.transform-actions button:hover{background:var(--surface1);border-color:var(--accent)}
