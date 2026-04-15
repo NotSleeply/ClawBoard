@@ -126,3 +126,21 @@
 .sync-stat-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.8rem;text-align:center}
 .sync-stat-value{font-size:1.25rem;font-weight:700;color:var(--text);display:block}
 .sync-stat-label{font-size:0.75rem;color:var(--muted)}
+
+/* v0.35.0: 搜索结果高亮 */
+.search-highlight{background:rgba(59,130,246,0.3);color:var(--text);border-radius:2px;padding:0 2px;font-weight:600;transition:background 0.2s}
+.search-highlight:hover{background:rgba(59,130,246,0.5)}
+
+/* v0.35.0: 搜索历史下拉 */
+.search-history-dropdown{position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.3);z-index:100;overflow:hidden;min-width:280px}
+.search-history-header{display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);font-size:0.8rem;color:var(--muted)}
+.search-history-clear{background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.8rem;padding:2px 6px;border-radius:4px;transition:all 0.2s}
+.search-history-clear:hover{color:var(--accent);background:var(--accent-bg)}
+.search-history-list{max-height:240px;overflow-y:auto}
+.search-history-item{display:flex;align-items:center;padding:0.5rem 0.8rem;cursor:pointer;transition:background 0.15s;gap:0.5rem}
+.search-history-item:hover,.search-history-item.active{background:var(--accent-bg)}
+.search-history-icon{font-size:0.85rem;flex-shrink:0;opacity:0.6}
+.search-history-text{flex:1;font-size:0.85rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-history-delete{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0 4px;line-height:1;opacity:0;transition:all 0.15s;border-radius:4px}
+.search-history-item:hover .search-history-delete{opacity:1}
+.search-history-delete:hover{color:#ef4444;background:rgba(239,68,68,0.1)}

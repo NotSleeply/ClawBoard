@@ -29,6 +29,12 @@
   let currentGroupId = null; // null = 全部记录
   let draggedRecord = null;
   let draggedGroup = null;
+  // v0.35.0: 搜索历史
+  let searchHistory = [];
+  const SEARCH_HISTORY_KEY = 'searchHistory';
+  const SEARCH_HISTORY_MAX = 20;
+  let searchHistoryDropdown = null;
+  let isSearchHistoryOpen = false;
 
   // ==================== DOM 元素 ====================
   const $ = (sel) => document.querySelector(sel);
@@ -49,6 +55,8 @@
   async function init() {
     setupEventListeners();
     initShortcutRecording();  // 初始化快捷键录制
+    loadSearchHistory();      // v0.35.0: 加载搜索历史
+    initSearchHistoryUI();    // v0.35.0: 初始化搜索历史下拉
     await loadGroups();
     await loadRecords();
     await loadStats();
@@ -65,6 +73,27 @@
       }
       if (e.key === 'Enter') {
         handleSearch();
+      }
+      // v0.35.0: 搜索历史键盘导航
+      if (e.key === 'ArrowDown' && isSearchHistoryOpen) {
+        e.preventDefault();
+        navigateSearchHistory(1);
+      }
+      if (e.key === 'ArrowUp' && isSearchHistoryOpen) {
+        e.preventDefault();
+        navigateSearchHistory(-1);
+      }
+    });
+    // v0.35.0: 聚焦搜索框时显示历史
+    searchInput.addEventListener('focus', () => {
+      if (searchInput.value.trim() === '' && searchHistory.length > 0) {
+        showSearchHistory();
+      }
+    });
+    // v0.35.0: 点击外部关闭搜索历史
+    document.addEventListener('click', (e) => {
+      if (isSearchHistoryOpen && !e.target.closest('.search-box')) {
+        closeSearchHistory();
       }
     });
 
@@ -1826,7 +1855,25 @@
     if (text.length > 200) {
       text = text.substring(0, 197) + '...';
     }
+    // v0.35.0: 搜索高亮
+    if (searchQuery) {
+      text = highlightText(text, searchQuery);
+    }
     return text;
+  }
+
+  // v0.35.0: 搜索关键词高亮
+  function highlightText(text, query) {
+    if (!query || query.length < 1) return text;
+    try {
+      // 转义正则特殊字符
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // 大小写不敏感匹配，高亮所有匹配项
+      const regex = new RegExp(`(${escaped})`, 'gi');
+      return text.replace(regex, '<mark class="search-highlight">$1</mark>');
+    } catch (e) {
+      return text;
+    }
   }
 
   function escapeHtml(text) {
@@ -1868,10 +1915,15 @@
       preview.classList.add('show');
       // 使用 marked 渲染 Markdown
       try {
-        preview.innerHTML = marked.parse(record.content, {
+        let mdHtml = marked.parse(record.content, {
           breaks: true,
           gfm: true,
         });
+        // v0.35.0: Markdown 预览中搜索高亮
+        if (searchQuery) {
+          mdHtml = highlightText(mdHtml, searchQuery);
+        }
+        preview.innerHTML = mdHtml;
         // 高亮代码块
         preview.querySelectorAll('pre code').forEach(block => {
           hljs.highlightElement(block);
@@ -1888,7 +1940,9 @@
         content.innerHTML = `<code class="hljs language-${record.language}">${escapeHtml(record.content)}</code>`;
         hljs.highlightElement(content.querySelector('code'));
       } else {
-        content.innerHTML = `<code>${escapeHtml(record.content)}</code>`;
+        // v0.35.0: 详情面板搜索高亮
+        const text = escapeHtml(record.content);
+        content.innerHTML = `<code>${searchQuery ? highlightText(text, searchQuery) : text}</code>`;
       }
     }
   }
@@ -2436,6 +2490,11 @@
   async function handleSearch() {
     searchQuery = searchInput.value.trim();
     clearSearchBtn.classList.toggle('show', !!searchQuery);
+    // v0.35.0: 保存搜索历史
+    if (searchQuery && searchQuery.length >= 2) {
+      saveSearchHistory(searchQuery);
+    }
+    closeSearchHistory();
     await loadRecords();
   }
 
@@ -2925,6 +2984,121 @@
       }
     };
     setTimeout(() => document.addEventListener('click', handleOutside), 50);
+  }
+
+  // ==================== v0.35.0: 搜索历史 ====================
+  function loadSearchHistory() {
+    try {
+      const stored = localStorage.getItem(SEARCH_HISTORY_KEY);
+      searchHistory = stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      searchHistory = [];
+    }
+  }
+
+  function saveSearchHistory(query) {
+    // 去重，最新放前面
+    searchHistory = searchHistory.filter(h => h !== query);
+    searchHistory.unshift(query);
+    if (searchHistory.length > SEARCH_HISTORY_MAX) {
+      searchHistory = searchHistory.slice(0, SEARCH_HISTORY_MAX);
+    }
+    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+  }
+
+  function removeSearchHistoryItem(query) {
+    searchHistory = searchHistory.filter(h => h !== query);
+    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+    if (isSearchHistoryOpen) {
+      renderSearchHistoryDropdown();
+    }
+  }
+
+  function clearAllSearchHistory() {
+    searchHistory = [];
+    localStorage.removeItem(SEARCH_HISTORY_KEY);
+    closeSearchHistory();
+    showToast('🗑️ 搜索历史已清除', 'success');
+  }
+
+  function initSearchHistoryUI() {
+    // 创建搜索历史下拉容器
+    searchHistoryDropdown = document.createElement('div');
+    searchHistoryDropdown.className = 'search-history-dropdown';
+    searchHistoryDropdown.style.display = 'none';
+    // 插入搜索框后面
+    const searchContainer = searchInput.closest('.search-box') || searchInput.parentElement;
+    if (searchContainer) {
+      searchContainer.style.position = 'relative';
+      searchContainer.appendChild(searchHistoryDropdown);
+    }
+  }
+
+  function showSearchHistory() {
+    if (searchHistory.length === 0) return;
+    renderSearchHistoryDropdown();
+    searchHistoryDropdown.style.display = 'block';
+    isSearchHistoryOpen = true;
+  }
+
+  function closeSearchHistory() {
+    if (searchHistoryDropdown) {
+      searchHistoryDropdown.style.display = 'none';
+    }
+    isSearchHistoryOpen = false;
+  }
+
+  function renderSearchHistoryDropdown() {
+    if (!searchHistoryDropdown) return;
+    let items = searchHistory.slice(0, 8);
+    searchHistoryDropdown.innerHTML = `
+      <div class="search-history-header">
+        <span>🔍 搜索历史</span>
+        <button class="search-history-clear" title="清除全部">🗑️</button>
+      </div>
+      <div class="search-history-list">
+        ${items.map((item, i) => `
+          <div class="search-history-item" data-index="${i}">
+            <span class="search-history-icon">🕐</span>
+            <span class="search-history-text">${escapeHtml(item)}</span>
+            <button class="search-history-delete" data-query="${escapeHtml(item)}" title="删除">×</button>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    // 绑定事件
+    searchHistoryDropdown.querySelectorAll('.search-history-item').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.search-history-delete')) return;
+        const idx = parseInt(el.dataset.index);
+        searchInput.value = searchHistory[idx];
+        searchInput.focus();
+        handleSearch();
+      });
+    });
+    searchHistoryDropdown.querySelectorAll('.search-history-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeSearchHistoryItem(btn.dataset.query);
+      });
+    });
+    searchHistoryDropdown.querySelector('.search-history-clear').addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearAllSearchHistory();
+    });
+  }
+
+  let searchHistoryNavIndex = -1;
+  function navigateSearchHistory(direction) {
+    const items = searchHistoryDropdown.querySelectorAll('.search-history-item');
+    if (items.length === 0) return;
+    // 清除旧高亮
+    items.forEach(it => it.classList.remove('active'));
+    searchHistoryNavIndex += direction;
+    if (searchHistoryNavIndex < 0) searchHistoryNavIndex = items.length - 1;
+    if (searchHistoryNavIndex >= items.length) searchHistoryNavIndex = 0;
+    items[searchHistoryNavIndex].classList.add('active');
+    searchInput.value = searchHistory[searchHistoryNavIndex];
   }
 
   function showToast(message, type = '') {
