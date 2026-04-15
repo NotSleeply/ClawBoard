@@ -1466,6 +1466,7 @@
       $('#settingAiSummary').checked = settings.aiSummary !== false;
       $('#settingStartWithSystem').checked = settings.startWithSystem || false;
       applyTheme(settings.theme || 'dark');
+      $('#settingTheme').value = settings.theme || 'dark';
 
       // 加载快捷键设置
       const shortcuts = settings.shortcuts || {};
@@ -1510,13 +1511,27 @@
     }
   }
 
+  let _themeMode = 'dark';
+  let _systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
   function applyTheme(theme) {
-    if (theme === 'light') {
+    _themeMode = theme;
+    const effective = theme === 'system'
+      ? (_systemDarkQuery.matches ? 'dark' : 'light')
+      : theme;
+    if (effective === 'light') {
       document.documentElement.setAttribute('data-theme', 'light');
     } else {
       document.documentElement.removeAttribute('data-theme');
     }
   }
+
+  // 系统主题变化时自动切换
+  _systemDarkQuery.addEventListener('change', (e) => {
+    if (_themeMode === 'system') {
+      applyTheme('system');
+    }
+  });
 
   // ==================== 渲染 ====================
   function renderRecords() {
