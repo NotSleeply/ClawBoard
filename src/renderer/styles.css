@@ -191,7 +191,7 @@ input{font-family:inherit;outline:none}
 .settings-tab:hover{color:var(--text)}
 .settings-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .settings-tab-content{display:none}
-.settings-tab-content.show{display:block}
+.settings-tab-content.show{display:block!important}
 .shortcuts-list{display:flex;flex-direction:column;gap:0.8rem}
 .shortcut-item{display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.8rem;background:var(--surface);border:1px solid var(--border);border-radius:8px}
 .shortcut-label{font-size:0.9rem;color:var(--text)}

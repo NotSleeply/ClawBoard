@@ -55,6 +55,7 @@
   async function init() {
     setupEventListeners();
     initShortcutRecording();  // 初始化快捷键录制
+    initAboutPanel();         // v0.37.0: 初始化关于面板
     loadSearchHistory();      // v0.35.0: 加载搜索历史
     initSearchHistoryUI();    // v0.35.0: 初始化搜索历史下拉
     await loadGroups();
@@ -187,6 +188,8 @@
         $('#' + tabId).classList.add('show');
         // v0.32.0: 切换到快捷模板 tab 时加载槽位
         if (tab.dataset.tab === 'hotkeys') loadHotkeySlots();
+        // v0.37.0: 切换到关于 tab 时加载诊断信息
+        if (tab.dataset.tab === 'about') loadDiagnostics();
       });
     });
 
@@ -3122,6 +3125,53 @@
     setTimeout(() => {
       toast.classList.remove('show');
     }, 2500);
+  }
+
+  // ==================== v0.37.0: 关于 & 诊断信息 ====================
+  let _diagnosticsText = '';
+
+  async function loadDiagnostics() {
+    try {
+      const d = await window.ClawBoard.getDiagnostics();
+      if (d.error) {
+        $('#diagnosticsInfo').innerHTML = '<span style="color:var(--red)">加载失败: ' + d.error + '</span>';
+        return;
+      }
+      const formatSize = (bytes) => bytes < 1024 ? bytes + ' B' : bytes < 1048576 ? (bytes/1024).toFixed(1) + ' KB' : (bytes/1048576).toFixed(1) + ' MB';
+      const uptimeH = Math.floor(d.uptime / 3600);
+      const uptimeM = Math.floor((d.uptime % 3600) / 60);
+      const lines = [
+        ['📋 版本', 'ClawBoard v' + d.appVersion],
+        ['⚡ Electron', d.electronVersion],
+        ['🟢 Node.js', d.nodeVersion],
+        ['🌐 Chromium', d.chromeVersion],
+        ['💻 系统', d.platform + ' ' + d.osRelease + ' (' + d.arch + ')'],
+        ['🧠 内存', d.heapUsed + ' MB / ' + d.heapTotal + ' MB (系统 ' + d.totalMemory + ' MB)'],
+        ['📦 数据库', formatSize(d.dbSize) + ' · ' + d.recordCount + ' 条记录 · ' + d.favoriteCount + ' 个收藏'],
+        ['⏱ 运行时间', uptimeH + '时' + uptimeM + '分'],
+        ['📂 数据路径', d.userDataPath],
+      ];
+      _diagnosticsText = lines.map(l => l[0].replace(/[^\w\s.]/g,'').trim() + ': ' + l[1]).join('\n');
+      $('#diagnosticsInfo').innerHTML = lines.map(([icon_label, value]) =>
+        '<div><strong>' + icon_label + '</strong> ' + value + '</div>'
+      ).join('');
+      $('#aboutVersion').textContent = 'v' + d.appVersion;
+    } catch (e) {
+      $('#diagnosticsInfo').innerHTML = '<span style="color:var(--red)">加载失败</span>';
+    }
+  }
+
+  function initAboutPanel() {
+    const btn = $('#btnCopyDiagnostics');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        if (_diagnosticsText) {
+          navigator.clipboard.writeText(_diagnosticsText).then(() => {
+            showToast('📋 诊断信息已复制', 'success');
+          });
+        }
+      });
+    }
   }
 
   // ==================== 启动 ====================

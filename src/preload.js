@@ -136,6 +136,8 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   writeFile: (data) => ipcRenderer.invoke('write-file', data),
   readFile: (data) => ipcRenderer.invoke('read-file', data),
   onHotkeyTriggered: (callback) => ipcRenderer.on('hotkey-triggered', (_, data) => callback(data)),
+  // v0.37.0: 诊断信息
+  getDiagnostics: () => ipcRenderer.invoke('get-diagnostics'),
 
   // 移除监听
   removeAllListeners: (channel) => {

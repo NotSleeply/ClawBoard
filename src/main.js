@@ -1692,3 +1692,38 @@ ipcMain.handle('read-file', async (_, { filePath }) => {
     return { success: false, error: err.message };
   }
 });
+
+// ==================== v0.37.0: 诊断信息 ====================
+
+ipcMain.handle('get-diagnostics', async () => {
+  try {
+    const memUsage = process.memoryUsage();
+    const dbPath = path.join(app.getPath('userData'), 'clawboard.db');
+    let dbSize = 0;
+    if (fs.existsSync(dbPath)) {
+      dbSize = fs.statSync(dbPath).size;
+    }
+    const stats = db.getStats();
+    return {
+      appVersion: app.getVersion(),
+      electronVersion: process.versions.electron,
+      nodeVersion: process.versions.node,
+      chromeVersion: process.versions.chrome,
+      platform: process.platform,
+      arch: process.arch,
+      osRelease: require('os').release(),
+      totalMemory: Math.round(require('os').totalmem() / 1024 / 1024),
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+      dbSize: dbSize,
+      recordCount: stats.total,
+      favoriteCount: stats.favorite,
+      userDataPath: app.getPath('userData'),
+      dbPath: dbPath,
+      uptime: Math.round(process.uptime()),
+    };
+  } catch (err) {
+    log.error('get-diagnostics error:', err);
+    return { error: err.message };
+  }
+});
