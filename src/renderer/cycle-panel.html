@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>ClawBoard Cycle</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, sans-serif; background: #0F172A; color: #E2E8F0; overflow: hidden; }
+    .cycle-panel { width: 420px; max-height: 380px; display: flex; flex-direction: column; border-radius: 12px; background: #1E293B; border: 1px solid rgba(99,102,241,0.2); box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+    .cycle-header { padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.78rem; color: #94A3B8; }
+    .cycle-header .hint { display: flex; align-items: center; gap: 6px; }
+    .cycle-header .hint kbd { background: #334155; padding: 1px 6px; border-radius: 4px; font-size: 0.72rem; font-family: inherit; border: 1px solid rgba(255,255,255,0.1); }
+    .cycle-header .count { font-size: 0.72rem; }
+    .cycle-list { flex: 1; overflow-y: auto; padding: 4px; }
+    .cycle-list::-webkit-scrollbar { width: 4px; }
+    .cycle-list::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+    .cycle-item { padding: 8px 12px; border-radius: 8px; cursor: default; display: flex; align-items: center; gap: 10px; transition: background 0.1s; font-size: 0.85rem; line-height: 1.4; }
+    .cycle-item:hover { background: rgba(99,102,241,0.08); }
+    .cycle-item.active { background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.3); }
+    .cycle-item .idx { color: #64748B; font-size: 0.72rem; min-width: 20px; text-align: center; flex-shrink: 0; }
+    .cycle-item.active .idx { color: #818CF8; }
+    .cycle-item .preview { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #CBD5E1; }
+    .cycle-item.active .preview { color: #F1F5F9; }
+    .cycle-item .type-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 4px; background: #334155; color: #94A3B8; flex-shrink: 0; }
+    .cycle-footer { padding: 6px 14px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 0.72rem; color: #64748B; text-align: center; }
+    .cycle-empty { padding: 2rem; text-align: center; color: #64748B; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="cycle-panel">
+    <div class="cycle-header">
+      <span class="hint"><kbd>Alt+V</kbd> \u5207\u6362 <kbd>Esc</kbd> \u53d6\u6d88</span>
+      <span class="count" id="cycleCount">0 \u6761\u8bb0\u5f55</span>
+    </div>
+    <div class="cycle-list" id="cycleList">
+      <div class="cycle-empty">\u6682\u65e0\u526a\u8d34\u677f\u8bb0\u5f55</div>
+    </div>
+    <div class="cycle-footer">\u677e\u5f00\u5feb\u6377\u952e\u81ea\u52a8\u7c98\u8d34\u9009\u4e2d\u9879</div>
+  </div>
+  <script src="cycle-panel.js"></script>
+</body>
+</html>
