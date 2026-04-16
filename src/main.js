@@ -219,6 +219,16 @@ function setupIPC() {
     }
   });
 
+  // v0.38.0: 更新条目内容（内容编辑器）
+  ipcMain.handle('update-item-content', async (event, { id, content }) => {
+    try {
+      return db.updateItemContent(id, content);
+    } catch (err) {
+      log.error('update-item-content error:', err);
+      return null;
+    }
+  });
+
   // 删除记录
   ipcMain.handle('delete-record', async (event, id) => {
     try {

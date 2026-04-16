@@ -115,6 +115,7 @@
           <button class="preview-mode-btn" data-mode="preview" title="预览">👁️</button>
         </div>
         <button class="detail-btn" id="btnCopy" title="复制">📋 复制</button>
+        <button class="detail-btn" id="btnEdit" title="编辑">✏️ 编辑</button>
         <button class="detail-btn" id="btnFavorite" title="收藏">☆ 收藏</button>
         <button class="detail-btn" id="btnAddTag" title="添加标签">🏷️ 标签</button>
         <button class="detail-btn" id="btnNote" title="备注">📝 备注</button>
@@ -597,7 +598,7 @@
           <div class="about-header" style="text-align:center;padding:1.5rem 0">
             <div style="font-size:2.5rem">📋</div>
             <h3 style="margin:0.5rem 0 0.2rem;font-size:1.3rem">ClawBoard</h3>
-            <div id="aboutVersion" style="color:var(--muted);font-size:0.9rem">v0.36.0</div>
+            <div id="aboutVersion" style="color:var(--muted);font-size:0.9rem">v0.38.0</div>
           </div>
           <div class="diagnostics-box" style="background:var(--surface2);border-radius:10px;padding:1rem;font-size:0.82rem;line-height:1.8">
             <div id="diagnosticsInfo">加载中…</div>
@@ -696,6 +697,38 @@
 
   <!-- 新建分组对话框 -->
   <div class="settings-overlay" id="groupOverlay">
+
+  <!-- v0.38.0: 内容编辑器 -->
+  <div class="settings-overlay" id="editorOverlay">
+    <div class="encryption-panel" style="width:640px;max-width:92vw;max-height:85vh;display:flex;flex-direction:column">
+      <div class="encryption-header">
+        <h2>✏️ 编辑内容</h2>
+        <button class="detail-close" id="btnCloseEditor">×</button>
+      </div>
+      <div class="encryption-body" style="flex:1;overflow:auto;display:flex;flex-direction:column;min-height:0">
+        <div class="editor-meta" style="display:flex;gap:1rem;align-items:center;margin-bottom:0.75rem;font-size:0.82rem;color:var(--muted)">
+          <span id="editorType">📝 文字</span>
+          <span id="editorTime">复制于 -</span>
+          <span id="editorStats">0 字符 · 0 行</span>
+        </div>
+        <div class="editor-container" style="flex:1;display:flex;flex-direction:column;min-height:0">
+          <textarea id="editorTextarea" class="editor-textarea" placeholder="编辑内容..." spellcheck="false" style="flex:1;min-height:280px;resize:vertical"></textarea>
+          <div id="editorCodePreview" class="editor-code-preview" style="display:none;flex:1;min-height:280px;overflow:auto;background:var(--surface);border-radius:8px;padding:1rem"></div>
+        </div>
+      </div>
+      <div class="settings-footer" style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <label style="font-size:0.82rem;color:var(--muted);display:flex;align-items:center;gap:0.3rem">
+            <input type="checkbox" id="editorWrapToggle" checked> 自动换行
+          </label>
+        </div>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn-secondary" id="btnCancelEditor">取消</button>
+          <button class="btn-primary" id="btnSaveEditor">💾 保存 (Ctrl+S)</button>
+        </div>
+      </div>
+    </div>
+  </div>
     <div class="encryption-panel" style="width:400px">
       <div class="encryption-header">
         <h2 id="groupDialogTitle">📁 新建分组</h2>

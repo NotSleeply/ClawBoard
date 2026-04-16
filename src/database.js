@@ -689,6 +689,20 @@ class Database {
     return true;
   }
 
+  // v0.38.0: 更新条目内容（内容编辑器）
+  updateItemContent(id, newContent) {
+    const record = this.getRecord(id);
+    if (!record) return null;
+    if (record.encrypted) return null; // 加密记录不允许直接编辑
+
+    this.db.run(
+      `UPDATE records SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [newContent, id]
+    );
+    this._save();
+    return this.getRecord(id);
+  }
+
   // 删除记录
   deleteRecord(id) {
     this.db.run(`DELETE FROM records WHERE id = ?`, [id]);

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   getRecord: (id) => ipcRenderer.invoke('get-record', id),
   toggleFavorite: (id) => ipcRenderer.invoke('toggle-favorite', id),
   updateNote: (id, note) => ipcRenderer.invoke('update-note', { id, note }),
+  updateItemContent: (id, content) => ipcRenderer.invoke('update-item-content', { id, content }),
   deleteRecord: (id) => ipcRenderer.invoke('delete-record', id),
   clearHistory: () => ipcRenderer.invoke('clear-history'),
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
