@@ -1,6 +1,6 @@
-﻿{
+{
   "name": "clawboard",
-  "version": "0.40.0",
+  "version": "0.41.0",
   "description": "🧠 AI驱动的本地剪贴板管理器 - 智能记录、语义搜索、永久收藏",
   "main": "src/main.js",
   "scripts": {
@@ -24,8 +24,9 @@
     "electron-builder": "^24.0.0"
   },
   "dependencies": {
-    "sql.js": "^1.10.0",
-    "electron-log": "^5.0.0"
+    "electron-log": "^5.0.0",
+    "qrcode-generator": "^2.0.4",
+    "sql.js": "^1.10.0"
   },
   "build": {
     "appId": "com.notsleeply.clawboard",
@@ -37,7 +38,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.ico"
@@ -54,4 +57,3 @@
     ]
   }
 }
-

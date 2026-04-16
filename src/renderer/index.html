@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: file:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; img-src 'self' data: file:; font-src https://fonts.gstatic.com; connect-src 'self';">
   <title>🦞 ClawBoard</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
@@ -13,6 +13,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <!-- Marked.js Markdown 渲染 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+  <!-- QR Code Generator -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -122,6 +124,7 @@
         <button class="detail-btn" id="btnEncrypt" title="加密" style="display:none">🔒 加密</button>
         <button class="detail-btn" id="btnDecrypt" title="解密" style="display:none">🔓 查看</button>
         <button class="detail-btn" id="btnTransform" title="格式转换">🔄 转换</button>
+        <button class="detail-btn" id="btnQR" title="QR 码">📱 QR</button>
         <button class="detail-btn danger" id="btnDelete" title="删除">🗑️ 删除</button>
         <button class="detail-close" id="btnCloseDetail">×</button>
       </div>
@@ -603,7 +606,7 @@
           <div class="about-header" style="text-align:center;padding:1.5rem 0">
             <div style="font-size:2.5rem">📋</div>
             <h3 style="margin:0.5rem 0 0.2rem;font-size:1.3rem">ClawBoard</h3>
-            <div id="aboutVersion" style="color:var(--muted);font-size:0.9rem">v0.40.0</div>
+            <div id="aboutVersion" style="color:var(--muted);font-size:0.9rem">v0.41.0</div>
           </div>
           <div class="diagnostics-box" style="background:var(--surface2);border-radius:10px;padding:1rem;font-size:0.82rem;line-height:1.8">
             <div id="diagnosticsInfo">加载中…</div>
@@ -847,6 +850,24 @@
   <!-- Toast 通知 -->
   <div class="toast" id="toast">
     <span id="toastMessage"></span>
+  </div>
+
+  <!-- v0.41.0: QR 码对话框 -->
+  <div class="settings-overlay" id="qrOverlay">
+    <div class="encryption-panel" style="width:360px;text-align:center">
+      <div class="encryption-header">
+        <h2>📱 QR 码</h2>
+        <button class="detail-close" id="btnCloseQR">×</button>
+      </div>
+      <div class="encryption-body" style="display:flex;flex-direction:column;align-items:center;gap:1rem;padding:1.5rem">
+        <div id="qrCodeContainer" style="background:#fff;padding:12px;border-radius:8px"></div>
+        <div id="qrContentPreview" style="font-size:0.8rem;color:var(--muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn-secondary" id="btnCopyQRImage">📋 复制图片</button>
+          <button class="btn-primary" id="btnSaveQRImage">💾 保存 PNG</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
