@@ -218,6 +218,33 @@
     $('#btnFavorite').addEventListener('click', handleToggleFavorite);
     $('#btnDelete').addEventListener('click', handleDeleteRecord);
 
+    // v0.38.0: 内容编辑器
+    $('#btnEdit').addEventListener('click', openEditor);
+    $('#btnCloseEditor').addEventListener('click', closeEditor);
+    $('#btnCancelEditor').addEventListener('click', closeEditor);
+    $('#btnSaveEditor').addEventListener('click', handleSaveEditor);
+    $('#editorOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#editorOverlay')) closeEditor();
+    });
+    $('#editorWrapToggle').addEventListener('change', (e) => {
+      const textarea = $('#editorTextarea');
+      if (e.target.checked) {
+        textarea.classList.remove('no-wrap');
+        textarea.wrap = 'soft';
+      } else {
+        textarea.classList.add('no-wrap');
+        textarea.wrap = 'off';
+      }
+    });
+    $('#editorTextarea').addEventListener('input', updateEditorStats);
+    // Ctrl+S 保存
+    $('#editorTextarea').addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSaveEditor();
+      }
+    });
+
     // 预览模式切换
     $$('.preview-mode-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1822,6 +1849,15 @@
       }
     });
 
+    // v0.38.0: 双击编辑
+    card.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      if (!isMultiSelectMode && record.type !== 'image' && !record.encrypted) {
+        selectedRecord = record;
+        openEditor();
+      }
+    });
+
     // 备注按钮 - 内联编辑
     const noteBtn = card.querySelector('.record-note-btn');
     noteBtn.addEventListener('click', (e) => {
@@ -2061,6 +2097,79 @@
       `;
     }
     footer.innerHTML = footerHtml;
+  }
+
+  // v0.38.0: 内容编辑器
+  let editorRecordId = null;
+
+  function openEditor() {
+    if (!selectedRecord) return;
+    if (selectedRecord.type === 'image') {
+      showToast('图片条目暂不支持编辑');
+      return;
+    }
+    if (selectedRecord.encrypted) {
+      showToast('加密条目请先解密再编辑');
+      return;
+    }
+
+    editorRecordId = selectedRecord.id;
+    const typeLabels = { text: '📝 文字', code: '💻 代码', file: '📁 文件', image: '🖼️ 图片' };
+    $('#editorType').textContent = typeLabels[selectedRecord.type] || '📋';
+    $('#editorTime').textContent = '复制于 ' + formatTimeAgo(new Date(selectedRecord.created_at));
+
+    const textarea = $('#editorTextarea');
+    textarea.value = selectedRecord.content || '';
+    textarea.classList.remove('no-wrap');
+    textarea.wrap = 'soft';
+    $('#editorWrapToggle').checked = true;
+
+    // 代码类型不自动换行
+    if (selectedRecord.type === 'code') {
+      textarea.classList.add('no-wrap');
+      textarea.wrap = 'off';
+      $('#editorWrapToggle').checked = false;
+    }
+
+    updateEditorStats();
+    $('#editorOverlay').classList.add('show');
+    textarea.focus();
+  }
+
+  function closeEditor() {
+    $('#editorOverlay').classList.remove('show');
+    editorRecordId = null;
+  }
+
+  function updateEditorStats() {
+    const textarea = $('#editorTextarea');
+    const text = textarea.value;
+    const chars = text.length;
+    const lines = text ? text.split('\n').length : 0;
+    $('#editorStats').textContent = `${chars} 字符 · ${lines} 行`;
+  }
+
+  async function handleSaveEditor() {
+    if (!editorRecordId) return;
+    const newContent = $('#editorTextarea').value;
+    try {
+      const updated = await window.ClawBoard.updateItemContent(editorRecordId, newContent);
+      if (updated) {
+        showToast('✅ 内容已保存');
+        closeEditor();
+        // 刷新列表和详情
+        await loadRecords();
+        if (selectedRecord && selectedRecord.id === editorRecordId) {
+          selectedRecord = updated;
+          openDetailPanel(updated);
+        }
+      } else {
+        showToast('❌ 保存失败');
+      }
+    } catch (err) {
+      console.error('保存编辑内容失败:', err);
+      showToast('❌ 保存失败');
+    }
   }
 
   // v0.17.0: 异步加载 OCR 文本
