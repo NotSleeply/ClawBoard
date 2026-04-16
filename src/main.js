@@ -23,6 +23,7 @@ const HotkeyTemplates = require('./hotkey-templates'); // v0.32.0 快捷键模�
 const TextTransform = require('./text-transform'); // v0.33.0 格式转换
 
 let mainWindow = null;
+let cycleWindow = null; // v0.39.0: Cycle mode window
 let tray = null;
 let db = null;
 let clipboardWatcher = null;
@@ -54,6 +55,74 @@ app.on('second-instance', () => {
     mainWindow.focus();
   }
 });
+
+// v0.39.0: Cycle mode window
+function createCycleWindow() {
+  if (cycleWindow && !cycleWindow.isDestroyed()) {
+    cycleWindow.show();
+    cycleWindow.focus();
+    return cycleWindow;
+  }
+  
+  // Get mouse position to show near cursor
+  const { screen } = require('electron');
+  const cursorPos = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(cursorPos);
+  const bounds = display.workArea;
+  
+  let x = cursorPos.x + 10;
+  let y = cursorPos.y - 100;
+  
+  // Keep within screen bounds
+  const w = 420, h = 380;
+  if (x + w > bounds.x + bounds.width) x = bounds.x + bounds.width - w - 10;
+  if (y + h > bounds.y + bounds.height) y = bounds.y + bounds.height - h - 10;
+  if (y < bounds.y) y = bounds.y + 10;
+  if (x < bounds.x) x = bounds.x + 10;
+
+  cycleWindow = new BrowserWindow({
+    width: w,
+    height: h,
+    x: x,
+    y: y,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    show: false,
+    focusable: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  cycleWindow.loadFile(path.join(__dirname, 'renderer', 'cycle-panel.html'));
+  cycleWindow.once('ready-to-show', () => {
+    cycleWindow.show();
+  });
+  cycleWindow.on('closed', () => {
+    cycleWindow = null;
+  });
+  
+  // Close cycle window when it loses focus
+  cycleWindow.on('blur', () => {
+    // Paste the selected item when window loses focus
+    if (cycleWindow && !cycleWindow.isDestroyed()) {
+      cycleWindow.webContents.send('cycle-paste-now');
+      setTimeout(() => {
+        if (cycleWindow && !cycleWindow.isDestroyed()) {
+          cycleWindow.close();
+        }
+      }, 100);
+    }
+  });
+
+  return cycleWindow;
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -1095,6 +1164,9 @@ app.whenReady().then(async () => {
   // 注册全局快捷键（从设置读取）
   registerGlobalShortcut(settings);
 
+  // v0.39.0: 注册循环模式快捷键
+  registerCycleShortcut();
+
   // 注册 IPC
   setupIPC();
 
@@ -1274,6 +1346,7 @@ function updateNotificationSettings(settings) {
 
 // 注册全局快捷键
 let currentShortcut = null;
+let cycleShortcut = null; // v0.39.0
 
 function registerGlobalShortcut(settings) {
   // 先注销之前的快捷键
@@ -1300,6 +1373,29 @@ function registerGlobalShortcut(settings) {
   } else {
     log.info('全局快捷键 ' + shortcut + ' 已注册');
     currentShortcut = shortcut;
+  }
+}
+
+// v0.39.0: Register cycle mode shortcut (Alt+V)
+function registerCycleShortcut() {
+  if (cycleShortcut) {
+    globalShortcut.unregister(cycleShortcut);
+  }
+  const shortcut = 'Alt+V';
+  const ret = globalShortcut.register(shortcut, () => {
+    if (cycleWindow && !cycleWindow.isDestroyed()) {
+      // Already open: cycle to next item
+      cycleWindow.webContents.send('cycle-next');
+    } else {
+      // Open cycle window
+      createCycleWindow();
+    }
+  });
+  if (!ret) {
+    log.warn('循环模式快捷键注册失败: ' + shortcut);
+  } else {
+    log.info('循环模式快捷键 ' + shortcut + ' 已注册');
+    cycleShortcut = shortcut;
   }
 }
 
@@ -1700,6 +1796,28 @@ ipcMain.handle('read-file', async (_, { filePath }) => {
   } catch (err) {
     log.error('read-file error:', err);
     return { success: false, error: err.message };
+  }
+});
+
+// v0.39.0: Cycle mode IPC handlers
+ipcMain.on('cycle-paste', (event, item) => {
+  try {
+    if (item && item.content) {
+      clipboard.writeText(item.content);
+      log.info('Cycle mode: pasted item #' + (item.id || 'unknown'));
+    }
+    if (cycleWindow && !cycleWindow.isDestroyed()) {
+      cycleWindow.close();
+    }
+  } catch (err) {
+    log.error('cycle-paste error:', err);
+    if (cycleWindow && !cycleWindow.isDestroyed()) cycleWindow.close();
+  }
+});
+
+ipcMain.on('cycle-cancel', () => {
+  if (cycleWindow && !cycleWindow.isDestroyed()) {
+    cycleWindow.close();
   }
 });
 
