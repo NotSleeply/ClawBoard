@@ -1817,6 +1817,11 @@
       ? `<div class="record-note" title="${escapeHtml(noteText)}">📝 ${escapeHtml(noteText.length > 40 ? noteText.substring(0, 38) + '...' : noteText)}</div>`
       : '';
 
+    // v0.40.0: OCR 匹配标记（搜索图片时 OCR 命中）
+    const ocrBadgeHtml = (record.type === 'image' && record.ocr_text && searchQuery)
+      ? `<span class="ocr-match-badge" title="OCR 识别: ${escapeHtml(record.ocr_text.substring(0, 60))}">🔍 OCR</span>`
+      : '';
+
     // 多选模式下显示复选框
     const checkboxHtml = isMultiSelectMode
       ? `<span class="record-checkbox ${selectedIds.has(record.id) ? 'checked' : ''}">${selectedIds.has(record.id) ? '✓' : ''}</span>`
@@ -1827,6 +1832,7 @@
         ${checkboxHtml}
         <span class="record-type ${record.type}">${typeLabels[record.type] || '📋'}</span>
         ${encryptedBadge}
+        ${ocrBadgeHtml}
         <span class="record-time">${timeAgo}</span>
         <span class="record-fav" title="${record.favorite ? '取消收藏' : '收藏'}">
           ${record.favorite ? '★' : '☆'}
@@ -1902,7 +1908,13 @@
 
   function formatContent(record) {
     if (record.type === 'image') {
-      return `<img src="file://${record.content}" alt="图片" loading="lazy">`;
+      let imgHtml = `<img src="file://${record.content}" alt="图片" loading="lazy">`;
+      // v0.40.0: 搜索时显示 OCR 文字提示
+      if (searchQuery && record.ocr_text) {
+        const ocrPreview = escapeHtml(record.ocr_text.substring(0, 120));
+        imgHtml += `<div class="ocr-search-hint">🔍 OCR: ${searchQuery ? highlightText(ocrPreview, searchQuery) : ocrPreview}</div>`;
+      }
+      return imgHtml;
     }
 
     let text = escapeHtml(record.content || record.summary || '');
