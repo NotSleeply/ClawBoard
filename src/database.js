@@ -584,10 +584,10 @@ class Database {
   async search(query, limit = 50, useSemantic = true) {
     if (!query) return [];
     
-    // 先尝试关键词搜索
+    // 先尝试关键词搜索（包含 ocr_text 和 note）
     const keywordResult = this.db.exec(
-      `SELECT * FROM records WHERE content LIKE ? OR summary LIKE ? ORDER BY created_at DESC LIMIT ?`,
-      [`%${query}%`, `%${query}%`, limit]
+      `SELECT * FROM records WHERE content LIKE ? OR summary LIKE ? OR ocr_text LIKE ? OR note LIKE ? ORDER BY created_at DESC LIMIT ?`,
+      [`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`, limit]
     );
     
     // 如果不启用语义搜索或没有 embedding 列，直接返回关键词结果
@@ -611,8 +611,8 @@ class Database {
       const queryEmbedding = await embeddingFunc(query);
       if (!queryEmbedding) return [];
       
-      // 获取所有有 embedding 的记录
-      const result = this.db.exec(`SELECT id, content, summary, embedding FROM records WHERE embedding IS NOT NULL`);
+      // 获取所有有 embedding 的记录（v0.40.0: 含 ocr_text）
+      const result = this.db.exec(`SELECT id, content, summary, ocr_text, embedding FROM records WHERE embedding IS NOT NULL`);
       if (result.length === 0 || result[0].values.length === 0) return [];
       
       // 计算余弦相似度并排序
@@ -620,13 +620,14 @@ class Database {
         const id = row[0];
         const content = row[1];
         const summary = row[2];
+        const ocrText = row[3];
         // embedding 是 base64 编码的 Blob
-        const embedding = row[3] ? this._decodeEmbedding(row[3]) : null;
+        const embedding = row[4] ? this._decodeEmbedding(row[4]) : null;
         
         if (!embedding) return null;
         
         const similarity = this._cosineSimilarity(queryEmbedding, embedding);
-        return { id, content, summary, similarity };
+        return { id, content, summary, ocrText, similarity };
       }).filter(r => r !== null);
       
       // 按相似度排序
