@@ -670,6 +670,12 @@
     // v0.17.0: OCR 复制按钮
     $('#btnCopyOCR').addEventListener('click', handleCopyOCR);
 
+    // v0.41.0: QR 码按钮
+    $('#btnQR').addEventListener('click', handleQRCode);
+    $('#btnCloseQR').addEventListener('click', closeQROverlay);
+    $('#btnCopyQRImage').addEventListener('click', copyQRImage);
+    $('#btnSaveQRImage').addEventListener('click', saveQRImage);
+
     // 详情面板点击外部关闭
     detailPanel.addEventListener('click', (e) => {
       if (e.target === detailPanel) {
@@ -2067,6 +2073,14 @@
       btnDecrypt.style.display = 'none';
     }
 
+    // v0.41.0: QR 码按钮 - 仅对文字/代码/链接类型且未加密时显示
+    const btnQR = $('#btnQR');
+    if ((record.type === 'text' || record.type === 'code') && !record.encrypted && record.content && record.content.length <= 2000) {
+      btnQR.style.display = '';
+    } else {
+      btnQR.style.display = 'none';
+    }
+
     renderPreviewContent(record);
 
     // v0.17.0: 显示 OCR 结果（图片类型）
@@ -2199,6 +2213,99 @@
       }
     } catch (err) {
       console.error('获取 OCR 文本失败:', err);
+    }
+  }
+
+  // v0.41.0: QR 码生成
+  let currentQRCanvas = null;
+
+  function handleQRCode() {
+    if (!selectedRecord) return;
+    const content = selectedRecord.content || '';
+    if (!content || content.length > 2000) {
+      showToast('⚠️ 内容过长或为空，无法生成 QR 码', 'warning');
+      return;
+    }
+    try {
+      const qr = qrcode(0, 'M');
+      qr.addData(content);
+      qr.make();
+
+      const container = $('#qrCodeContainer');
+      const size = 200;
+      const moduleCount = qr.getModuleCount();
+      const cellSize = Math.floor(size / moduleCount);
+
+      // Create canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = '#1e293b';
+
+      for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+          if (qr.isDark(row, col)) {
+            ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+
+      container.innerHTML = '';
+      container.appendChild(canvas);
+      currentQRCanvas = canvas;
+
+      // Show content preview
+      const preview = $('#qrContentPreview');
+      preview.textContent = content.length > 60 ? content.substring(0, 57) + '...' : content;
+
+      // Show overlay
+      $('#qrOverlay').classList.add('show');
+    } catch (err) {
+      console.error('QR 码生成失败:', err);
+      showToast('❌ QR 码生成失败', 'error');
+    }
+  }
+
+  function closeQROverlay() {
+    $('#qrOverlay').classList.remove('show');
+    currentQRCanvas = null;
+  }
+
+  async function copyQRImage() {
+    if (!currentQRCanvas) return;
+    try {
+      const blob = await new Promise(resolve => currentQRCanvas.toBlob(resolve, 'image/png'));
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      showToast('✅ QR 码图片已复制', 'success');
+    } catch (err) {
+      console.error('复制 QR 码失败:', err);
+      showToast('❌ 复制失败', 'error');
+    }
+  }
+
+  async function saveQRImage() {
+    if (!currentQRCanvas) return;
+    try {
+      const dataUrl = currentQRCanvas.toDataURL('image/png');
+      const result = await window.ClawBoard.showSaveDialog({
+        defaultPath: 'clawboard-qr.png',
+        filters: [{ name: 'PNG', extensions: ['png'] }]
+      });
+      if (result.canceled) return;
+      // Convert data URL to base64 content
+      const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+      const saveResult = await window.ClawBoard.writeFile({ filePath: result.filePath, content: base64 });
+      if (saveResult.success) {
+        showToast('✅ QR 码已保存', 'success');
+      } else {
+        showToast('❌ 保存失败', 'error');
+      }
+    } catch (err) {
+      console.error('保存 QR 码失败:', err);
+      showToast('❌ 保存失败', 'error');
     }
   }
 
