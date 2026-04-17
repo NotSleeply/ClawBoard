@@ -59,6 +59,21 @@ app.on('second-instance', () => {
 // v0.39.0: Cycle mode window
 function createCycleWindow() {
   if (cycleWindow && !cycleWindow.isDestroyed()) {
+    // v0.42.0: Reposition cycle window near current cursor on repeated trigger
+    try {
+      const { screen: scr } = require('electron');
+      const pos = scr.getCursorScreenPoint();
+      const disp = scr.getDisplayNearestPoint(pos);
+      const b = disp.workArea;
+      const w = 420, h = 380;
+      let nx = pos.x + 10;
+      let ny = pos.y - 100;
+      if (nx + w > b.x + b.width) nx = b.x + b.width - w - 10;
+      if (ny + h > b.y + b.height) ny = b.y + b.height - h - 10;
+      if (ny < b.y) ny = b.y + 10;
+      if (nx < b.x) nx = b.x + 10;
+      cycleWindow.setBounds({ x: nx, y: ny, width: w, height: h });
+    } catch (_) { /* ignore reposition errors */ }
     cycleWindow.show();
     cycleWindow.focus();
     return cycleWindow;
@@ -69,11 +84,16 @@ function createCycleWindow() {
   const cursorPos = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursorPos);
   const bounds = display.workArea;
+  const scaleFactor = display.scaleFactor;
   
+  // v0.42.0: Account for DPI scaling in multi-monitor setups
+  // cursorPos is in logical pixels; on high-DPI secondary monitors,
+  // the workArea coordinates may differ from raw cursor coordinates.
+  // We use logical coordinates consistently.
   let x = cursorPos.x + 10;
   let y = cursorPos.y - 100;
   
-  // Keep within screen bounds
+  // Keep within the target display's work area
   const w = 420, h = 380;
   if (x + w > bounds.x + bounds.width) x = bounds.x + bounds.width - w - 10;
   if (y + h > bounds.y + bounds.height) y = bounds.y + bounds.height - h - 10;
