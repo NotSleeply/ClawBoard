@@ -555,6 +555,12 @@
           <div class="expiry-stats" id="expiryStats" style="margin-top:1rem;padding:0.8rem;background:var(--surface2);border-radius:8px;font-size:0.85rem">
             <div>📝 当前有过期条目：<strong id="expiryExpiredCount">-</strong> 条可清理</div>
             <div style="margin-top:0.3rem;color:var(--muted)">⭐ 收藏保护：<strong id="expiryProtectedCount">-</strong> 条</div>
+            <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border)">
+              <span style="display:flex;justify-content:space-between;align-items:center">
+                <span>💾 数据库存储</span>
+                <span><strong id="storageSize">-</strong> (<strong id="recordCount">-</strong> 条记录)</span>
+              </span>
+            </div>
           </div>
           <div class="setting-item" style="margin-top:1rem">
             <button class="btn-secondary" id="btnCleanExpired">🗑️ 立即清理过期条目</button>

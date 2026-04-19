@@ -70,6 +70,8 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   
   // v0.26.0: 运行时健康监控
   getRuntimeStats: () => ipcRenderer.invoke('get-runtime-stats'),
+  // v0.44.0: 系统健康状态（包含数据库大小）
+  getSystemHealth: () => ipcRenderer.invoke('get-system-health'),
 
   // v0.27.0: 置顶记录管理
   getPinnedRecords: (options) => ipcRenderer.invoke('get-pinned-records', options),
