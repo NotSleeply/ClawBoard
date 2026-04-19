@@ -3,6 +3,9 @@
 .editor-textarea{width:100%;padding:1rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:0.9rem;line-height:1.6;resize:vertical;tab-size:4;outline:none;transition:border-color 0.2s}
 .editor-textarea:focus{border-color:var(--accent)}
 .editor-textarea.no-wrap{white-space:pre;overflow-x:auto}
+.editor-textarea.perf-mode{font-size:0.85rem;line-height:1.4;letter-spacing:0}
+/* v0.44.0: 长文本截断提示 */
+.long-text-hint{display:block;color:var(--muted);font-size:0.8rem;font-style:italic;margin-top:0.25rem;padding:0.15rem 0.4rem;background:var(--surface-alt);border-radius:3px}
 .editor-code-preview{font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:0.85rem;line-height:1.6;border:1px solid var(--border)}
 .editor-code-preview pre{margin:0;padding:0}
 .editor-code-preview code{font-size:0.85rem}

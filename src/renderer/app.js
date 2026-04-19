@@ -236,7 +236,17 @@
         textarea.wrap = 'off';
       }
     });
-    $('#editorTextarea').addEventListener('input', updateEditorStats);
+    // v0.44.0: 性能模式切换
+    $('#editorPerfToggle').addEventListener('change', (e) => {
+      togglePerfMode(e.target.checked);
+      if (!e.target.checked) updateEditorStats();
+      else {
+        const textarea = $('#editorTextarea');
+        const chars = textarea.value.length;
+        $('#editorStats').textContent = `${chars} 字符 · 性能模式`;
+      }
+    });
+    $('#editorTextarea').addEventListener('input', debouncedUpdateEditorStats);
     // Ctrl+S 保存
     $('#editorTextarea').addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -1912,6 +1922,11 @@
     return card;
   }
 
+  // v0.44.0: 长文本性能阈值
+  const LONG_TEXT_LINE_THRESHOLD = 10; // 列表预览最大行数
+  const LONG_TEXT_CHAR_THRESHOLD = 5000; // 性能模式字符阈值
+  const HIGHLIGHT_MATCH_LIMIT = 100; // 搜索高亮最大匹配数
+
   function formatContent(record) {
     if (record.type === 'image') {
       let imgHtml = `<img src="file://${record.content}" alt="图片" loading="lazy">`;
@@ -1924,7 +1939,12 @@
     }
 
     let text = escapeHtml(record.content || record.summary || '');
-    if (text.length > 200) {
+    const lines = text.split('\n');
+
+    // v0.44.0: 按行截断预览，替代仅按字符数截断
+    if (lines.length > LONG_TEXT_LINE_THRESHOLD) {
+      text = lines.slice(0, LONG_TEXT_LINE_THRESHOLD).join('\n') + `\n<span class="long-text-hint">... 还有 ${lines.length - LONG_TEXT_LINE_THRESHOLD} 行</span>`;
+    } else if (text.length > 200) {
       text = text.substring(0, 197) + '...';
     }
     // v0.35.0: 搜索高亮
@@ -1935,14 +1955,18 @@
   }
 
   // v0.35.0: 搜索关键词高亮
+  // v0.44.0: 限制高亮匹配数量，避免大文本重渲染卡顿
   function highlightText(text, query) {
     if (!query || query.length < 1) return text;
     try {
-      // 转义正则特殊字符
       const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // 大小写不敏感匹配，高亮所有匹配项
       const regex = new RegExp(`(${escaped})`, 'gi');
-      return text.replace(regex, '<mark class="search-highlight">$1</mark>');
+      let count = 0;
+      return text.replace(regex, (match) => {
+        if (count >= HIGHLIGHT_MATCH_LIMIT) return match;
+        count++;
+        return `<mark class="search-highlight">${match}</mark>`;
+      });
     } catch (e) {
       return text;
     }
@@ -2157,7 +2181,21 @@
       $('#editorWrapToggle').checked = false;
     }
 
-    updateEditorStats();
+    // v0.44.0: 性能模式 — 超长文本自动启用
+    const content = selectedRecord.content || '';
+    const isLongText = content.length > LONG_TEXT_CHAR_THRESHOLD;
+    const perfToggle = $('#editorPerfToggle');
+    if (perfToggle) {
+      perfToggle.checked = isLongText;
+      togglePerfMode(isLongText);
+    }
+
+    if (!isLongText) {
+      updateEditorStats();
+    } else {
+      $('#editorStats').textContent = `${content.length} 字符 · 性能模式`;
+    }
+
     $('#editorOverlay').classList.add('show');
     textarea.focus();
   }
@@ -2165,6 +2203,29 @@
   function closeEditor() {
     $('#editorOverlay').classList.remove('show');
     editorRecordId = null;
+  }
+
+  // v0.44.0: 性能模式切换
+  function togglePerfMode(enabled) {
+    const textarea = $('#editorTextarea');
+    if (enabled) {
+      textarea.classList.add('perf-mode');
+      // 性能模式：禁用拼写检查和实时统计
+      textarea.spellcheck = false;
+    } else {
+      textarea.classList.remove('perf-mode');
+      textarea.spellcheck = false; // 原本就是 false
+      updateEditorStats();
+    }
+  }
+
+  // v0.44.0: 防抖的编辑器统计更新
+  let editorStatsTimer = null;
+  function debouncedUpdateEditorStats() {
+    const perfToggle = document.getElementById('editorPerfToggle');
+    if (perfToggle && perfToggle.checked) return; // 性能模式跳过实时统计
+    clearTimeout(editorStatsTimer);
+    editorStatsTimer = setTimeout(updateEditorStats, 500);
   }
 
   function updateEditorStats() {
