@@ -3037,11 +3037,27 @@
   }
 
   // v0.31.0: 加载过期统计
+  // v0.44.0: 添加存储大小显示
   async function loadExpiryStats() {
     try {
       const stats = await window.ClawBoard.getExpiryStats();
       $('#expiryExpiredCount').textContent = stats.expired;
       $('#expiryProtectedCount').textContent = stats.protected;
+      
+      // v0.44.0: 加载存储大小和记录数
+      const health = await window.ClawBoard.getSystemHealth();
+      if (health) {
+        const formatStorageSize = (bytes) => {
+          if (bytes < 1024) return bytes + ' B';
+          if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+          if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+          return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+        };
+        $('#storageSize').textContent = formatStorageSize(health.dbSize);
+        // 获取总记录数
+        const dbStats = await window.ClawBoard.getStats();
+        $('#recordCount').textContent = dbStats.total || 0;
+      }
     } catch (e) {
       console.error('加载过期统计失败:', e);
     }
