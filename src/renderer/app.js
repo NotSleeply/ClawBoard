@@ -190,6 +190,8 @@
         if (tab.dataset.tab === 'hotkeys') loadHotkeySlots();
         // v0.37.0: 切换到关于 tab 时加载诊断信息
         if (tab.dataset.tab === 'about') loadDiagnostics();
+        // v0.45.0: 切换到自动加密 tab 时加载规则
+        if (tab.dataset.tab === 'autoEncrypt') loadAutoEncryptSettings();
       });
     });
 
@@ -3478,6 +3480,110 @@
       });
     }
   }
+
+  // ==================== v0.45.0: 自动加密规则 ====================
+
+  async function loadAutoEncryptSettings() {
+    try {
+      const settings = await window.electronAPI.getAutoEncryptSettings();
+      if (!settings) return;
+      $('#settingAutoEncrypt').checked = settings.enabled;
+      renderBuiltinRules(settings.builtinRules || []);
+      renderCustomRules(settings.customRules || []);
+    } catch (err) {
+      console.error('loadAutoEncryptSettings error:', err);
+    }
+  }
+
+  function renderBuiltinRules(rules) {
+    const container = $('#autoEncryptBuiltinRules');
+    container.innerHTML = '';
+    rules.forEach(rule => {
+      const item = document.createElement('div');
+      item.className = 'setting-item';
+      item.style.cssText = 'flex-direction:row;align-items:center;justify-content:space-between';
+      item.innerHTML = `
+        <div>
+          <label style="margin:0">
+            <input type="checkbox" data-builtin-type="${rule.type}" class="builtin-encrypt-toggle" ${rule.enabled ? 'checked' : ''}>
+            ${rule.name}
+          </label>
+          <small style="color:var(--muted);display:block;margin-left:1.5rem">${rule.description}</small>
+        </div>
+      `;
+      container.appendChild(item);
+    });
+    container.querySelectorAll('.builtin-encrypt-toggle').forEach(cb => {
+      cb.addEventListener('change', async () => {
+        await window.electronAPI.toggleAutoEncryptRule(cb.dataset.builtinType, cb.checked);
+        showToast(cb.checked ? '✅ 已启用' : '❌ 已禁用', 'success');
+      });
+    });
+  }
+
+  function renderCustomRules(rules) {
+    const container = $('#autoEncryptCustomRules');
+    container.innerHTML = '';
+    if (rules.length === 0) {
+      container.innerHTML = '<small style="color:var(--muted)">暂无自定义规则</small>';
+      return;
+    }
+    rules.forEach(rule => {
+      const item = document.createElement('div');
+      item.className = 'setting-item';
+      item.style.cssText = 'flex-direction:row;align-items:center;justify-content:space-between';
+      item.innerHTML = `
+        <div>
+          <strong>${rule.name}</strong>
+          <small style="color:var(--muted);display:block;margin-left:0.5rem;font-family:monospace">${rule.pattern}</small>
+        </div>
+        <button class="btn-danger btn-sm" data-rule-name="${rule.name}" style="padding:0.2rem 0.5rem;font-size:0.75rem">删除</button>
+      `;
+      container.appendChild(item);
+    });
+    container.querySelectorAll('.btn-danger[data-rule-name]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await window.electronAPI.removeCustomAutoEncryptRule(btn.dataset.ruleName);
+        showToast('🗑️ 已删除规则', 'success');
+        loadAutoEncryptSettings();
+      });
+    });
+  }
+
+  $('#settingAutoEncrypt').addEventListener('change', async () => {
+    await window.electronAPI.setAutoEncryptEnabled($('#settingAutoEncrypt').checked);
+    showToast($('#settingAutoEncrypt').checked ? '🔐 自动加密已启用' : '🔓 自动加密已禁用', 'success');
+  });
+
+  $('#btnAddAutoEncryptRule').addEventListener('click', async () => {
+    const name = $('#customRuleName').value.trim();
+    const pattern = $('#customRulePattern').value.trim();
+    if (!name || !pattern) {
+      showToast('请填写规则名称和正则表达式', 'error');
+      return;
+    }
+    try {
+      new RegExp(pattern);
+    } catch (e) {
+      showToast('正则表达式无效：' + e.message, 'error');
+      return;
+    }
+    await window.electronAPI.addCustomAutoEncryptRule(name, pattern);
+    $('#customRuleName').value = '';
+    $('#customRulePattern').value = '';
+    showToast('✅ 规则已添加', 'success');
+    loadAutoEncryptSettings();
+  });
+
+  $('#btnBatchAutoEncrypt').addEventListener('click', async () => {
+    const result = await window.electronAPI.batchAutoEncrypt();
+    if (result.success) {
+      $('#batchEncryptResult').innerHTML = `<small style="color:var(--success)">✅ 加密 ${result.encryptedCount} 条，跳过 ${result.skippedCount} 条</small>`;
+      showToast(`✅ 批量加密完成：${result.encryptedCount} 条`, 'success');
+    } else {
+      $('#batchEncryptResult').innerHTML = `<small style="color:var(--danger)">❌ ${result.message}</small>`;
+    }
+  });
 
   // ==================== 启动 ====================
   document.addEventListener('DOMContentLoaded', init);

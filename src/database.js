@@ -135,6 +135,13 @@ class Database {
       // 列已存在，忽略
     }
 
+    // 添加敏感类型列（如果不存在）- v0.45.0 自动加密规则
+    try {
+      this.db.run(`ALTER TABLE records ADD COLUMN sensitive_types TEXT DEFAULT ''`);
+    } catch (e) {
+      // 列已存在，忽略
+    }
+
     // 创建分组表
     this.db.run(`
       CREATE TABLE IF NOT EXISTS groups (
@@ -181,15 +188,15 @@ class Database {
   }
 
   // 添加记录
-  addRecord({ type, content, summary, source, source_app, source_title, source_url, tags = '[]', ai_summary = null, embedding = null, language = null, encrypted = false, ocr_text = null, merged_from = null, is_merged = false }) {
+  addRecord({ type, content, summary, source, source_app, source_title, source_url, tags = '[]', ai_summary = null, embedding = null, language = null, encrypted = false, ocr_text = null, merged_from = null, is_merged = false, sensitive_types = '' }) {
     let finalContent = content;
     if (encrypted && this.encryptionKey) {
       finalContent = this._encrypt(content, this.encryptionKey);
     }
 
     this.db.run(
-      `INSERT INTO records (type, content, summary, source, source_app, source_title, source_url, tags, ai_summary, embedding, language, encrypted, ocr_text, merged_from, is_merged) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [type, finalContent, summary, source || 'clipboard', source_app || null, source_title || null, source_url || null, tags, ai_summary, embedding, language, encrypted ? 1 : 0, ocr_text, merged_from, is_merged ? 1 : 0]
+      `INSERT INTO records (type, content, summary, source, source_app, source_title, source_url, tags, ai_summary, embedding, language, encrypted, ocr_text, merged_from, is_merged, sensitive_types) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [type, finalContent, summary, source || 'clipboard', source_app || null, source_title || null, source_url || null, tags, ai_summary, embedding, language, encrypted ? 1 : 0, ocr_text, merged_from, is_merged ? 1 : 0, sensitive_types]
     );
 
     // 自动清理旧记录（保留收藏）

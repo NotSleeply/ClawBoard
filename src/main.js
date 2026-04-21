@@ -1150,6 +1150,9 @@ app.whenReady().then(async () => {
 
   // v0.29.0: 将通知函数暴露给全局，供剪贴板模块调用
   global.showClipboardNotification = showClipboardNotification;
+  // v0.45.0: 将数据库和忽略规则暴露给全局，供剪贴板模块自动加密使用
+  global.db = db;
+  global.ignoreRules = ignoreRules;
 
   // v0.31.0: 启动自动过期清理定时器
   startAutoExpiryTimer();
@@ -1614,6 +1617,118 @@ ipcMain.handle('test-ignore-rules', async (_, { content, metadata }) => {
   } catch (err) {
     log.error('test-ignore-rules error:', err);
     return { shouldIgnore: false, reason: '' };
+  }
+});
+
+// ==================== v0.45.0: 自动加密规则 ====================
+
+// 获取自动加密设置
+ipcMain.handle('get-auto-encrypt-settings', async () => {
+  try {
+    if (!ignoreRules) {
+      ignoreRules = new IgnoreRules();
+    }
+    return ignoreRules.getAutoEncryptSettings();
+  } catch (err) {
+    log.error('get-auto-encrypt-settings error:', err);
+    return null;
+  }
+});
+
+// 设置自动加密总开关
+ipcMain.handle('set-auto-encrypt-enabled', async (_, enabled) => {
+  try {
+    if (!ignoreRules) {
+      ignoreRules = new IgnoreRules();
+    }
+    ignoreRules.setAutoEncryptEnabled(enabled);
+    // 同步到设置面板的忽略规则
+    return { success: true };
+  } catch (err) {
+    log.error('set-auto-encrypt-enabled error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 切换自动加密内置规则
+ipcMain.handle('toggle-auto-encrypt-rule', async (_, { type, enabled }) => {
+  try {
+    if (!ignoreRules) {
+      ignoreRules = new IgnoreRules();
+    }
+    ignoreRules.toggleAutoEncryptRule(type, enabled);
+    return { success: true };
+  } catch (err) {
+    log.error('toggle-auto-encrypt-rule error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 添加自定义自动加密规则
+ipcMain.handle('add-custom-auto-encrypt-rule', async (_, { name, pattern }) => {
+  try {
+    if (!ignoreRules) {
+      ignoreRules = new IgnoreRules();
+    }
+    ignoreRules.addCustomAutoEncryptRule(name, pattern);
+    return { success: true };
+  } catch (err) {
+    log.error('add-custom-auto-encrypt-rule error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 移除自定义自动加密规则
+ipcMain.handle('remove-custom-auto-encrypt-rule', async (_, name) => {
+  try {
+    if (!ignoreRules) {
+      ignoreRules = new IgnoreRules();
+    }
+    ignoreRules.removeCustomAutoEncryptRule(name);
+    return { success: true };
+  } catch (err) {
+    log.error('remove-custom-auto-encrypt-rule error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 批量自动加密已有记录（扫描所有未加密记录）
+ipcMain.handle('batch-auto-encrypt', async () => {
+  try {
+    if (!ignoreRules) {
+      ignoreRules = new IgnoreRules();
+    }
+    if (!db.encryptionKey) {
+      return { success: false, message: '未设置加密密码' };
+    }
+    
+    const records = db.getRecords({ limit: 10000 });
+    let encryptedCount = 0;
+    let skippedCount = 0;
+    
+    for (const record of records) {
+      if (record.encrypted) { skippedCount++; continue; }
+      
+      const result = ignoreRules.shouldIgnore(record.content, {});
+      if (result.autoEncrypt) {
+        const success = db.encryptRecord(record.id);
+        if (success) {
+          // 更新敏感类型标记
+          db.db.run(
+            `UPDATE records SET sensitive_types = ? WHERE id = ?`,
+            [result.types ? result.types.join(',') : '', record.id]
+          );
+          encryptedCount++;
+        }
+      }
+    }
+    
+    db._save();
+    log.info(`批量自动加密完成: ${encryptedCount} 条已加密, ${skippedCount} 条跳过`);
+    return { success: true, encryptedCount, skippedCount };
+  } catch (err) {
+    log.error('batch-auto-encrypt error:', err);
+    return { success: false, message: err.message };
   }
 });\n
 // ==================== v0.31.0: 自动过期清理 ====================

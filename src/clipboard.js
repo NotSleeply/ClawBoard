@@ -72,6 +72,30 @@ class ClipboardWatcher {
     const trimmed = text.trim();
     if (!trimmed) return;
 
+    // v0.45.0: 检查忽略规则（含自动加密逻辑）
+    if (global.ignoreRules) {
+      const ignoreResult = global.ignoreRules.shouldIgnore(trimmed, {
+        sourceApp: this.currentSource.app
+      });
+      
+      // 自动加密：检测到敏感信息但需要加密而非忽略
+      if (ignoreResult.autoEncrypt) {
+        // 需要加密密钥才能自动加密
+        if (global.db && global.db.encryptionKey) {
+          this.log.info(`自动加密: ${ignoreResult.reason}`);
+          // 继续处理，但标记为加密
+          this._handleTextWithEncrypt(trimmed, ignoreResult.types);
+          return;
+        } else {
+          // 没有加密密钥，仍记录但不加密，添加敏感类型标记
+          this.log.warn('自动加密: 未设置加密密码，仅标记敏感类型');
+        }
+      } else if (ignoreResult.shouldIgnore) {
+        this.log.info(`忽略剪贴板内容: ${ignoreResult.reason}`);
+        return;
+      }
+    }
+
     // 判断类型
     let type = 'text';
     let content = trimmed;
@@ -138,6 +162,80 @@ class ClipboardWatcher {
       // v0.29.0: 触发系统通知
       if (global.showClipboardNotification) {
         global.showClipboardNotification(record);
+      }
+    });
+  }
+
+  /**
+   * v0.45.0: 处理需要自动加密的文本
+   */
+  _handleTextWithEncrypt(text, sensitiveTypes) {
+    let type = 'text';
+    if (this._isFilePath(text)) {
+      type = 'file';
+    } else if (this._isCode(text)) {
+      type = 'code';
+    }
+
+    const language = type === 'code' ? this._detectLanguage(text) : null;
+    const sensitiveTypesStr = sensitiveTypes.join(',');
+
+    // 检查去重
+    const lastRecords = this.db.getRecords({ limit: 1 });
+    if (lastRecords.length > 0 && lastRecords[0].content === text && !lastRecords[0].locked) {
+      this.log.info('内容重复，跳过记录');
+      return;
+    }
+
+    this._generateAI(text).then(aiResult => {
+      const record = this.db.addRecord({
+        type,
+        content: text,
+        summary: (aiResult && aiResult.summary) || this._generateSummary(text),
+        ai_summary: aiResult && aiResult.summary,
+        embedding: aiResult && aiResult.embedding,
+        language,
+        source: 'clipboard',
+        encrypted: true, // 自动加密
+        sensitive_types: sensitiveTypesStr,
+      });
+
+      this.log.info(`自动加密记录: [${type}] ${sensitiveTypesStr} → 已加密`);
+
+      if (global.mainWindow && !global.mainWindow.isDestroyed()) {
+        global.mainWindow.webContents.send('new-record', record);
+      }
+
+      if (global.showClipboardNotification) {
+        global.showClipboardNotification({
+          ...record,
+          _autoEncrypted: true,
+          _sensitiveTypes: sensitiveTypes,
+        });
+      }
+    }).catch(err => {
+      this.log.warn('AI 处理失败，使用默认摘要:', err.message);
+      const record = this.db.addRecord({
+        type,
+        content: text,
+        summary: this._generateSummary(text),
+        source: 'clipboard',
+        encrypted: true,
+        sensitive_types: sensitiveTypesStr,
+      });
+
+      this.log.info(`自动加密记录: [${type}] ${sensitiveTypesStr} → 已加密`);
+
+      if (global.mainWindow && !global.mainWindow.isDestroyed()) {
+        global.mainWindow.webContents.send('new-record', record);
+      }
+
+      if (global.showClipboardNotification) {
+        global.showClipboardNotification({
+          ...record,
+          _autoEncrypted: true,
+          _sensitiveTypes: sensitiveTypes,
+        });
       }
     });
   }

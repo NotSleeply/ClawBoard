@@ -1,6 +1,7 @@
 /**
  * IgnoreRules - 剪贴板忽略规则模块 v0.31.0
  * 支持按来源应用、内容模式、长度等条件忽略剪贴板内容
+ * v0.45.0: 新增敏感内容自动加密规则
  */
 
 class IgnoreRules {
@@ -36,6 +37,18 @@ class IgnoreRules {
           { name: 'API 密钥', pattern: '(?:api[_-]?key|apikey|token)\s*[:=]\s*["\']?[a-zA-Z0-9_-]{16,}["\']?' },
         ],
       },
+      // v0.45.0: 自动加密规则
+      autoEncrypt: {
+        enabled: false, // 总开关，默认关闭
+        rules: [
+          { name: '信用卡号', enabled: true, type: 'credit_card' },
+          { name: '身份证号', enabled: true, type: 'id_card' },
+          { name: 'API 密钥', enabled: true, type: 'api_key' },
+          { name: '手机号', enabled: false, type: 'phone' },
+        ],
+        // 自定义规则（用户可添加正则表达式）
+        customRules: [],
+      },
     };
 
     // 忽略的剪贴板内容缓存（用于去重）
@@ -47,7 +60,7 @@ class IgnoreRules {
    * 检查是否应该忽略此剪贴板内容
    * @param {string} content - 剪贴板内容
    * @param {object} metadata - 元数据（来源应用等）
-   * @returns {object} { shouldIgnore: boolean, reason: string }
+   * @returns {object} { shouldIgnore: boolean, reason: string, sensitive: boolean, types: string[], autoEncrypt: boolean }
    */
   shouldIgnore(content, metadata = {}) {
     // 1. 检查长度限制
@@ -86,8 +99,22 @@ class IgnoreRules {
     if (this.rules.sensitiveDetection.enabled) {
       const sensitiveInfo = this.detectSensitiveInfo(content);
       if (sensitiveInfo.found) {
-        return { 
-          shouldIgnore: true, 
+        // v0.45.0: 检查是否需要自动加密而非忽略
+        if (this.rules.autoEncrypt.enabled) {
+          const autoEncryptTypes = this._getAutoEncryptTypes(content);
+          if (autoEncryptTypes.length > 0) {
+            return {
+              shouldIgnore: false,
+              reason: `检测到敏感信息，将自动加密: ${autoEncryptTypes.join(', ')}`,
+              sensitive: true,
+              types: autoEncryptTypes,
+              autoEncrypt: true,
+            };
+          }
+        }
+        // 自动加密未开启时，保持原有忽略行为
+        return {
+          shouldIgnore: true,
           reason: `检测到敏感信息: ${sensitiveInfo.types.join(', ')}`,
           sensitive: true,
           types: sensitiveInfo.types,
@@ -109,6 +136,59 @@ class IgnoreRules {
     }
 
     return { shouldIgnore: false, reason: '' };
+  }
+
+  /**
+   * v0.45.0: 获取需要自动加密的敏感类型列表
+   * @param {string} content - 内容
+   * @returns {string[]} 匹配到的敏感类型名称
+   */
+  _getAutoEncryptTypes(content) {
+    const matchedTypes = [];
+
+    // 检查内置规则
+    for (const rule of this.rules.autoEncrypt.rules) {
+      if (!rule.enabled) continue;
+      const pattern = this.rules.sensitiveDetection.patterns.find(p => p.name === rule.name);
+      if (pattern) {
+        try {
+          const regex = new RegExp(pattern.pattern, 'i');
+          if (regex.test(content)) {
+            matchedTypes.push(rule.name);
+          }
+        } catch (e) {
+          console.error('[IgnoreRules] 自动加密正则错误:', rule.name);
+        }
+      }
+    }
+
+    // 检查手机号（v0.45.0 新增模式）
+    const phoneRule = this.rules.autoEncrypt.rules.find(r => r.type === 'phone');
+    if (phoneRule && phoneRule.enabled) {
+      try {
+        const phoneRegex = /\b1[3-9]\d{9}\b/;
+        if (phoneRegex.test(content)) {
+          matchedTypes.push('手机号');
+        }
+      } catch (e) {
+        console.error('[IgnoreRules] 手机号检测正则错误');
+      }
+    }
+
+    // 检查自定义规则
+    for (const customRule of this.rules.autoEncrypt.customRules) {
+      if (!customRule.enabled) continue;
+      try {
+        const regex = new RegExp(customRule.pattern, 'i');
+        if (regex.test(content)) {
+          matchedTypes.push(customRule.name);
+        }
+      } catch (e) {
+        console.error('[IgnoreRules] 自定义加密规则正则错误:', customRule.name);
+      }
+    }
+
+    return matchedTypes;
   }
 
   /**
@@ -188,6 +268,56 @@ class IgnoreRules {
    */
   setSensitiveDetection(enabled) {
     this.rules.sensitiveDetection.enabled = enabled;
+  }
+
+  // ==================== v0.45.0: 自动加密规则管理 ====================
+
+  /**
+   * 获取自动加密设置
+   */
+  getAutoEncryptSettings() {
+    return this.rules.autoEncrypt;
+  }
+
+  /**
+   * 设置自动加密总开关
+   */
+  setAutoEncryptEnabled(enabled) {
+    this.rules.autoEncrypt.enabled = enabled;
+  }
+
+  /**
+   * 切换单个内置规则的启用状态
+   */
+  toggleAutoEncryptRule(type, enabled) {
+    const rule = this.rules.autoEncrypt.rules.find(r => r.type === type);
+    if (rule) {
+      rule.enabled = enabled;
+    }
+  }
+
+  /**
+   * 添加自定义自动加密规则
+   */
+  addCustomAutoEncryptRule(name, pattern, enabled = true) {
+    this.rules.autoEncrypt.customRules.push({ name, pattern, enabled });
+  }
+
+  /**
+   * 移除自定义自动加密规则
+   */
+  removeCustomAutoEncryptRule(name) {
+    this.rules.autoEncrypt.customRules = this.rules.autoEncrypt.customRules.filter(r => r.name !== name);
+  }
+
+  /**
+   * 更新自定义自动加密规则
+   */
+  updateCustomAutoEncryptRule(name, updates) {
+    const rule = this.rules.autoEncrypt.customRules.find(r => r.name === name);
+    if (rule) {
+      Object.assign(rule, updates);
+    }
   }
 
   /**
