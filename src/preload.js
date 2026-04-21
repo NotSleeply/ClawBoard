@@ -120,6 +120,14 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   removeIgnoredApp: (pattern) => ipcRenderer.invoke('remove-ignored-app', pattern),
   testIgnoreRules: (content, metadata) => ipcRenderer.invoke('test-ignore-rules', { content, metadata }),
 
+  // v0.45.0: 自动加密规则
+  getAutoEncryptSettings: () => ipcRenderer.invoke('get-auto-encrypt-settings'),
+  setAutoEncryptEnabled: (enabled) => ipcRenderer.invoke('set-auto-encrypt-enabled', enabled),
+  toggleAutoEncryptRule: (type, enabled) => ipcRenderer.invoke('toggle-auto-encrypt-rule', { type, enabled }),
+  addCustomAutoEncryptRule: (name, pattern) => ipcRenderer.invoke('add-custom-auto-encrypt-rule', { name, pattern }),
+  removeCustomAutoEncryptRule: (name) => ipcRenderer.invoke('remove-custom-auto-encrypt-rule', name),
+  batchAutoEncrypt: () => ipcRenderer.invoke('batch-auto-encrypt'),
+
   // v0.32.0: 快捷键模板系统
   hotkeyGetAllSlots: () => ipcRenderer.invoke('hotkey-get-all-slots'),
   hotkeyBind: (slot, label, content, isTemplate) => ipcRenderer.invoke('hotkey-bind', { slot, label, content, isTemplate }),

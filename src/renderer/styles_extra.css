@@ -160,3 +160,7 @@
 /* v0.40.0: OCR 匹配标记 */
 .ocr-match-badge{display:inline-block;font-size:0.65rem;padding:1px 5px;border-radius:3px;background:rgba(99,102,241,0.2);color:#818CF8;margin-left:4px;cursor:help;vertical-align:middle}
 .ocr-search-hint{font-size:0.75rem;color:var(--muted);margin-top:4px;padding:3px 6px;background:rgba(99,102,241,0.06);border-radius:4px;line-height:1.4;max-height:40px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* v0.45.0: 自动加密规则 */
+.setting-section-title{font-size:0.85rem;font-weight:600;color:var(--text);margin:1rem 0 0.5rem;padding-bottom:0.3rem;border-bottom:1px solid var(--border)}
+.btn-sm{padding:0.2rem 0.5rem;font-size:0.75rem;border-radius:4px;cursor:pointer;border:none;transition:all 0.15s}
