@@ -429,6 +429,17 @@
           </div>
           <div class="setting-item">
             <label>
+              <input type="checkbox" id="settingHoverPreview" checked>
+              👁️ 悬浮预览弹窗
+            </label>
+            <small style="color:var(--muted)">鼠标悬浮条目时显示完整内容预览</small>
+          </div>
+          <div class="setting-item">
+            <label>⏱️ 预览延迟 (ms)</label>
+            <input type="number" id="settingHoverDelay" min="100" max="2000" value="400" step="100">
+          </div>
+          <div class="setting-item">
+            <label>
               <input type="checkbox" id="settingStartWithSystem">
               开机自启动
             </label>
@@ -638,7 +649,7 @@
           <div class="about-header" style="text-align:center;padding:1.5rem 0">
             <div style="font-size:2.5rem">📋</div>
             <h3 style="margin:0.5rem 0 0.2rem;font-size:1.3rem">ClawBoard</h3>
-            <div id="aboutVersion" style="color:var(--muted);font-size:0.9rem">v0.45.0</div>
+            <div id="aboutVersion" style="color:var(--muted);font-size:0.9rem">v0.46.0</div>
           </div>
           <div class="diagnostics-box" style="background:var(--surface2);border-radius:10px;padding:1rem;font-size:0.82rem;line-height:1.8">
             <div id="diagnosticsInfo">加载中…</div>
@@ -903,6 +914,15 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- v0.46.0: 悬浮预览弹窗 -->
+  <div class="hover-preview" id="hoverPreview" style="display:none">
+    <div class="hover-preview-header">
+      <span class="hover-preview-type" id="hoverPreviewType"></span>
+      <span class="hover-preview-meta" id="hoverPreviewMeta"></span>
+    </div>
+    <div class="hover-preview-body" id="hoverPreviewBody"></div>
   </div>
 
   <script src="app.js"></script>

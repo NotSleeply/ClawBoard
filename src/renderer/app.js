@@ -58,6 +58,7 @@
     initAboutPanel();         // v0.37.0: 初始化关于面板
     loadSearchHistory();      // v0.35.0: 加载搜索历史
     initSearchHistoryUI();    // v0.35.0: 初始化搜索历史下拉
+    loadHoverPreviewSettings(); // v0.46.0: 加载悬浮预览设置
     await loadGroups();
     await loadRecords();
     await loadStats();
@@ -1921,6 +1922,16 @@
       await loadRecords();
     });
 
+    // v0.46.0: 悬浮预览
+    card.addEventListener('mouseenter', () => {
+      if (!_hoverPreviewEnabled || isMultiSelectMode) return;
+      _hoverTimer = setTimeout(() => showHoverPreview(record, card), _hoverDelay);
+    });
+    card.addEventListener('mouseleave', () => {
+      clearTimeout(_hoverTimer);
+      hideHoverPreview();
+    });
+
     return card;
   }
 
@@ -3581,8 +3592,93 @@
       $('#batchEncryptResult').innerHTML = `<small style="color:var(--success)">✅ 加密 ${result.encryptedCount} 条，跳过 ${result.skippedCount} 条</small>`;
       showToast(`✅ 批量加密完成：${result.encryptedCount} 条`, 'success');
     } else {
-      $('#batchEncryptResult').innerHTML = `<small style="color:var(--danger)">❌ ${result.message}</small>`;
+      $('#batchEncryptResult').innerHTML = `<small style="color:var(--danger)">❌ ${result.message}</small>``;
     }
+  });
+
+  // ==================== v0.46.0: 悬浮预览弹窗 ====================
+
+  let _hoverPreviewEnabled = true;
+  let _hoverDelay = 400;
+  let _hoverTimer = null;
+  let _hoverPreviewVisible = false;
+
+  function showHoverPreview(record, cardEl) {
+    const preview = $('#hoverPreview');
+    const typeEl = $('#hoverPreviewType');
+    const metaEl = $('#hoverPreviewMeta');
+    const bodyEl = $('#hoverPreviewBody');
+
+    const typeLabels = { text: '📝 文字', code: '💻 代码', file: '📁 文件', image: '🖼️ 图片' };
+    typeEl.textContent = typeLabels[record.type] || '📋';
+    const charCount = (record.content || '').length;
+    metaEl.textContent = `${formatTimeAgo(new Date(record.created_at))} · ${charCount} 字符`;
+
+    if (record.encrypted) {
+      bodyEl.textContent = '🔒 内容已加密';
+      bodyEl.className = 'hover-preview-body';
+    } else if (record.type === 'image') {
+      bodyEl.innerHTML = `<img src="file://${record.content}" alt="图片">`;
+      bodyEl.className = 'hover-preview-body';
+    } else if (record.type === 'code') {
+      bodyEl.textContent = record.content || record.summary || '';
+      bodyEl.className = 'hover-preview-body code-preview';
+    } else {
+      bodyEl.textContent = record.content || record.summary || '';
+      bodyEl.className = 'hover-preview-body';
+    }
+
+    preview.style.display = 'block';
+    positionHoverPreview(cardEl);
+    requestAnimationFrame(() => preview.classList.add('show'));
+    _hoverPreviewVisible = true;
+  }
+
+  function hideHoverPreview() {
+    const preview = $('#hoverPreview');
+    preview.classList.remove('show');
+    _hoverPreviewVisible = false;
+    setTimeout(() => {
+      if (!_hoverPreviewVisible) preview.style.display = 'none';
+    }, 150);
+  }
+
+  function positionHoverPreview(cardEl) {
+    const preview = $('#hoverPreview');
+    const rect = cardEl.getBoundingClientRect();
+    const pW = 380, pH = 300;
+    let left = rect.right + 8;
+    let top = rect.top;
+    if (left + pW > window.innerWidth) {
+      left = rect.left - pW - 8;
+    }
+    if (left < 4) left = 4;
+    if (top + pH > window.innerHeight) {
+      top = window.innerHeight - pH - 8;
+    }
+    if (top < 4) top = 4;
+    preview.style.left = left + 'px';
+    preview.style.top = top + 'px';
+  }
+
+  function loadHoverPreviewSettings() {
+    const enabled = localStorage.getItem('hoverPreview') !== 'false';
+    const delay = parseInt(localStorage.getItem('hoverDelay') || '400', 10);
+    _hoverPreviewEnabled = enabled;
+    _hoverDelay = Math.max(100, Math.min(2000, delay));
+    $('#settingHoverPreview').checked = enabled;
+    $('#settingHoverDelay').value = _hoverDelay;
+  }
+
+  $('#settingHoverPreview').addEventListener('change', () => {
+    _hoverPreviewEnabled = $('#settingHoverPreview').checked;
+    localStorage.setItem('hoverPreview', _hoverPreviewEnabled);
+  });
+
+  $('#settingHoverDelay').addEventListener('change', () => {
+    _hoverDelay = Math.max(100, Math.min(2000, parseInt($('#settingHoverDelay').value, 10) || 400));
+    $('#settingHoverDelay').value = _hoverDelay;
+    localStorage.setItem('hoverDelay', _hoverDelay);
   });
 
   // ==================== 启动 ====================

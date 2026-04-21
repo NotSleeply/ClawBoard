@@ -164,3 +164,11 @@
 /* v0.45.0: 自动加密规则 */
 .setting-section-title{font-size:0.85rem;font-weight:600;color:var(--text);margin:1rem 0 0.5rem;padding-bottom:0.3rem;border-bottom:1px solid var(--border)}
 .btn-sm{padding:0.2rem 0.5rem;font-size:0.75rem;border-radius:4px;cursor:pointer;border:none;transition:all 0.15s}
+
+/* v0.46.0: 悬浮预览弹窗 */
+.hover-preview{position:fixed;z-index:10000;max-width:420px;min-width:200px;max-height:360px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.35);pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity 0.15s,transform 0.15s;overflow:hidden}
+.hover-preview.show{opacity:1;transform:translateY(0)}
+.hover-preview-header{display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);font-size:0.75rem;color:var(--muted)}
+.hover-preview-body{padding:0.6rem;font-size:0.85rem;line-height:1.5;color:var(--text);max-height:300px;overflow:auto;word-break:break-word;white-space:pre-wrap}
+.hover-preview-body.code-preview{font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:0.8rem;background:var(--surface2);padding:0.8rem}
+.hover-preview-body img{max-width:100%;max-height:280px;border-radius:4px;object-fit:contain}
