@@ -150,6 +150,13 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   // v0.37.0: 诊断信息
   getDiagnostics: () => ipcRenderer.invoke('get-diagnostics'),
 
+  // v0.47.0: AI 模型与提示词自定义
+  getAiConfig: () => ipcRenderer.invoke('get-ai-config'),
+  saveAiConfig: (config) => ipcRenderer.invoke('save-ai-config', config),
+  listOllamaModels: () => ipcRenderer.invoke('list-ollama-models'),
+  testAiModel: (modelName) => ipcRenderer.invoke('test-ai-model', modelName),
+  resetAiPrompts: () => ipcRenderer.invoke('reset-ai-prompts'),
+
   // 移除监听
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);

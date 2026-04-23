@@ -1184,6 +1184,17 @@ app.whenReady().then(async () => {
   // v0.29.0: 加载通知设置
   updateNotificationSettings(settings);
 
+  // v0.47.0: 加载 AI 配置
+  if (settings.aiConfig) {
+    try {
+      const aiConfig = JSON.parse(settings.aiConfig);
+      AI.updateConfig(aiConfig);
+      log.info('AI 配置已加载:', JSON.stringify(aiConfig, null, 2));
+    } catch (e) {
+      log.warn('解析 AI 配置失败:', e.message);
+    }
+  }
+
   // 注册全局快捷键（从设置读取）
   registerGlobalShortcut(settings);
 
@@ -1617,6 +1628,77 @@ ipcMain.handle('test-ignore-rules', async (_, { content, metadata }) => {
   } catch (err) {
     log.error('test-ignore-rules error:', err);
     return { shouldIgnore: false, reason: '' };
+  }
+});
+
+// ==================== v0.47.0: AI 模型与提示词自定义 ====================
+
+// 获取 AI 配置
+ipcMain.handle('get-ai-config', async () => {
+  try {
+    const AI = require('./ai');
+    const config = AI.getConfig();
+    const defaults = AI.getDefaultPrompts();
+    return { success: true, config, defaults };
+  } catch (err) {
+    log.error('get-ai-config error:', err);
+    return { success: false, config: null, defaults: null };
+  }
+});
+
+// 保存 AI 配置
+ipcMain.handle('save-ai-config', async (_, config) => {
+  try {
+    const AI = require('./ai');
+    AI.updateConfig(config);
+    // 持久化到 settings 表
+    db.saveSettings({
+      aiConfig: JSON.stringify(config)
+    });
+    return { success: true };
+  } catch (err) {
+    log.error('save-ai-config error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 获取 Ollama 已安装模型列表
+ipcMain.handle('list-ollama-models', async () => {
+  try {
+    const AI = require('./ai');
+    const models = await AI.listModels();
+    return { success: true, models };
+  } catch (err) {
+    log.error('list-ollama-models error:', err);
+    return { success: false, models: [], error: err.message };
+  }
+});
+
+// 测试 AI 模型连接
+ipcMain.handle('test-ai-model', async (_, modelName) => {
+  try {
+    const AI = require('./ai');
+    const result = await AI.testModel(modelName);
+    return result;
+  } catch (err) {
+    log.error('test-ai-model error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 重置 AI 提示词为默认
+ipcMain.handle('reset-ai-prompts', async () => {
+  try {
+    const AI = require('./ai');
+    const defaults = AI.getDefaultPrompts();
+    AI.updateConfig({ prompts: defaults });
+    db.saveSettings({
+      aiConfig: JSON.stringify(AI.getConfig())
+    });
+    return { success: true, defaults };
+  } catch (err) {
+    log.error('reset-ai-prompts error:', err);
+    return { success: false, error: err.message };
   }
 });
 

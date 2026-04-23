@@ -215,6 +215,14 @@
     $('#btnExportCSV').addEventListener('click', handleExportCSV);
     $('#btnImportJSON').addEventListener('click', handleImportJSON);
 
+    // v0.47.0: AI 模型设置按钮
+    $('#btnRefreshAiModels').addEventListener('click', handleRefreshAiModels);
+    $('#btnTestAiModel').addEventListener('click', handleTestAiModel);
+    $('#btnResetAiPrompts').addEventListener('click', handleResetAiPrompts);
+    $('#settingAiTemperature').addEventListener('input', (e) => {
+      $('#temperatureValue').textContent = e.target.value;
+    });
+
     // 详情面板
     $('#btnCloseDetail').addEventListener('click', closeDetailPanel);
     $('#btnCopy').addEventListener('click', handleCopyRecord);
@@ -1554,6 +1562,27 @@
         loadExpiryStats();
       } catch (e) {
         console.error('加载自动过期设置失败:', e);
+      }
+
+      // v0.47.0: 加载 AI 模型设置
+      try {
+        const aiResult = await window.ClawBoard.getAiConfig();
+        if (aiResult.success && aiResult.config) {
+          const cfg = aiResult.config;
+          $('#settingAiModel').value = cfg.model || 'qwen2.5:3b';
+          $('#settingAiHost').value = cfg.host || 'http://localhost:11434';
+          $('#settingAiEmbedModel').value = cfg.embedModel || 'nomic-embed-text';
+          $('#settingAiTemperature').value = cfg.temperature || 0.7;
+          $('#temperatureValue').textContent = cfg.temperature || 0.7;
+          $('#settingAiMaxTokens').value = cfg.maxTokens || 200;
+          if (cfg.prompts) {
+            $('#settingPromptSummarize').value = cfg.prompts.summarize || aiResult.defaults?.summarize || '';
+            $('#settingPromptTags').value = cfg.prompts.tags || aiResult.defaults?.tags || '';
+            $('#settingPromptSearch').value = cfg.prompts.searchEnhance || aiResult.defaults?.searchEnhance || '';
+          }
+        }
+      } catch (e) {
+        console.error('加载 AI 设置失败:', e);
       }
     } catch (err) {
       console.error('加载设置失败:', err);
@@ -2990,6 +3019,64 @@
     }
   }
 
+  // v0.47.0: AI 模型设置处理函数
+  async function handleRefreshAiModels() {
+    const resultDiv = $('#aiTestResult');
+    resultDiv.innerHTML = '<span style="color:var(--muted)">刷新模型列表...</span>';
+    try {
+      const result = await window.ClawBoard.listOllamaModels();
+      if (result.success && result.models.length > 0) {
+        const modelSelect = $('#settingAiModel');
+        const embedSelect = $('#settingAiEmbedModel');
+        const currentModel = modelSelect.value;
+        const currentEmbed = embedSelect.value;
+        modelSelect.innerHTML = result.models.map(m => `<option value="${m}">${m}</option>`).join('');
+        embedSelect.innerHTML = result.models.map(m => `<option value="${m}">${m}</option>`).join('');
+        // 恢复之前选择
+        if (result.models.includes(currentModel)) modelSelect.value = currentModel;
+        if (result.models.includes(currentEmbed)) embedSelect.value = currentEmbed;
+        resultDiv.innerHTML = `<span style="color:var(--green)">✅ 发现 ${result.models.length} 个模型</span>`;
+      } else {
+        resultDiv.innerHTML = '<span style="color:var(--orange)">⚠️ 未找到安装的模型，请确保 Ollama 正在运行</span>';
+      }
+    } catch (e) {
+      resultDiv.innerHTML = '<span style="color:var(--red)">❌ 刷新失败: ' + e.message + '</span>';
+    }
+  }
+
+  async function handleTestAiModel() {
+    const resultDiv = $('#aiTestResult');
+    const model = $('#settingAiModel').value;
+    resultDiv.innerHTML = '<span style="color:var(--muted)">测试中...</span>';
+    try {
+      const result = await window.ClawBoard.testAiModel(model);
+      if (result.success) {
+        resultDiv.innerHTML = `<span style="color:var(--green)">✅ 连接成功！模型回复: ${result.response?.substring(0, 50) || '(空)'}...</span>`;
+      } else {
+        resultDiv.innerHTML = `<span style="color:var(--red)">❌ 连接失败: ${result.error}</span>`;
+      }
+    } catch (e) {
+      resultDiv.innerHTML = '<span style="color:var(--red)">❌ 测试失败: ' + e.message + '</span>';
+    }
+  }
+
+  async function handleResetAiPrompts() {
+    if (!confirm('确定要重置所有提示词模板为默认值吗？')) return;
+    try {
+      const result = await window.ClawBoard.resetAiPrompts();
+      if (result.success) {
+        $('#settingPromptSummarize').value = result.defaults?.summarize || '';
+        $('#settingPromptTags').value = result.defaults?.tags || '';
+        $('#settingPromptSearch').value = result.defaults?.searchEnhance || '';
+        showToast('✅ 提示词已重置', 'success');
+      } else {
+        showToast('❌ 重置失败', 'error');
+      }
+    } catch (e) {
+      showToast('❌ 重置失败: ' + e.message, 'error');
+    }
+  }
+
   async function handleSaveSettings() {
     const settings = {
       maxRecords: parseInt($('#settingMaxRecords').value) || 1000,
@@ -3039,6 +3126,24 @@
         keepFavorites: $('#settingExpiryKeepFavorites').checked,
       };
       await window.ClawBoard.saveAutoExpirySettings(expirySettings);
+      // v0.47.0: 保存 AI 模型设置
+      try {
+        const aiConfig = {
+          model: $('#settingAiModel').value,
+          host: $('#settingAiHost').value,
+          embedModel: $('#settingAiEmbedModel').value,
+          temperature: parseFloat($('#settingAiTemperature').value) || 0.7,
+          maxTokens: parseInt($('#settingAiMaxTokens').value) || 200,
+          prompts: {
+            summarize: $('#settingPromptSummarize').value,
+            tags: $('#settingPromptTags').value,
+            searchEnhance: $('#settingPromptSearch').value,
+          }
+        };
+        await window.ClawBoard.saveAiConfig(aiConfig);
+      } catch (e) {
+        console.error('保存 AI 设置失败:', e);
+      }
       // 更新全局快捷键
       await window.ClawBoard.updateShortcut(shortcuts.global);
       applyTheme(settings.theme);

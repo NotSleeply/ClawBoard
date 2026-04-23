@@ -1,14 +1,78 @@
 /**
  * ClawBoard - Ollama AI 集成
  * 本地 LLM 提供摘要、标签、搜索增强
+ * v0.47.0: 支持自定义模型与提示词模板
  */
 
 const http = require('http');
 const log = require('electron-log');
 
-const OLLAMA_HOST = 'http://localhost:11434';
-const MODEL = 'qwen2.5:3b';
-const EMBED_MODEL = 'nomic-embed-text';
+// 默认配置
+const DEFAULT_HOST = 'http://localhost:11434';
+const DEFAULT_MODEL = 'qwen2.5:3b';
+const DEFAULT_EMBED_MODEL = 'nomic-embed-text';
+
+// 默认提示词模板
+const DEFAULT_PROMPTS = {
+  summarize: '请为以下内容生成一个简短的中文摘要（不超过50字）：\n\n{{content}}',
+  tags: '请为以下内容生成3-5个中文标签（用逗号分隔）：\n\n{{content}}',
+  searchEnhance: '将以下搜索query转换为一个更适合搜索的关键词短句（保留核心语义，去除口语化表达）：\n\n搜索: {{query}}\n\n只输出转换后的关键词，不要其他解释。',
+};
+
+// 当前 AI 配置（可通过 updateConfig 动态修改）
+let aiConfig = {
+  host: DEFAULT_HOST,
+  model: DEFAULT_MODEL,
+  embedModel: DEFAULT_EMBED_MODEL,
+  prompts: { ...DEFAULT_PROMPTS },
+  temperature: 0.7,
+  maxTokens: 200,
+};
+
+/**
+ * 更新 AI 配置
+ */
+function updateConfig(config) {
+  if (config.host) aiConfig.host = config.host;
+  if (config.model) aiConfig.model = config.model;
+  if (config.embedModel) aiConfig.embedModel = config.embedModel;
+  if (config.temperature !== undefined) aiConfig.temperature = config.temperature;
+  if (config.maxTokens !== undefined) aiConfig.maxTokens = config.maxTokens;
+  if (config.prompts) {
+    // 合并提示词模板，保留自定义值
+    aiConfig.prompts = {
+      ...DEFAULT_PROMPTS,
+      ...aiConfig.prompts,
+      ...config.prompts,
+    };
+  }
+  log.info('AI 配置已更新:', JSON.stringify(aiConfig, null, 2));
+}
+
+/**
+ * 获取当前 AI 配置
+ */
+function getConfig() {
+  return { ...aiConfig };
+}
+
+/**
+ * 获取默认提示词模板
+ */
+function getDefaultPrompts() {
+  return { ...DEFAULT_PROMPTS };
+}
+
+/**
+ * 渲染提示词模板（替换变量）
+ */
+function renderPrompt(template, variables) {
+  let result = template;
+  for (const [key, value] of Object.entries(variables)) {
+    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+  }
+  return result;
+}
 
 /**
  * 生成摘要
@@ -17,7 +81,8 @@ async function summarize(text) {
   if (!text || text.length < 50) return text;
 
   try {
-    const prompt = `请为以下内容生成一个简短的中文摘要（不超过50字）：\n\n${text.substring(0, 1000)}`;
+    const template = aiConfig.prompts.summarize || DEFAULT_PROMPTS.summarize;
+    const prompt = renderPrompt(template, { content: text.substring(0, 1000) });
     const result = await _chat(prompt);
     return result;
   } catch (err) {
@@ -31,7 +96,8 @@ async function summarize(text) {
  */
 async function generateTags(text) {
   try {
-    const prompt = `请为以下内容生成3-5个中文标签（用逗号分隔）：\n\n${text.substring(0, 500)}`;
+    const template = aiConfig.prompts.tags || DEFAULT_PROMPTS.tags;
+    const prompt = renderPrompt(template, { content: text.substring(0, 500) });
     const result = await _chat(prompt);
     if (result) {
       return result.split(/[,，、]/).map(t => t.trim()).filter(t => t.length > 0).slice(0, 5);
@@ -48,7 +114,8 @@ async function generateTags(text) {
  */
 async function searchEnhance(query) {
   try {
-    const prompt = `将以下搜索query转换为一个更适合搜索的关键词短句（保留核心语义，去除口语化表达）：\n\n搜索: ${query}\n\n只输出转换后的关键词，不要其他解释。`;
+    const template = aiConfig.prompts.searchEnhance || DEFAULT_PROMPTS.searchEnhance;
+    const prompt = renderPrompt(template, { query });
     const result = await _chat(prompt);
     return result || query;
   } catch (err) {
@@ -63,7 +130,7 @@ async function searchEnhance(query) {
 async function getEmbedding(text) {
   try {
     const body = JSON.stringify({
-      model: EMBED_MODEL,
+      model: aiConfig.embedModel,
       input: text.substring(0, 2000),
     });
 
@@ -99,16 +166,37 @@ async function listModels() {
   }
 }
 
+/**
+ * 测试指定模型的连接
+ */
+async function testModel(modelName) {
+  try {
+    const body = JSON.stringify({
+      model: modelName || aiConfig.model,
+      prompt: '你好',
+      stream: false,
+      options: {
+        temperature: 0.5,
+        num_predict: 20,
+      }
+    });
+    const result = await _request('POST', '/api/generate', body);
+    return { success: true, response: result.response?.trim() };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
 // ==================== 内部方法 ====================
 
-async function _chat(prompt, model = MODEL) {
+async function _chat(prompt, model) {
   const body = JSON.stringify({
-    model,
+    model: model || aiConfig.model,
     prompt,
     stream: false,
     options: {
-      temperature: 0.7,
-      num_predict: 200,
+      temperature: aiConfig.temperature,
+      num_predict: aiConfig.maxTokens,
     }
   });
 
@@ -118,7 +206,7 @@ async function _chat(prompt, model = MODEL) {
 
 function _request(method, path, body = null) {
   return new Promise((resolve, reject) => {
-    const url = new URL(path, OLLAMA_HOST);
+    const url = new URL(path, aiConfig.host);
     const options = {
       hostname: url.hostname,
       port: url.port,
@@ -162,4 +250,8 @@ module.exports = {
   getEmbedding,
   checkHealth,
   listModels,
+  testModel,
+  updateConfig,
+  getConfig,
+  getDefaultPrompts,
 };
