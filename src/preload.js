@@ -150,6 +150,12 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   // v0.37.0: 诊断信息
   getDiagnostics: () => ipcRenderer.invoke('get-diagnostics'),
 
+  // v0.47.0: 文件路径快捷操作
+  openInExplorer: (filePath) => ipcRenderer.invoke('open-in-explorer', filePath),
+  openInTerminal: (filePath) => ipcRenderer.invoke('open-in-terminal', filePath),
+  checkPathExists: (filePath) => ipcRenderer.invoke('check-path-exists', filePath),
+  batchOpenInExplorer: (filePaths) => ipcRenderer.invoke('batch-open-in-explorer', filePaths),
+
   // 移除监听
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);

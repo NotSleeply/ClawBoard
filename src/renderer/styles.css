@@ -261,6 +261,10 @@ input{font-family:inherit;outline:none}
 .record-note-btn{background:none;border:none;cursor:pointer;opacity:0.4;font-size:0.85rem;padding:0;margin-left:0.2rem;transition:opacity 0.2s}
 .record-note-btn:hover,.record-note-btn.has-note{opacity:1}
 .record-note{font-size:0.75rem;color:var(--muted);margin-top:0.3rem;display:flex;align-items:flex-start;gap:0.3rem}
+/* v0.47.0: 文件路径快捷操作 */
+.file-path-actions{display:flex;gap:0.3rem;margin-top:0.35rem;padding-top:0.3rem;border-top:1px solid var(--border)}
+.file-action-btn{background:var(--accent-bg);border:1px solid var(--border);color:var(--text);border-radius:4px;cursor:pointer;font-size:0.75rem;padding:0.15rem 0.5rem;transition:all 0.2s;opacity:0.7}
+.file-action-btn:hover{opacity:1;background:var(--accent);color:#fff;border-color:var(--accent)}
 .record-note::before{content:'📝';flex-shrink:0}
 .note-editor-popup{position:absolute;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.6rem;min-width:250px;max-width:350px;box-shadow:0 4px 16px rgba(0,0,0,0.3)}
 .note-textarea{width:100%;resize:vertical;font-size:0.85rem;padding:0.4rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:inherit;min-height:60px}

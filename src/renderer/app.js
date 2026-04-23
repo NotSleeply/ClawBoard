@@ -221,6 +221,22 @@
     $('#btnFavorite').addEventListener('click', handleToggleFavorite);
     $('#btnDelete').addEventListener('click', handleDeleteRecord);
 
+    // v0.47.0: 文件路径快捷操作
+    $('#btnOpenExplorer').addEventListener('click', async () => {
+      if (!selectedRecord || selectedRecord.type !== 'file') return;
+      const result = await window.ClawBoard.openInExplorer(selectedRecord.content.trim());
+      if (!result.success) {
+        showToast(`无法打开: ${result.error}`, 'error');
+      }
+    });
+    $('#btnOpenTerminal').addEventListener('click', async () => {
+      if (!selectedRecord || selectedRecord.type !== 'file') return;
+      const result = await window.ClawBoard.openInTerminal(selectedRecord.content.trim());
+      if (!result.success) {
+        showToast(`无法打开终端: ${result.error}`, 'error');
+      }
+    });
+
     // v0.38.0: 内容编辑器
     $('#btnEdit').addEventListener('click', openEditor);
     $('#btnCloseEditor').addEventListener('click', closeEditor);
@@ -1846,6 +1862,14 @@
       ? `<span class="record-checkbox ${selectedIds.has(record.id) ? 'checked' : ''}">${selectedIds.has(record.id) ? '✓' : ''}</span>`
       : '';
 
+    // v0.47.0: 文件路径快捷操作按钮
+    const fileActionsHtml = (record.type === 'file' && !record.encrypted)
+      ? `<div class="file-path-actions" data-id="${record.id}">
+          <button class="file-action-btn" data-action="open-explorer" title="在资源管理器中打开">📁</button>
+          <button class="file-action-btn" data-action="open-terminal" title="在终端中打开">💻</button>
+        </div>`
+      : '';
+
     card.innerHTML = `
       <div class="record-header">
         ${checkboxHtml}
@@ -1861,6 +1885,7 @@
         </button>
       </div>
       <div class="record-content ${record.type}">${formatContent(record)}</div>
+      ${fileActionsHtml}
       ${tagsHtml}
       ${noteHtml}
     `;
@@ -1888,6 +1913,28 @@
     noteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       showNoteEditor(record, noteBtn);
+    });
+
+    // v0.47.0: 文件路径快捷操作
+    card.querySelectorAll('.file-action-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        const filePath = record.content.trim();
+        if (!filePath) return;
+        
+        if (action === 'open-explorer') {
+          const result = await window.ClawBoard.openInExplorer(filePath);
+          if (!result.success) {
+            showToast(`无法打开: ${result.error}`, 'error');
+          }
+        } else if (action === 'open-terminal') {
+          const result = await window.ClawBoard.openInTerminal(filePath);
+          if (!result.success) {
+            showToast(`无法打开终端: ${result.error}`, 'error');
+          }
+        }
+      });
     });
 
     // 拖拽排序
@@ -2116,6 +2163,17 @@
       btnQR.style.display = '';
     } else {
       btnQR.style.display = 'none';
+    }
+
+    // v0.47.0: 文件路径快捷操作按钮 - 仅对文件类型且未加密时显示
+    const btnOpenExplorer = $('#btnOpenExplorer');
+    const btnOpenTerminal = $('#btnOpenTerminal');
+    if (record.type === 'file' && !record.encrypted) {
+      btnOpenExplorer.style.display = '';
+      btnOpenTerminal.style.display = '';
+    } else {
+      btnOpenExplorer.style.display = 'none';
+      btnOpenTerminal.style.display = 'none';
     }
 
     renderPreviewContent(record);
