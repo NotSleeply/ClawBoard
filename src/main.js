@@ -1934,6 +1934,111 @@ ipcMain.handle('read-file', async (_, { filePath }) => {
   }
 });
 
+// ==================== v0.47.0: 文件路径快捷操作 ====================
+
+// 在资源管理器中打开
+ipcMain.handle('open-in-explorer', async (_, filePath) => {
+  try {
+    const fs = require('fs');
+    // 检查路径是否存在
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: '路径不存在' };
+    }
+    const stat = fs.statSync(filePath);
+    if (stat.isDirectory()) {
+      await shell.openPath(filePath);
+    } else {
+      // 打开文件所在目录并选中
+      await shell.openPath(path.dirname(filePath));
+    }
+    return { success: true };
+  } catch (err) {
+    log.error('open-in-explorer error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 在终端中打开
+ipcMain.handle('open-in-terminal', async (_, filePath) => {
+  try {
+    const fs = require('fs');
+    let targetDir = filePath;
+    
+    // 如果是文件，取其所在目录
+    if (fs.existsSync(filePath)) {
+      const stat = fs.statSync(filePath);
+      if (stat.isFile()) {
+        targetDir = path.dirname(filePath);
+      }
+    } else {
+      return { success: false, error: '路径不存在' };
+    }
+    
+    // Windows: 使用系统默认终端
+    const { exec } = require('child_process');
+    if (process.platform === 'win32') {
+      // 优先尝试 Windows Terminal，回退到 cmd
+      exec('where wt', (err) => {
+        if (!err) {
+          // Windows Terminal 可用
+          exec(`wt -d "${targetDir}"`, { windowsHide: true });
+        } else {
+          // 回退到 cmd
+          exec(`cmd /c start cmd /K "cd /d ${targetDir}"`, { windowsHide: true });
+        }
+      });
+    } else if (process.platform === 'darwin') {
+      exec(`open -a Terminal "${targetDir}"`);
+    } else {
+      exec(`gnome-terminal --working-directory="${targetDir}"`);
+    }
+    return { success: true };
+  } catch (err) {
+    log.error('open-in-terminal error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 检查路径是否存在
+ipcMain.handle('check-path-exists', async (_, filePath) => {
+  try {
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) {
+      return { exists: false, type: null };
+    }
+    const stat = fs.statSync(filePath);
+    return { exists: true, type: stat.isFile() ? 'file' : stat.isDirectory() ? 'directory' : 'other' };
+  } catch (err) {
+    return { exists: false, type: null };
+  }
+});
+
+// 批量在资源管理器中打开
+ipcMain.handle('batch-open-in-explorer', async (_, filePaths) => {
+  try {
+    let opened = 0;
+    let failed = 0;
+    const fs = require('fs');
+    for (const fp of filePaths) {
+      if (fs.existsSync(fp)) {
+        const stat = fs.statSync(fp);
+        if (stat.isDirectory()) {
+          await shell.openPath(fp);
+        } else {
+          await shell.openPath(path.dirname(fp));
+        }
+        opened++;
+      } else {
+        failed++;
+      }
+    }
+    return { success: true, opened, failed };
+  } catch (err) {
+    log.error('batch-open-in-explorer error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
 // v0.39.0: Cycle mode IPC handlers
 ipcMain.on('cycle-paste', (event, item) => {
   try {
