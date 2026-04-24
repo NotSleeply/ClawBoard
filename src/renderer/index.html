@@ -411,6 +411,7 @@
         <button class="settings-tab" data-tab="importExport">📥 导入导出</button>
         <button class="settings-tab" data-tab="hotkeys">⚡ 快捷模板</button>
         <button class="settings-tab" data-tab="autoEncrypt">🔐 自动加密</button>
+        <button class="settings-tab" data-tab="snippets">📋 快捷片段</button>
         <button class="settings-tab" data-tab="about">ℹ️ 关于</button>
       </div>
       <div class="settings-body">
@@ -647,6 +648,27 @@
             <div id="batchEncryptResult" style="margin-top:0.5rem"></div>
           </div>
         </div>
+        <!-- v0.48.0: 快捷片段 -->
+        <div class="settings-tab-content" id="settingsSnippets" style="display:none">
+          <div class="setting-item" style="display:flex;justify-content:space-between;align-items:center">
+            <label style="font-size:1rem;font-weight:600">📋 快捷片段管理</label>
+            <button class="btn-primary" id="btnAddSnippet" style="padding:0.3rem 0.8rem;font-size:0.8rem">+ 新建片段</button>
+          </div>
+          <div style="margin:0.8rem 0">
+            <input type="text" id="snippetSearchInput" placeholder="搜索片段..." style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.85rem">
+          </div>
+          <div id="snippetCategoryFilter" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.8rem">
+            <button class="snippet-cat-btn active" data-category="" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:var(--accent);color:white;font-size:0.78rem;cursor:pointer">全部</button>
+          </div>
+          <div id="snippetList" style="max-height:400px;overflow-y:auto">
+            <div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.9rem">暂无片段，点击「新建片段」开始</div>
+          </div>
+          <div style="margin-top:1rem;display:flex;gap:0.5rem">
+            <button class="btn-secondary" id="btnImportSnippets" style="font-size:0.8rem">📥 导入</button>
+            <button class="btn-secondary" id="btnExportSnippets" style="font-size:0.8rem">📤 导出</button>
+          </div>
+        </div>
+
         <!-- v0.37.0: 关于 & 诊断 -->
         <div class="settings-tab-content" id="settingsAbout" style="display:none">
           <div class="about-header" style="text-align:center;padding:1.5rem 0">
@@ -667,6 +689,45 @@
       </div>
       <div class="settings-footer">
         <button class="btn-primary" id="btnSaveSettings">保存设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- v0.48.0: 片段编辑对话框 -->
+  <div class="encryption-overlay" id="snippetEditOverlay" style="display:none">
+    <div class="encryption-panel" style="max-width:520px">
+      <div class="encryption-header">
+        <h2 id="snippetEditTitle">📋 编辑片段</h2>
+        <button class="detail-close" id="btnCloseSnippetEdit">×</button>
+      </div>
+      <div style="padding:1rem;display:flex;flex-direction:column;gap:0.8rem">
+        <input type="hidden" id="snippetEditId">
+        <div>
+          <label style="font-size:0.85rem;color:var(--muted);margin-bottom:0.3rem;display:block">标题</label>
+          <input type="text" id="snippetEditName" placeholder="片段标题" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.9rem">
+        </div>
+        <div>
+          <label style="font-size:0.85rem;color:var(--muted);margin-bottom:0.3rem;display:block">内容 <span style="font-size:0.75rem;color:var(--muted)">支持变量: {{date}} {{time}} {{datetime}} {{clipboard}}</span></label>
+          <textarea id="snippetEditContent" rows="6" placeholder="片段内容..." style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.85rem;resize:vertical;font-family:monospace"></textarea>
+        </div>
+        <div style="display:flex;gap:0.8rem">
+          <div style="flex:1">
+            <label style="font-size:0.85rem;color:var(--muted);margin-bottom:0.3rem;display:block">分类</label>
+            <input type="text" id="snippetEditCategory" placeholder="默认" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.85rem">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:0.85rem;color:var(--muted);margin-bottom:0.3rem;display:block">图标</label>
+            <input type="text" id="snippetEditIcon" placeholder="📝" value="📝" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.85rem">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:0.85rem;color:var(--muted);margin-bottom:0.3rem;display:block">快捷键 <span style="font-size:0.75rem">（如 Ctrl+Alt+1）</span></label>
+          <input type="text" id="snippetEditShortcut" placeholder="可选" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.85rem">
+        </div>
+        <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.5rem">
+          <button class="btn-secondary" id="btnCancelSnippetEdit">取消</button>
+          <button class="btn-primary" id="btnSaveSnippetEdit">保存</button>
+        </div>
       </div>
     </div>
   </div>

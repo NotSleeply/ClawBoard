@@ -2061,6 +2061,82 @@ ipcMain.on('cycle-cancel', () => {
   }
 });
 
+// ==================== v0.48.0: 快捷片段 ====================
+
+const Snippets = require('./snippets');
+const snippets = new Snippets(db.db || db); // 传入底层 sql.js 数据库实例
+
+ipcMain.handle('snippets-get-all', async (_, category) => {
+  try { return snippets.getAll(category); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-get-by-id', async (_, id) => {
+  try { return snippets.getById(id); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-search', async (_, query) => {
+  try { return snippets.search(query); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-create', async (_, data) => {
+  try { return snippets.create(data); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-update', async (_, { id, ...updates }) => {
+  try { return snippets.update(id, updates); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-delete', async (_, id) => {
+  try { return snippets.delete(id); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-get-categories', async () => {
+  try { return snippets.getCategories(); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-get-by-shortcut', async (_, shortcut) => {
+  try { return snippets.getByShortcut(shortcut); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-use', async (_, id) => {
+  try {
+    const snippet = snippets.use(id);
+    if (snippet) {
+      const content = snippets.renderContent(snippet.content);
+      clipboard.writeText(content);
+    }
+    return snippet;
+  } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-create-from-record', async (_, { record, title, category }) => {
+  try { return snippets.createFromRecord(record, { title, category }); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-import', async (_, snippetList) => {
+  try { return snippets.importSnippets(snippetList); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-export', async () => {
+  try { return snippets.exportSnippets(); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-stats', async () => {
+  try { return snippets.getStats(); } catch (e) { return { error: e.message }; }
+});
+
+ipcMain.handle('snippets-render-content', async (_, content) => {
+  try {
+    let rendered = snippets.renderContent(content);
+    // 动态替换 {{clipboard}}
+    if (rendered.includes('{{clipboard}}')) {
+      const currentClipboard = clipboard.readText();
+      rendered = rendered.split('{{clipboard}}').join(currentClipboard || '');
+    }
+    return rendered;
+  } catch (e) { return { error: e.message }; }
+});
+
 // ==================== v0.37.0: 诊断信息 ====================
 
 ipcMain.handle('get-diagnostics', async () => {

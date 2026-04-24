@@ -193,6 +193,8 @@
         if (tab.dataset.tab === 'about') loadDiagnostics();
         // v0.45.0: 切换到自动加密 tab 时加载规则
         if (tab.dataset.tab === 'autoEncrypt') loadAutoEncryptSettings();
+        // v0.48.0: 切换到快捷片段 tab 时加载片段
+        if (tab.dataset.tab === 'snippets') { loadSnippets(); initSnippetsUI(); }
       });
     });
 
@@ -3738,6 +3740,209 @@
     $('#settingHoverDelay').value = _hoverDelay;
     localStorage.setItem('hoverDelay', _hoverDelay);
   });
+
+  // ==================== v0.48.0: 快捷片段管理 ====================
+
+  let _snippetEditId = null;
+  let _snippetCurrentCategory = '';
+
+  async function loadSnippets(category) {
+    try {
+      _snippetCurrentCategory = category || '';
+      const snippets = await window.ClawBoard.snippetsGetAll(category || null);
+      const categories = await window.ClawBoard.snippetsGetCategories();
+      renderSnippetCategories(categories);
+      renderSnippetList(snippets);
+    } catch (e) {
+      console.error('loadSnippets error:', e);
+    }
+  }
+
+  function renderSnippetCategories(categories) {
+    const container = $('#snippetCategoryFilter');
+    if (!container) return;
+    let html = `<button class="snippet-cat-btn ${!_snippetCurrentCategory ? 'active' : ''}" data-category="" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:${!_snippetCurrentCategory ? 'var(--accent)' : 'var(--surface2)'};color:${!_snippetCurrentCategory ? 'white' : 'var(--text)'};font-size:0.78rem;cursor:pointer">全部</button>`;
+    categories.forEach(cat => {
+      const isActive = _snippetCurrentCategory === cat.name;
+      html += `<button class="snippet-cat-btn ${isActive ? 'active' : ''}" data-category="${cat.name}" style="padding:0.2rem 0.6rem;border-radius:4px;border:1px solid var(--border);background:${isActive ? 'var(--accent)' : 'var(--surface2)'};color:${isActive ? 'white' : 'var(--text)'};font-size:0.78rem;cursor:pointer">${cat.name} (${cat.count})</button>`;
+    });
+    container.innerHTML = html;
+    container.querySelectorAll('.snippet-cat-btn').forEach(btn => {
+      btn.addEventListener('click', () => loadSnippets(btn.dataset.category || null));
+    });
+  }
+
+  function renderSnippetList(snippets) {
+    const container = $('#snippetList');
+    if (!container) return;
+    if (!snippets || snippets.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:0.9rem">暂无片段，点击「新建片段」开始</div>';
+      return;
+    }
+    container.innerHTML = snippets.map(s => `
+      <div class="snippet-item" data-id="${s.id}" style="padding:0.6rem 0.8rem;border:1px solid var(--border);border-radius:8px;margin-bottom:0.5rem;background:var(--surface2);cursor:pointer;display:flex;align-items:center;gap:0.6rem">
+        <span style="font-size:1.2rem">${s.icon || '📝'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(s.title)}</div>
+          <div style="color:var(--muted);font-size:0.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0.15rem">${escapeHtml(s.content.substring(0, 80))}</div>
+        </div>
+        <div style="display:flex;gap:0.3rem;flex-shrink:0">
+          ${s.shortcut ? `<span style="background:var(--surface1);padding:0.1rem 0.4rem;border-radius:3px;font-size:0.7rem;color:var(--muted)">${s.shortcut}</span>` : ''}
+          <button class="snippet-use-btn" data-id="${s.id}" title="复制并使用" style="padding:0.2rem 0.4rem;border:none;border-radius:4px;background:var(--accent);color:white;font-size:0.75rem;cursor:pointer">📋</button>
+          <button class="snippet-edit-btn" data-id="${s.id}" title="编辑" style="padding:0.2rem 0.4rem;border:none;border-radius:4px;background:var(--surface1);color:var(--text);font-size:0.75rem;cursor:pointer">✏️</button>
+          <button class="snippet-delete-btn" data-id="${s.id}" title="删除" style="padding:0.2rem 0.4rem;border:none;border-radius:4px;background:var(--surface1);color:var(--red);font-size:0.75rem;cursor:pointer">🗑️</button>
+        </div>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('.snippet-use-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const snippet = await window.ClawBoard.snippetsUse(parseInt(btn.dataset.id));
+        if (snippet && !snippet.error) {
+          showToast(`📋 已复制「${snippet.title}」`, 'success');
+        }
+      });
+    });
+
+    container.querySelectorAll('.snippet-edit-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const snippet = await window.ClawBoard.snippetsGetById(parseInt(btn.dataset.id));
+        if (snippet && !snippet.error) openSnippetEditor(snippet);
+      });
+    });
+
+    container.querySelectorAll('.snippet-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (confirm('确认删除此片段？')) {
+          await window.ClawBoard.snippetsDelete(parseInt(btn.dataset.id));
+          showToast('🗑️ 片段已删除', 'success');
+          loadSnippets(_snippetCurrentCategory || null);
+        }
+      });
+    });
+  }
+
+  function openSnippetEditor(snippet = null) {
+    _snippetEditId = snippet ? snippet.id : null;
+    $('#snippetEditTitle').textContent = snippet ? '📋 编辑片段' : '📋 新建片段';
+    $('#snippetEditId').value = _snippetEditId || '';
+    $('#snippetEditName').value = snippet ? snippet.title : '';
+    $('#snippetEditContent').value = snippet ? snippet.content : '';
+    $('#snippetEditCategory').value = snippet ? snippet.category : '默认';
+    $('#snippetEditIcon').value = snippet ? snippet.icon : '📝';
+    $('#snippetEditShortcut').value = snippet ? (snippet.shortcut || '') : '';
+    $('#snippetEditOverlay').style.display = 'flex';
+  }
+
+  function closeSnippetEditor() {
+    $('#snippetEditOverlay').style.display = 'none';
+    _snippetEditId = null;
+  }
+
+  async function saveSnippet() {
+    const title = $('#snippetEditName').value.trim();
+    const content = $('#snippetEditContent').value;
+    const category = $('#snippetEditCategory').value.trim() || '默认';
+    const icon = $('#snippetEditIcon').value.trim() || '📝';
+    const shortcut = $('#snippetEditShortcut').value.trim();
+
+    if (!title || !content) {
+      showToast('标题和内容不能为空', 'error');
+      return;
+    }
+
+    try {
+      if (_snippetEditId) {
+        const result = await window.ClawBoard.snippetsUpdate(_snippetEditId, { title, content, category, icon, shortcut });
+        if (result.error) { showToast(result.error, 'error'); return; }
+        showToast('✅ 片段已更新', 'success');
+      } else {
+        const result = await window.ClawBoard.snippetsCreate({ title, content, category, icon, shortcut });
+        if (result.error) { showToast(result.error, 'error'); return; }
+        showToast('✅ 片段已创建', 'success');
+      }
+      closeSnippetEditor();
+      loadSnippets(_snippetCurrentCategory || null);
+    } catch (e) {
+      showToast('保存失败: ' + e.message, 'error');
+    }
+  }
+
+  function initSnippetsUI() {
+    const addBtn = $('#btnAddSnippet');
+    if (addBtn) addBtn.addEventListener('click', () => openSnippetEditor());
+
+    const closeBtn = $('#btnCloseSnippetEdit');
+    if (closeBtn) closeBtn.addEventListener('click', closeSnippetEditor);
+
+    const cancelBtn = $('#btnCancelSnippetEdit');
+    if (cancelBtn) cancelBtn.addEventListener('click', closeSnippetEditor);
+
+    const saveBtn = $('#btnSaveSnippetEdit');
+    if (saveBtn) saveBtn.addEventListener('click', saveSnippet);
+
+    const searchInput = $('#snippetSearchInput');
+    if (searchInput) {
+      let timer;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          const query = searchInput.value.trim();
+          if (!query) {
+            loadSnippets(_snippetCurrentCategory || null);
+          } else {
+            const results = await window.ClawBoard.snippetsSearch(query);
+            renderSnippetList(results);
+          }
+        }, 300);
+      });
+    }
+
+    const importBtn = $('#btnImportSnippets');
+    if (importBtn) {
+      importBtn.addEventListener('click', async () => {
+        try {
+          const result = await window.ClawBoard.showOpenDialog({
+            title: '导入片段',
+            filters: [{ name: 'JSON', extensions: ['json'] }]
+          });
+          if (!result.filePaths || result.filePaths.length === 0) return;
+          const fileContent = await window.ClawBoard.readFile({ filePath: result.filePaths[0] });
+          const data = JSON.parse(fileContent);
+          const snippets = Array.isArray(data) ? data : (data.snippets || []);
+          const results = await window.ClawBoard.snippetsImport(snippets);
+          const success = results.filter(r => r.success).length;
+          showToast(`📥 导入完成: ${success} 个片段`, 'success');
+          loadSnippets(_snippetCurrentCategory || null);
+        } catch (e) {
+          showToast('导入失败: ' + e.message, 'error');
+        }
+      });
+    }
+
+    const exportBtn = $('#btnExportSnippets');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', async () => {
+        try {
+          const data = await window.ClawBoard.snippetsExport();
+          const json = JSON.stringify(data, null, 2);
+          const result = await window.ClawBoard.showSaveDialog({
+            title: '导出片段',
+            defaultPath: 'clawboard-snippets.json',
+            filters: [{ name: 'JSON', extensions: ['json'] }]
+          });
+          if (!result.filePath) return;
+          await window.ClawBoard.writeFile({ filePath: result.filePath, content: json });
+          showToast('📤 片段已导出', 'success');
+        } catch (e) {
+          showToast('导出失败: ' + e.message, 'error');
+        }
+      });
+    }
+  }
 
   // ==================== 启动 ====================
   document.addEventListener('DOMContentLoaded', init);

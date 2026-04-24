@@ -156,6 +156,22 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   checkPathExists: (filePath) => ipcRenderer.invoke('check-path-exists', filePath),
   batchOpenInExplorer: (filePaths) => ipcRenderer.invoke('batch-open-in-explorer', filePaths),
 
+  // v0.48.0: 快捷片段
+  snippetsGetAll: (category) => ipcRenderer.invoke('snippets-get-all', category),
+  snippetsGetById: (id) => ipcRenderer.invoke('snippets-get-by-id', id),
+  snippetsSearch: (query) => ipcRenderer.invoke('snippets-search', query),
+  snippetsCreate: (data) => ipcRenderer.invoke('snippets-create', data),
+  snippetsUpdate: (id, updates) => ipcRenderer.invoke('snippets-update', { id, ...updates }),
+  snippetsDelete: (id) => ipcRenderer.invoke('snippets-delete', id),
+  snippetsGetCategories: () => ipcRenderer.invoke('snippets-get-categories'),
+  snippetsGetByShortcut: (shortcut) => ipcRenderer.invoke('snippets-get-by-shortcut', shortcut),
+  snippetsUse: (id) => ipcRenderer.invoke('snippets-use', id),
+  snippetsCreateFromRecord: (record, title, category) => ipcRenderer.invoke('snippets-create-from-record', { record, title, category }),
+  snippetsImport: (list) => ipcRenderer.invoke('snippets-import', list),
+  snippetsExport: () => ipcRenderer.invoke('snippets-export'),
+  snippetsStats: () => ipcRenderer.invoke('snippets-stats'),
+  snippetsRenderContent: (content) => ipcRenderer.invoke('snippets-render-content', content),
+
   // 移除监听
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
