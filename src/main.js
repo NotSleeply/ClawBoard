@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ClawBoard - Electron 主进程
  * 负责窗口管理、系统托盘、IPC 通信
  */
@@ -2039,6 +2039,73 @@ ipcMain.handle('batch-open-in-explorer', async (_, filePaths) => {
   }
 });
 
+
+// ==================== v0.49.0: 文件路径快捷操作增强 ====================
+
+// 启动文件（用系统默认程序打开）
+ipcMain.handle('file-launch', async (_, filePath) => {
+  try {
+    const fs = require('fs');
+    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, '');
+    if (!fs.existsSync(normalizedPath)) {
+      return { success: false, error: '文件不存在' };
+    }
+    await shell.openPath(normalizedPath);
+    return { success: true, path: normalizedPath };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// v0.49.0: 增强版 - 在资源管理器中打开（支持父目录回退）
+ipcMain.handle('file-open-explorer', async (_, filePath) => {
+  try {
+    const fs = require('fs');
+    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, '');
+    if (!fs.existsSync(normalizedPath)) {
+      const parentDir = path.dirname(normalizedPath);
+      if (fs.existsSync(parentDir)) {
+        await shell.openPath(parentDir);
+        return { success: true, path: parentDir, note: '文件不存在，已打开父目录' };
+      }
+      return { success: false, error: '路径不存在' };
+    }
+    const stat = fs.statSync(normalizedPath);
+    if (stat.isDirectory()) {
+      await shell.openPath(normalizedPath);
+    } else {
+      await shell.openPath(path.dirname(normalizedPath));
+    }
+    return { success: true, path: normalizedPath };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// v0.49.0: 增强版 - 在终端中打开（智能选择 Windows Terminal）
+ipcMain.handle('file-open-terminal', async (_, filePath) => {
+  try {
+    const fs = require('fs');
+    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, '');
+    const targetDir = fs.existsSync(normalizedPath) && fs.statSync(normalizedPath).isFile()
+      ? path.dirname(normalizedPath)
+      : normalizedPath;
+    if (!fs.existsSync(targetDir)) {
+      return { success: false, error: '路径不存在' };
+    }
+    const { exec } = require('child_process');
+    const wtPath = path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps', 'wt.exe');
+    const cmd = fs.existsSync(wtPath)
+      ? `start "" "$wtPath" -d "$targetDir"`
+      : `start cmd /k "cd /d "$targetDir""`;
+    exec(cmd, (err) => {
+      if (err) log.error('file-open-terminal error:', err);
+    });
+    return { success: true, path: targetDir };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
 // v0.39.0: Cycle mode IPC handlers
 ipcMain.on('cycle-paste', (event, item) => {
   try {

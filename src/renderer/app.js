@@ -1864,13 +1864,18 @@
       ? `<span class="record-checkbox ${selectedIds.has(record.id) ? 'checked' : ''}">${selectedIds.has(record.id) ? '✓' : ''}</span>`
       : '';
 
-    // v0.47.0: 文件路径快捷操作按钮
-    const fileActionsHtml = (record.type === 'file' && !record.encrypted)
-      ? `<div class="file-path-actions" data-id="${record.id}">
-          <button class="file-action-btn" data-action="open-explorer" title="在资源管理器中打开">📁</button>
-          <button class="file-action-btn" data-action="open-terminal" title="在终端中打开">💻</button>
-        </div>`
-      : '';
+    // v0.49.0: 文件路径快捷操作按钮
+    let fileActionsHtml = '';
+    if (record.type === 'file' && !record.encrypted) {
+      const fp = (record.content || '').trim().replace(/^["']|["']$/g, '');
+      if (fp && (fp.match(/^[A-Za-z]:\\/) || fp.match(/^\//))) {
+        fileActionsHtml = `<div class="file-path-actions" data-id="${record.id}">
+          <button class="file-action-btn" data-action="explorer" title="在资源管理器中打开">📂</button>
+          <button class="file-action-btn" data-action="terminal" title="在终端中打开">⬛</button>
+          <button class="file-action-btn" data-action="launch" title="打开文件">🚀</button>
+        </div>`;
+      }
+    }
 
     card.innerHTML = `
       <div class="record-header">
@@ -1917,24 +1922,22 @@
       showNoteEditor(record, noteBtn);
     });
 
-    // v0.47.0: 文件路径快捷操作
+    // v0.49.0: 文件路径快捷操作
     card.querySelectorAll('.file-action-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const action = btn.dataset.action;
-        const filePath = record.content.trim();
+        const filePath = (record.content || '').trim().replace(/^["']|["']$/g, '');
         if (!filePath) return;
-        
-        if (action === 'open-explorer') {
-          const result = await window.ClawBoard.openInExplorer(filePath);
-          if (!result.success) {
-            showToast(`无法打开: ${result.error}`, 'error');
-          }
-        } else if (action === 'open-terminal') {
-          const result = await window.ClawBoard.openInTerminal(filePath);
-          if (!result.success) {
-            showToast(`无法打开终端: ${result.error}`, 'error');
-          }
+        try {
+          let result;
+          if (action === 'explorer') result = await window.ClawBoard.fileOpenExplorer(filePath);
+          else if (action === 'terminal') result = await window.ClawBoard.fileOpenTerminal(filePath);
+          else if (action === 'launch') result = await window.ClawBoard.fileLaunch(filePath);
+          if (result && result.success) showToast(result.note || '已打开', 'success');
+          else showToast(result?.error || '操作失败', 'error');
+        } catch (err) {
+          showToast('操作失败: ' + err.message, 'error');
         }
       });
     });
