@@ -322,3 +322,9 @@ input{font-family:inherit;outline:none}
 .transform-actions{display:flex;gap:0.5rem;flex-wrap:wrap}
 .transform-actions button{background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.6rem;border-radius:4px;cursor:pointer;font-size:0.8rem}
 .transform-actions button:hover{background:var(--surface1);border-color:var(--accent)}
+
+/* v0.52.0: Image detail actions */
+.image-actions{display:flex;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border,rgba(255,255,255,0.06));margin-bottom:0.5rem}
+.detail-btn{background:var(--accent-bg,rgba(255,255,255,0.05));border:1px solid var(--border,rgba(255,255,255,0.1));border-radius:6px;padding:4px 10px;cursor:pointer;font-size:14px;color:var(--text);transition:all 0.15s ease}
+.detail-btn:hover{background:var(--accent,#3b82f6);color:#fff}
+#detailContent img{transition:transform 0.2s ease;max-width:100%}
