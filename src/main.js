@@ -6,6 +6,7 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, clipboard, nativeImage, shell, dialog, globalShortcut, Notification } = require('electron');
 const path = require('path');
 const log = require('electron-log');
+const { autoUpdater } = require('electron-updater');
 
 // 配置日志
 log.transports.file.level = 'info';
@@ -244,6 +245,23 @@ function createTray() {
         if (mainWindow) {
           mainWindow.setAlwaysOnTop(menuItem.checked);
         }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '🔄 检查更新',
+      click: () => {
+        checkForUpdates();
+      }
+    },
+    {
+      label: '❓ 关于',
+      click: () => {
+        dialog.showMessageBox({
+          type: 'info',
+          title: '🦞 ClawBoard',
+          message: `ClawBoard v${app.getVersion()}\n\nAI驱动的本地剪贴板管理器\n\n© 2024 NotSleeply`
+        });
       }
     },
     { type: 'separator' },
@@ -1218,6 +1236,116 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// ==================== 自动更新功能 (v0.50.0) ====================
+
+// 配置 electron-updater 日志
+autoUpdater.logger = log;
+autoUpdater.logger.transports.file.level = 'info';
+
+// 自动更新事件处理
+autoUpdater.on('checking-for-update', () => {
+  log.info('[AutoUpdater] 正在检查更新...');
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', { status: 'checking' });
+  }
+});
+
+autoUpdater.on('update-available', (info) => {
+  log.info('[AutoUpdater] 发现新版本:', info.version);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', { status: 'available', version: info.version });
+  }
+  // 显示系统通知
+  showUpdateNotification(`发现新版本 v${info.version}，正在下载...`);
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  log.info('[AutoUpdater] 当前已是最新版本:', info.version);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', { status: 'not-available', version: info.version });
+  }
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  const percent = Math.round(progressObj.percent);
+  log.info(`[AutoUpdater] 下载进度: ${percent}%`);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', { status: 'downloading', percent });
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  log.info('[AutoUpdater] 更新下载完成:', info.version);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', { status: 'downloaded', version: info.version });
+  }
+  showUpdateNotification(`v${info.version} 下载完成，即将重启应用以完成更新`);
+  // 自动安装并在重启后清理
+  setTimeout(() => {
+    autoUpdater.quitAndInstall(false, true);
+  }, 3000);
+});
+
+autoUpdater.on('error', (err) => {
+  log.error('[AutoUpdater] 更新出错:', err.message);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', { status: 'error', message: err.message });
+  }
+});
+
+function showUpdateNotification(message) {
+  try {
+    if (Notification.isSupported()) {
+      const notification = new Notification({
+        title: '🦞 ClawBoard 更新',
+        body: message,
+        icon: path.join(__dirname, '../assets/icon.png'),
+        silent: false,
+        timeoutType: 'default'
+      });
+      notification.show();
+    }
+  } catch (err) {
+    log.warn('显示更新通知失败:', err.message);
+  }
+}
+
+// 检查更新（启动时调用）
+function checkForUpdates() {
+  // 仅在非开发模式下检查更新
+  if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev')) {
+    log.info('[AutoUpdater] 开发模式，跳过更新检查');
+    return;
+  }
+  try {
+    autoUpdater.checkForUpdatesAndNotify();
+  } catch (err) {
+    log.error('[AutoUpdater] 检查更新失败:', err.message);
+  }
+}
+
+// 手动检查更新 IPC
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev')) {
+      return { success: false, message: '开发模式下无法检查更新' };
+    }
+    const result = await autoUpdater.checkForUpdates();
+    if (result && result.updateInfo) {
+      return { success: true, version: result.updateInfo.version };
+    }
+    return { success: true, message: '已是最新版本' };
+  } catch (err) {
+    log.error('[AutoUpdater] 手动检查更新失败:', err.message);
+    return { success: false, message: err.message };
+  }
+});
+
+// 获取当前版本
+ipcMain.handle('get-app-version', async () => {
+  return app.getVersion();
 });
 
 // 全局异常处理
