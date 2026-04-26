@@ -1,7 +1,7 @@
 {
   "name": "clawboard",
-  "version": "0.49.0",
-  "description": "🧠 AI驱动的本地剪贴板管理�?- 智能记录、语义搜索、永久收�?,
+  "version": "0.50.0",
+  "description": "AI驱动的本地剪贴板管理器 - 智能记录、语义搜索、永久收藏",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "electron-log": "^5.0.0",
+    "electron-updater": "^6.1.7",
     "qrcode-generator": "^2.0.4",
     "sql.js": "^1.10.0"
   },
@@ -41,15 +42,32 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "artifactName": "${productName}-${version}-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "NotSleeply",
+      "repo": "ClawBoard",
+      "releaseType": "release"
     },
     "files": [
       "src/**/*",

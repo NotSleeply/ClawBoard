@@ -95,6 +95,13 @@ ClawBoard/
 
 ## 📝 更新日志
 
+### v0.50.0 (2026-04-26)
+- 📦 **预编译安装包** - 基于 electron-builder 输出 Windows 安装版 (NSIS) 与便携版 (Portable)
+- 🔄 **自动更新** - 集成 electron-updater，应用启动时自动检查 GitHub Releases 更新
+- 🔔 **更新通知** - 发现新版本时显示通知，下载完成后自动安装
+- 📋 **检查更新菜单** - 托盘菜单新增「检查更新」选项，支持手动触发更新检查
+- ⚙️ **构建配置** - 完整的 electron-builder 配置，支持代码签名与发布自动化
+
 ### v0.49.0 (2026-04-26)
 - 📂 **文件路径快捷操作重构** - 重构文件路径操作 IPC 接口，统一命名规范 (fileOpenExplorer/fileOpenTerminal/fileLaunch)
 - 🚀 **直接启动文件** - 新增「打开文件」按钮，一键启动图片、文档、可执行文件等
