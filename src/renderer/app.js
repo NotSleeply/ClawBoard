@@ -15,6 +15,7 @@
   // 多选模式状态
   let isMultiSelectMode = false;
   let selectedIds = new Set();
+  let lastSelectedIndex = -1;
   // 视图模式：'list' | 'timeline'
   let currentViewMode = 'list';
   // 加密状态
@@ -295,6 +296,35 @@
     $('#btnBatchDelete').addEventListener('click', handleBatchDelete);
     $('#btnBatchExport').addEventListener('click', handleBatchExport);
     $('#btnBatchMoveToGroup').addEventListener('click', handleBatchMoveToGroup);
+
+    // v0.51.0: 批量标签
+    $('#btnBatchAddTag').addEventListener('click', async () => {
+      if (selectedIds.size === 0) return;
+      const tag = prompt(`为 ${selectedIds.size} 条记录添加标签:`);
+      if (!tag || !tag.trim()) return;
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        await window.ClawBoard.addTag(id, tag.trim());
+      }
+      showToast(`已为 ${ids.length} 条记录添加标签「${tag.trim()}」`, 'success');
+    });
+
+    // v0.51.0: 批量加密
+    $('#btnBatchEncrypt').addEventListener('click', async () => {
+      if (selectedIds.size === 0) return;
+      if (!confirm(`确定加密 ${selectedIds.size} 条记录？`)) return;
+      const ids = Array.from(selectedIds);
+      let encrypted = 0;
+      for (const id of ids) {
+        try {
+          await window.ClawBoard.encryptRecord(id);
+          encrypted++;
+        } catch (e) { /* skip already encrypted */ }
+      }
+      showToast(`已加密 ${encrypted} 条记录`, 'success');
+      setMultiSelectMode(false);
+      await loadRecords();
+    });
 
     // 分组管理
     $('#btnAddGroup').addEventListener('click', () => showGroupDialog());
@@ -1900,7 +1930,22 @@
     card.addEventListener('click', (e) => {
       e.stopPropagation();
       if (isMultiSelectMode) {
-        handleSelectRecord(record);
+        if (e.shiftKey && lastSelectedIndex >= 0) {
+          // Shift+Click 范围选择
+          const currentIndex = records.findIndex(r => r.id === record.id);
+          const start = Math.min(lastSelectedIndex, currentIndex);
+          const end = Math.max(lastSelectedIndex, currentIndex);
+          for (let i = start; i <= end; i++) {
+            selectedIds.add(records[i].id);
+          }
+          document.querySelectorAll('.record-card').forEach(card => {
+            if (selectedIds.has(parseInt(card.dataset.id))) card.classList.add('selected');
+          });
+        } else {
+          handleSelectRecord(record);
+          lastSelectedIndex = records.findIndex(r => r.id === record.id);
+        }
+        updateMultiSelectUI();
       } else {
         openDetailPanel(record);
       }
@@ -2550,6 +2595,8 @@
     $('#btnBatchFavorite').disabled = !hasSelection;
     $('#btnBatchDelete').disabled = !hasSelection;
     $('#btnBatchExport').disabled = !hasSelection;
+    $('#btnBatchAddTag').disabled = !hasSelection;
+    $('#btnBatchEncrypt').disabled = !hasSelection;
 
     // 更新全选按钮状态
     const allSelected = records.length > 0 && selectedIds.size === records.length;
@@ -2574,6 +2621,7 @@
     } else {
       selectedIds.add(record.id);
     }
+    lastSelectedIndex = records.findIndex(r => r.id === record.id);
     updateMultiSelectUI();
     // 只更新对应的卡片选中状态，不重新渲染整个列表
     const card = recordsList.querySelector(`[data-id="${record.id}"]`);
