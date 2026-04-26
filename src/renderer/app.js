@@ -15,12 +15,9 @@
   // 多选模式状态
   let isMultiSelectMode = false;
   let selectedIds = new Set();
-  let lastSelectedIndex = -1;
+  let lastSelectedIndex = -1; // v0.51.0: Shift+click 范围选中的锚点索引
   // 视图模式：'list' | 'timeline'
   let currentViewMode = 'list';
-  // v0.52.0: Image detail state
-  let imageZoomLevel = 1;
-  let imageRotation = 0;
   // 加密状态
   let isEncryptionUnlocked = false;
   // 标签筛选
@@ -299,35 +296,21 @@
     $('#btnBatchDelete').addEventListener('click', handleBatchDelete);
     $('#btnBatchExport').addEventListener('click', handleBatchExport);
     $('#btnBatchMoveToGroup').addEventListener('click', handleBatchMoveToGroup);
+    $('#btnBatchTag').addEventListener('click', handleBatchTag);           // v0.51.0
+    $('#btnBatchEncrypt').addEventListener('click', handleBatchEncrypt);   // v0.51.0
+    $('#btnBatchCopy').addEventListener('click', handleBatchCopy);         // v0.51.0
 
-    // v0.51.0: 批量标签
-    $('#btnBatchAddTag').addEventListener('click', async () => {
-      if (selectedIds.size === 0) return;
-      const tag = prompt(`为 ${selectedIds.size} 条记录添加标签:`);
-      if (!tag || !tag.trim()) return;
-      const ids = Array.from(selectedIds);
-      for (const id of ids) {
-        await window.ClawBoard.addTag(id, tag.trim());
-      }
-      showToast(`已为 ${ids.length} 条记录添加标签「${tag.trim()}」`, 'success');
-    });
+    // v0.51.0: 批量标签对话框
+    $('#btnCloseBatchTag').addEventListener('click', () => $('#batchTagOverlay').classList.remove('show'));
+    $('#btnCancelBatchTag').addEventListener('click', () => $('#batchTagOverlay').classList.remove('show'));
+    $('#btnConfirmBatchTag').addEventListener('click', handleConfirmBatchTag);
+    $('#batchTagOverlay').addEventListener('click', (e) => { if (e.target === $('#batchTagOverlay')) $('#batchTagOverlay').classList.remove('show'); });
 
-    // v0.51.0: 批量加密
-    $('#btnBatchEncrypt').addEventListener('click', async () => {
-      if (selectedIds.size === 0) return;
-      if (!confirm(`确定加密 ${selectedIds.size} 条记录？`)) return;
-      const ids = Array.from(selectedIds);
-      let encrypted = 0;
-      for (const id of ids) {
-        try {
-          await window.ClawBoard.encryptRecord(id);
-          encrypted++;
-        } catch (e) { /* skip already encrypted */ }
-      }
-      showToast(`已加密 ${encrypted} 条记录`, 'success');
-      setMultiSelectMode(false);
-      await loadRecords();
+    // v0.51.0: 右键菜单事件
+    document.querySelectorAll('#multiSelectContextMenu .context-menu-item').forEach(item => {
+      item.addEventListener('click', () => handleContextMenuAction(item.dataset.action));
     });
+    document.addEventListener('click', () => { const cm = $('#multiSelectContextMenu'); if (cm) cm.style.display = 'none'; });
 
     // 分组管理
     $('#btnAddGroup').addEventListener('click', () => showGroupDialog());
@@ -734,32 +717,6 @@
     // v0.17.0: OCR 复制按钮
     $('#btnCopyOCR').addEventListener('click', handleCopyOCR);
 
-    // v0.52.0: Image detail operations
-    $('#btnImageZoomIn').addEventListener('click', () => {
-      imageZoomLevel = Math.min(imageZoomLevel + 0.25, 5);
-      applyImageTransform();
-    });
-    $('#btnImageZoomOut').addEventListener('click', () => {
-      imageZoomLevel = Math.max(imageZoomLevel - 0.25, 0.25);
-      applyImageTransform();
-    });
-    $('#btnImageRotate').addEventListener('click', () => {
-      imageRotation = (imageRotation + 90) % 360;
-      applyImageTransform();
-    });
-    $('#btnImageSave').addEventListener('click', async () => {
-      if (!selectedRecord || selectedRecord.type !== 'image') return;
-      const result = await window.ClawBoard.showSaveDialog({
-        defaultPath: `clawboard_image_${Date.now()}.png`,
-        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'webp'] }]
-      });
-      if (result && !result.canceled && result.filePath) {
-        const srcPath = selectedRecord.content;
-        await window.ClawBoard.copyImageToPath(srcPath, result.filePath);
-        showToast('图片已保存', 'success');
-      }
-    });
-
     // v0.41.0: QR 码按钮
     $('#btnQR').addEventListener('click', handleQRCode);
     $('#btnCloseQR').addEventListener('click', closeQROverlay);
@@ -782,15 +739,6 @@
       showToast('📋 OCR 文字已复制', 'success');
     } catch (err) {
       showToast('复制失败', 'error');
-    }
-  }
-
-  // v0.52.0: Apply zoom/rotation transform to detail image
-  function applyImageTransform() {
-    const img = document.querySelector('#detailContent img');
-    if (img) {
-      img.style.transform = `scale(${imageZoomLevel}) rotate(${imageRotation}deg)`;
-      img.style.transformOrigin = 'center center';
     }
   }
 
@@ -1968,24 +1916,23 @@
     card.addEventListener('click', (e) => {
       e.stopPropagation();
       if (isMultiSelectMode) {
-        if (e.shiftKey && lastSelectedIndex >= 0) {
-          // Shift+Click 范围选择
-          const currentIndex = records.findIndex(r => r.id === record.id);
-          const start = Math.min(lastSelectedIndex, currentIndex);
-          const end = Math.max(lastSelectedIndex, currentIndex);
-          for (let i = start; i <= end; i++) {
-            selectedIds.add(records[i].id);
-          }
-          document.querySelectorAll('.record-card').forEach(card => {
-            if (selectedIds.has(parseInt(card.dataset.id))) card.classList.add('selected');
-          });
-        } else {
-          handleSelectRecord(record);
-          lastSelectedIndex = records.findIndex(r => r.id === record.id);
-        }
-        updateMultiSelectUI();
+        handleSelectRecord(record, e);
       } else {
         openDetailPanel(record);
+      }
+    });
+
+    // v0.51.0: 多选模式右键菜单
+    card.addEventListener('contextmenu', (e) => {
+      if (!isMultiSelectMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // 如果右键的条目未选中，先选中它
+      if (!selectedIds.has(record.id)) {
+        handleSelectRecord(record, e);
+      }
+      if (selectedIds.size > 0) {
+        showMultiSelectContextMenu(e.clientX, e.clientY);
       }
     });
 
@@ -2262,15 +2209,6 @@
     } else {
       btnOpenExplorer.style.display = 'none';
       btnOpenTerminal.style.display = 'none';
-    }
-
-    // v0.52.0: Image action buttons
-    if (record.type === 'image') {
-      $('#imageActions').style.display = 'flex';
-      imageZoomLevel = 1;
-      imageRotation = 0;
-    } else {
-      $('#imageActions').style.display = 'none';
     }
 
     renderPreviewContent(record);
@@ -2642,8 +2580,10 @@
     $('#btnBatchFavorite').disabled = !hasSelection;
     $('#btnBatchDelete').disabled = !hasSelection;
     $('#btnBatchExport').disabled = !hasSelection;
-    $('#btnBatchAddTag').disabled = !hasSelection;
-    $('#btnBatchEncrypt').disabled = !hasSelection;
+    $('#btnBatchTag').disabled = !hasSelection;       // v0.51.0
+    $('#btnBatchEncrypt').disabled = !hasSelection;   // v0.51.0
+    $('#btnBatchCopy').disabled = !hasSelection;      // v0.51.0
+    $('#btnBatchMerge').disabled = !hasSelection;
 
     // 更新全选按钮状态
     const allSelected = records.length > 0 && selectedIds.size === records.length;
@@ -2662,18 +2602,38 @@
     renderRecords();
   }
 
-  function handleSelectRecord(record) {
+  function handleSelectRecord(record, event) {
+    const recordIndex = records.findIndex(r => r.id === record.id);
+
+    // v0.51.0: Shift+click 范围选中
+    if (event && event.shiftKey && lastSelectedIndex >= 0 && recordIndex >= 0) {
+      const start = Math.min(lastSelectedIndex, recordIndex);
+      const end = Math.max(lastSelectedIndex, recordIndex);
+      for (let i = start; i <= end; i++) {
+        selectedIds.add(records[i].id);
+      }
+      lastSelectedIndex = recordIndex;
+      updateMultiSelectUI();
+      renderRecords();
+      return;
+    }
+
     if (selectedIds.has(record.id)) {
       selectedIds.delete(record.id);
     } else {
       selectedIds.add(record.id);
     }
-    lastSelectedIndex = records.findIndex(r => r.id === record.id);
+    lastSelectedIndex = recordIndex;
     updateMultiSelectUI();
     // 只更新对应的卡片选中状态，不重新渲染整个列表
     const card = recordsList.querySelector(`[data-id="${record.id}"]`);
     if (card) {
       card.classList.toggle('selected', selectedIds.has(record.id));
+      const cb = card.querySelector('.record-checkbox');
+      if (cb) {
+        cb.classList.toggle('checked', selectedIds.has(record.id));
+        cb.textContent = selectedIds.has(record.id) ? '✓' : '';
+      }
     }
   }
 
@@ -2863,6 +2823,137 @@
       setMultiSelectMode(false);
     } catch (err) {
       showToast('❌ 批量导出失败', 'error');
+    }
+  }
+
+  // ==================== v0.51.0: 多选增强 ====================
+
+  // 批量复制：将选中条目内容拼接复制到剪贴板
+  async function handleBatchCopy() {
+    if (selectedIds.size === 0) return;
+    try {
+      const selectedRecords = records.filter(r => selectedIds.has(r.id));
+      // 按时间排序，旧在前
+      const sorted = [...selectedRecords].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      const allContent = sorted.map(r => r.content).join('\n---\n');
+      await window.ClawBoard.copyToClipboard(allContent);
+      showToast(`📋 已复制 ${sorted.length} 条记录内容`, 'success');
+      setMultiSelectMode(false);
+    } catch (err) {
+      showToast('❌ 批量复制失败', 'error');
+    }
+  }
+
+  // 批量添加标签
+  async function handleBatchTag() {
+    if (selectedIds.size === 0) return;
+    // 显示标签对话框
+    const overlay = $('#batchTagOverlay');
+    $('#batchTagCount').textContent = selectedIds.size;
+    $('#batchTagInput').value = '';
+    // 显示已有的常用标签供快速选择
+    try {
+      const allTags = await window.ClawBoard.getAllTags();
+      const container = $('#batchTagExisting');
+      if (allTags.length > 0) {
+        container.innerHTML = '<span style="color:var(--muted);font-size:0.8rem;margin-right:0.4rem">常用:</span>' +
+          allTags.slice(0, 10).map(t => `<button class="record-tag" style="cursor:pointer" data-tag="${escapeHtml(t.tag)}">${escapeHtml(t.tag)}</button>`).join('');
+        container.querySelectorAll('[data-tag]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const input = $('#batchTagInput');
+            const current = input.value.trim();
+            input.value = current ? current + ',' + btn.dataset.tag : btn.dataset.tag;
+          });
+        });
+      } else {
+        container.innerHTML = '';
+      }
+    } catch (e) {
+      $('#batchTagExisting').innerHTML = '';
+    }
+    overlay.classList.add('show');
+    $('#batchTagInput').focus();
+  }
+
+  async function handleConfirmBatchTag() {
+    const tagInput = $('#batchTagInput').value.trim();
+    if (!tagInput) {
+      showToast('请输入至少一个标签', 'error');
+      return;
+    }
+    const tags = tagInput.split(',').map(t => t.trim()).filter(t => t.length > 0);
+    if (tags.length === 0) {
+      showToast('请输入有效标签', 'error');
+      return;
+    }
+    try {
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        for (const tag of tags) {
+          await window.ClawBoard.addTag(id, tag);
+        }
+      }
+      showToast(`🏷️ 已为 ${ids.length} 条记录添加 ${tags.length} 个标签`, 'success');
+      $('#batchTagOverlay').classList.remove('show');
+      setMultiSelectMode(false);
+      await loadRecords();
+    } catch (err) {
+      showToast('❌ 批量标签失败', 'error');
+    }
+  }
+
+  // 批量加密
+  async function handleBatchEncrypt() {
+    if (selectedIds.size === 0) return;
+    if (!isEncryptionUnlocked) {
+      showToast('❌ 请先在设置中解锁加密功能', 'error');
+      return;
+    }
+    const selectedRecords = records.filter(r => selectedIds.has(r.id));
+    const unencryptedRecords = selectedRecords.filter(r => !r.encrypted);
+    if (unencryptedRecords.length === 0) {
+      showToast('选中的记录已全部加密', '');
+      return;
+    }
+    if (!confirm(`确定要加密选中的 ${unencryptedRecords.length} 条未加密记录吗？`)) return;
+    try {
+      let encryptedCount = 0;
+      for (const r of unencryptedRecords) {
+        const success = await window.ClawBoard.encryptRecord(r.id);
+        if (success) encryptedCount++;
+      }
+      showToast(`🔒 已加密 ${encryptedCount} 条记录`, 'success');
+      setMultiSelectMode(false);
+      await loadRecords();
+    } catch (err) {
+      showToast('❌ 批量加密失败', 'error');
+    }
+  }
+
+  // 多选右键菜单
+  function showMultiSelectContextMenu(x, y) {
+    const menu = $('#multiSelectContextMenu');
+    // 调整位置，避免超出窗口
+    const menuWidth = 200;
+    const menuHeight = 300;
+    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
+    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    menu.style.display = 'block';
+  }
+
+  function handleContextMenuAction(action) {
+    const menu = $('#multiSelectContextMenu');
+    menu.style.display = 'none';
+    switch (action) {
+      case 'copy': handleBatchCopy(); break;
+      case 'favorite': handleBatchFavorite(); break;
+      case 'tag': handleBatchTag(); break;
+      case 'encrypt': handleBatchEncrypt(); break;
+      case 'export': handleBatchExport(); break;
+      case 'move': handleBatchMoveToGroup(); break;
+      case 'delete': handleBatchDelete(); break;
     }
   }
 

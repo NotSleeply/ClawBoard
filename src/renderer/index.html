@@ -59,8 +59,11 @@
   <!-- 批量操作栏 -->
   <div class="batch-bar" id="batchBar">
     <span class="batch-count">已选 <strong id="selectedCount">0</strong> 条</span>
+    <button class="batch-btn" id="btnBatchCopy" title="批量复制">📋 复制</button>
     <button class="batch-btn" id="btnBatchMerge" title="合并内容">🔗 合并</button>
     <button class="batch-btn" id="btnBatchFavorite" title="批量收藏">⭐ 收藏</button>
+    <button class="batch-btn" id="btnBatchTag" title="批量添加标签">🏷️ 标签</button>
+    <button class="batch-btn" id="btnBatchEncrypt" title="批量加密">🔒 加密</button>
     <button class="batch-btn" id="btnBatchExport" title="批量导出">📥 导出</button>
     <button class="batch-btn" id="btnBatchMoveToGroup" title="移动到分组">📁 移动</button>
     <button class="batch-btn" id="btnBatchAddTag" title="批量添加标签">🏷️ 标签</button>
@@ -914,6 +917,39 @@
         <div class="move-to-group-list" id="moveToGroupList"></div>
       </div>
     </div>
+  </div>
+
+  <!-- 批量添加标签对话框 -->
+  <div class="settings-overlay" id="batchTagOverlay">
+    <div class="encryption-panel" style="width:380px">
+      <div class="encryption-header">
+        <h2>🏷️ 批量添加标签</h2>
+        <button class="detail-close" id="btnCloseBatchTag">×</button>
+      </div>
+      <div class="encryption-body">
+        <p style="color:var(--muted);margin-bottom:1rem">为已选中的 <strong id="batchTagCount" style="color:var(--accent)">0</strong> 条记录添加标签</p>
+        <div style="margin-bottom:1rem">
+          <input type="text" id="batchTagInput" placeholder="输入标签，多个标签用逗号分隔" style="width:100%;padding:0.6rem 1rem;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.9rem">
+        </div>
+        <div id="batchTagExisting" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.4rem"></div>
+        <div style="display:flex;gap:0.8rem;justify-content:flex-end">
+          <button class="btn-secondary" id="btnCancelBatchTag">取消</button>
+          <button class="btn-primary" id="btnConfirmBatchTag">添加标签</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 多选右键菜单 -->
+  <div class="context-menu" id="multiSelectContextMenu" style="display:none">
+    <div class="context-menu-item" data-action="copy"><span>📋</span> 批量复制</div>
+    <div class="context-menu-item" data-action="favorite"><span>⭐</span> 批量收藏</div>
+    <div class="context-menu-item" data-action="tag"><span>🏷️</span> 批量添加标签</div>
+    <div class="context-menu-item" data-action="encrypt"><span>🔒</span> 批量加密</div>
+    <div class="context-menu-item" data-action="export"><span>📥</span> 批量导出</div>
+    <div class="context-menu-item" data-action="move"><span>📁</span> 移动到分组</div>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-item danger" data-action="delete"><span>🗑️</span> 批量删除</div>
   </div>
 
   <!-- 统计导出对话框 -->
