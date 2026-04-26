@@ -2170,6 +2170,21 @@ ipcMain.handle('batch-open-in-explorer', async (_, filePaths) => {
 
 // ==================== v0.49.0: 文件路径快捷操作增强 ====================
 
+// v0.52.0: Copy image file to a user-chosen path
+ipcMain.handle('copy-image-to-path', async (_, { srcPath, destPath }) => {
+  try {
+    const fs = require('fs');
+    if (!fs.existsSync(srcPath)) {
+      return { success: false, error: '源图片不存在' };
+    }
+    fs.copyFileSync(srcPath, destPath);
+    return { success: true };
+  } catch (err) {
+    log.error('copy-image-to-path error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
 // 启动文件（用系统默认程序打开）
 ipcMain.handle('file-launch', async (_, filePath) => {
   try {

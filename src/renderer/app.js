@@ -18,6 +18,9 @@
   let lastSelectedIndex = -1;
   // 视图模式：'list' | 'timeline'
   let currentViewMode = 'list';
+  // v0.52.0: Image detail state
+  let imageZoomLevel = 1;
+  let imageRotation = 0;
   // 加密状态
   let isEncryptionUnlocked = false;
   // 标签筛选
@@ -731,6 +734,32 @@
     // v0.17.0: OCR 复制按钮
     $('#btnCopyOCR').addEventListener('click', handleCopyOCR);
 
+    // v0.52.0: Image detail operations
+    $('#btnImageZoomIn').addEventListener('click', () => {
+      imageZoomLevel = Math.min(imageZoomLevel + 0.25, 5);
+      applyImageTransform();
+    });
+    $('#btnImageZoomOut').addEventListener('click', () => {
+      imageZoomLevel = Math.max(imageZoomLevel - 0.25, 0.25);
+      applyImageTransform();
+    });
+    $('#btnImageRotate').addEventListener('click', () => {
+      imageRotation = (imageRotation + 90) % 360;
+      applyImageTransform();
+    });
+    $('#btnImageSave').addEventListener('click', async () => {
+      if (!selectedRecord || selectedRecord.type !== 'image') return;
+      const result = await window.ClawBoard.showSaveDialog({
+        defaultPath: `clawboard_image_${Date.now()}.png`,
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'webp'] }]
+      });
+      if (result && !result.canceled && result.filePath) {
+        const srcPath = selectedRecord.content;
+        await window.ClawBoard.copyImageToPath(srcPath, result.filePath);
+        showToast('图片已保存', 'success');
+      }
+    });
+
     // v0.41.0: QR 码按钮
     $('#btnQR').addEventListener('click', handleQRCode);
     $('#btnCloseQR').addEventListener('click', closeQROverlay);
@@ -753,6 +782,15 @@
       showToast('📋 OCR 文字已复制', 'success');
     } catch (err) {
       showToast('复制失败', 'error');
+    }
+  }
+
+  // v0.52.0: Apply zoom/rotation transform to detail image
+  function applyImageTransform() {
+    const img = document.querySelector('#detailContent img');
+    if (img) {
+      img.style.transform = `scale(${imageZoomLevel}) rotate(${imageRotation}deg)`;
+      img.style.transformOrigin = 'center center';
     }
   }
 
@@ -2224,6 +2262,15 @@
     } else {
       btnOpenExplorer.style.display = 'none';
       btnOpenTerminal.style.display = 'none';
+    }
+
+    // v0.52.0: Image action buttons
+    if (record.type === 'image') {
+      $('#imageActions').style.display = 'flex';
+      imageZoomLevel = 1;
+      imageRotation = 0;
+    } else {
+      $('#imageActions').style.display = 'none';
     }
 
     renderPreviewContent(record);

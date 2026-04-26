@@ -155,6 +155,8 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   fileLaunch: (filePath) => ipcRenderer.invoke('file-launch', filePath),
   fileOpenExplorer: (filePath) => ipcRenderer.invoke('file-open-explorer', filePath),
   fileOpenTerminal: (filePath) => ipcRenderer.invoke('file-open-terminal', filePath),
+  // v0.52.0: Copy image to user-chosen path
+  copyImageToPath: (srcPath, destPath) => ipcRenderer.invoke('copy-image-to-path', { srcPath, destPath }),
   // v0.47.0: 文件路径快捷操作
   openInExplorer: (filePath) => ipcRenderer.invoke('open-in-explorer', filePath),
   openInTerminal: (filePath) => ipcRenderer.invoke('open-in-terminal', filePath),
