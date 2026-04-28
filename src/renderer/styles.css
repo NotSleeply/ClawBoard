@@ -171,6 +171,15 @@ input{font-family:inherit;outline:none}
 .main{bottom:60px}
 .batch-bar.show~.main{bottom:120px}
 
+/* 多选右键菜单 */
+.context-menu{position:fixed;z-index:200;min-width:180px;padding:0.4rem 0;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);animation:contextMenuIn .15s ease}
+@keyframes contextMenuIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
+.context-menu-item{display:flex;align-items:center;gap:0.6rem;padding:0.55rem 1rem;cursor:pointer;font-size:0.85rem;color:var(--text);transition:all 0.15s}
+.context-menu-item:hover{background:var(--hover-bg)}
+.context-menu-item.danger{color:var(--red)}
+.context-menu-item.danger:hover{background:rgba(239,68,68,0.1)}
+.context-menu-separator{height:1px;background:var(--border);margin:0.3rem 0}
+
 /* 时间线视图 */
 .timeline-view{padding:0}
 .timeline-group{margin-bottom:0.5rem;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden}
