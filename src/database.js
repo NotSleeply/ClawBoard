@@ -142,6 +142,15 @@ class Database {
       // 列已存在，忽略
     }
 
+    // 添加 AI 设置表（v0.54.0 AI 能力扩展）
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS ai_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // 创建分组表
     this.db.run(`
       CREATE TABLE IF NOT EXISTS groups (
@@ -1829,6 +1838,44 @@ class Database {
     }
   }
 \nmodule.exports = Database;
+
+// ==================== v0.54.0: AI 设置管理 ====================
+Database.prototype.getAISettings = function() {
+  try {
+    const result = this.db.exec(`SELECT key, value FROM ai_settings`);
+    if (result.length === 0) return {};
+    const settings = {};
+    result[0].values.forEach(([key, value]) => {
+      try {
+        settings[key] = JSON.parse(value);
+      } catch {
+        settings[key] = value;
+      }
+    });
+    return settings;
+  } catch (e) {
+    return {};
+  }
+};
+
+Database.prototype.saveAISettings = function(settings) {
+  try {
+    for (const [key, value] of Object.entries(settings)) {
+      this.db.run(
+        `INSERT OR REPLACE INTO ai_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`,
+        [key, JSON.stringify(value)]
+      );
+    }
+    this._save();
+    // 同时更新 AI 模块配置
+    const ai = require('./ai');
+    ai.setConfig(settings);
+    return true;
+  } catch (e) {
+    console.error('保存 AI 设置失败:', e);
+    return false;
+  }
+};
   // ==================== v0.34.0: 导入导出 ====================
   exportAllRecords() {
     const records = this.db.exec(`

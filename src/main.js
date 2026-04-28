@@ -516,6 +516,35 @@ function setupIPC() {
     }
   });
 
+  // v0.54.0: AI 设置相关 IPC
+  ipcMain.handle('ai-get-models', async () => {
+    try {
+      const AI = require('./ai');
+      return await AI.listModels();
+    } catch (err) {
+      log.error('ai-get-models error:', err);
+      return [];
+    }
+  });
+
+  ipcMain.handle('ai-get-settings', async () => {
+    try {
+      return db.getAISettings();
+    } catch (err) {
+      log.error('ai-get-settings error:', err);
+      return {};
+    }
+  });
+
+  ipcMain.handle('ai-save-settings', async (event, settings) => {
+    try {
+      return db.saveAISettings(settings);
+    } catch (err) {
+      log.error('ai-save-settings error:', err);
+      return false;
+    }
+  });
+
   // 获取设置
   ipcMain.handle('get-settings', async () => {
     try {
