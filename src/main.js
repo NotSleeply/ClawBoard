@@ -756,6 +756,35 @@ ipcMain.handle('get-ocr-text', async (event, id) => {
   }
 });
 
+// v0.53.0: OCR 语言管理
+ipcMain.handle('get-ocr-languages', async () => {
+  try {
+    return ocrService.getAvailableLanguages();
+  } catch (err) {
+    log.error('get-ocr-languages error:', err);
+    return []; // 返回空数组而非 null
+  }
+});
+
+ipcMain.handle('set-ocr-language', async (_, langCodes) => {
+  try {
+    const result = await ocrService.setLanguage(langCodes);
+    return result; // { success: true/false, ... }
+  } catch (err) {
+    log.error('set-ocr-language error:', err);
+    return { success: false, error: err.message }; // 返回错误对象
+  }
+});
+
+ipcMain.handle('get-current-ocr-language', async () => {
+  try {
+    return { success: true, languages: ocrService.getCurrentLanguage() }; // 返回成功对象
+  } catch (err) {
+    log.error('get-current-ocr-language error:', err);
+    return { success: false, error: err.message, languages: ['chi_sim', 'eng'] }; // 返回错误对象和默认值
+  }
+});
+
 // 切换锁定状态
 ipcMain.handle('toggle-lock', async (event, id) => {
   try {

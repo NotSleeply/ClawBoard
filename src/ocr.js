@@ -11,6 +11,55 @@ class OCRService {
     this.worker = null;
     this.isReady = false;
     this.language = 'chi_sim+eng'; // 简体中文 + 英文
+    // v0.53.0: 支持的语言列表
+    this.availableLanguages = [
+      { code: 'chi_sim', name: '简体中文', installed: true },
+      { code: 'chi_tra', name: '繁体中文', installed: false },
+      { code: 'eng', name: '英文', installed: true },
+      { code: 'jpn', name: '日语', installed: false },
+      { code: 'kor', name: '韩语', installed: false },
+      { code: 'fra', name: '法语', installed: false },
+      { code: 'deu', name: '德语', installed: false },
+      { code: 'spa', name: '西班牙语', installed: false },
+      { code: 'rus', name: '俄语', installed: false },
+    ];
+    this.currentLanguages = ['chi_sim', 'eng']; // 当前启用的语言
+  }
+
+  // v0.53.0: 获取可用语言列表
+  getAvailableLanguages() {
+    return this.availableLanguages;
+  }
+
+  // v0.53.0: 设置 OCR 语言
+  async setLanguage(langCodes) {
+    if (!Array.isArray(langCodes) || langCodes.length === 0) {
+      return { success: false, error: '无效的语言代码' }; // 返回错误而非抛出
+    }
+    
+    // 终止旧的 worker
+    if (this.worker) {
+      await this.worker.terminate();
+      this.worker = null;
+      this.isReady = false;
+    }
+    
+    this.currentLanguages = langCodes;
+    const langStr = langCodes.join('+');
+    this.language = langStr;
+    
+    try {
+      await this.init();
+      return { success: true, language: langStr }; // 返回成功对象
+    } catch (err) {
+      console.error('OCR 语言切换失败:', err);
+      return { success: false, error: err.message }; // 返回错误对象
+    }
+  }
+
+  // v0.53.0: 获取当前语言设置
+  getCurrentLanguage() {
+    return this.currentLanguages;
   }
 
   // 初始化 OCR Worker
