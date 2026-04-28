@@ -49,6 +49,10 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   // v0.17.0: OCR 相关
   ocrRecognize: (imagePath) => ipcRenderer.invoke('ocr-recognize', imagePath),
   getOCRText: (id) => ipcRenderer.invoke('get-ocr-text', id),
+  // v0.53.0: OCR 语言管理
+  getOcrLanguages: () => ipcRenderer.invoke('get-ocr-languages'),
+  setOcrLanguage: (langCodes) => ipcRenderer.invoke('set-ocr-language', langCodes),
+  getCurrentOcrLanguage: () => ipcRenderer.invoke('get-current-ocr-language'),
   
   // v0.23.0: 保存记录（用于合并功能）
   saveRecord: (record) => ipcRenderer.invoke('save-record', record),
