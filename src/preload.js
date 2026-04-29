@@ -32,6 +32,10 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   
   // AI 相关
   aiSummary: (text) => ipcRenderer.invoke('ai-summary', text),
+  // v0.54.0: AI 设置
+  aiGetModels: () => ipcRenderer.invoke('ai-get-models'),
+  aiGetSettings: () => ipcRenderer.invoke('ai-get-settings'),
+  aiSaveSettings: (settings) => ipcRenderer.invoke('ai-save-settings', settings),
   
   // 设置相关
   getSettings: () => ipcRenderer.invoke('get-settings'),

@@ -1589,8 +1589,62 @@
       } catch (e) {
         console.error('加载自动过期设置失败:', e);
       }
+
+      // v0.54.0: 加载 AI 设置
+      try {
+        const aiSettings = await window.ClawBoard.aiGetSettings();
+        if (aiSettings.model) $('#settingAiChatModel').value = aiSettings.model;
+        if (aiSettings.embedModel) $('#settingAiEmbedModel').value = aiSettings.embedModel;
+        if (aiSettings.summarizePrompt) $('#settingAiSummarizePrompt').value = aiSettings.summarizePrompt;
+        if (aiSettings.tagsPrompt) $('#settingAiTagsPrompt').value = aiSettings.tagsPrompt;
+        if (aiSettings.searchPrompt) $('#settingAiSearchPrompt').value = aiSettings.searchPrompt;
+        // 刷新模型列表
+        loadAiModels();
+      } catch (e) {
+        console.error('加载 AI 设置失败:', e);
+      }
     } catch (err) {
       console.error('加载设置失败:', err);
+    }
+  }
+
+  // v0.54.0: 加载可用 AI 模型列表
+  async function loadAiModels() {
+    try {
+      const models = await window.ClawBoard.aiGetModels();
+      const chatSelect = $('#settingAiChatModel');
+      const embedSelect = $('#settingAiEmbedModel');
+      const currentChat = chatSelect.value;
+      const currentEmbed = embedSelect.value;
+      
+      // 清空并重新填充
+      chatSelect.innerHTML = '';
+      embedSelect.innerHTML = '';
+      
+      if (models && models.length > 0) {
+        models.forEach(m => {
+          const opt1 = document.createElement('option');
+          opt1.value = m;
+          opt1.textContent = m;
+          if (m === currentChat) opt1.selected = true;
+          chatSelect.appendChild(opt1);
+          
+          // 嵌入模型通常包含 embed 或 text
+          const opt2 = document.createElement('option');
+          opt2.value = m;
+          opt2.textContent = m;
+          if (m === currentEmbed) opt2.selected = true;
+          embedSelect.appendChild(opt2);
+        });
+        $('#aiModelsStatus').textContent = `已发现 ${models.length} 个模型`;
+      } else {
+        chatSelect.innerHTML = '<option value="qwen2.5:3b">qwen2.5:3b (默认)</option>';
+        embedSelect.innerHTML = '<option value="nomic-embed-text">nomic-embed-text (默认)</option>';
+        $('#aiModelsStatus').textContent = '未检测到 Ollama 服务';
+      }
+    } catch (e) {
+      $('#aiModelsStatus').textContent = '加载模型列表失败';
+      console.error('加载 AI 模型失败:', e);
     }
   }
 
@@ -3288,6 +3342,17 @@
         keepFavorites: $('#settingExpiryKeepFavorites').checked,
       };
       await window.ClawBoard.saveAutoExpirySettings(expirySettings);
+      
+      // v0.54.0: 保存 AI 设置
+      const aiSettings = {
+        model: $('#settingAiChatModel').value,
+        embedModel: $('#settingAiEmbedModel').value,
+        summarizePrompt: $('#settingAiSummarizePrompt').value,
+        tagsPrompt: $('#settingAiTagsPrompt').value,
+        searchPrompt: $('#settingAiSearchPrompt').value
+      };
+      await window.ClawBoard.aiSaveSettings(aiSettings);
+      
       // 更新全局快捷键
       await window.ClawBoard.updateShortcut(shortcuts.global);
       applyTheme(settings.theme);
@@ -3340,6 +3405,15 @@
 
   // v0.29.0: 测试通知按钮
   $('#btnTestNotification').addEventListener('click', handleTestNotification);
+
+  // v0.54.0: AI 设置相关按钮
+  $('#btnRefreshAiModels').addEventListener('click', loadAiModels);
+  $('#btnResetAiPrompts').addEventListener('click', () => {
+    $('#settingAiSummarizePrompt').value = '请为以下内容生成一个简短的中文摘要（不超过50字）：\n\n{{content}}';
+    $('#settingAiTagsPrompt').value = '请为以下内容生成3-5个中文标签（用逗号分隔）：\n\n{{content}}';
+    $('#settingAiSearchPrompt').value = '将以下搜索query转换为一个更适合搜索的关键词短句（保留核心语义，去除口语化表达）：\n\n搜索: {{query}}\n\n只输出转换后的关键词，不要其他解释。';
+    showToast('✅ 已恢复默认提示词', 'success');
+  });
 
   // v0.31.0: 立即清理过期条目
   $('#btnCleanExpired').addEventListener('click', async () => {
