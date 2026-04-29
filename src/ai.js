@@ -7,17 +7,44 @@ const http = require('http');
 const log = require('electron-log');
 
 const OLLAMA_HOST = 'http://localhost:11434';
-const MODEL = 'qwen2.5:3b';
-const EMBED_MODEL = 'nomic-embed-text';
+const DEFAULT_MODEL = 'qwen2.5:3b';
+const DEFAULT_EMBED_MODEL = 'nomic-embed-text';
+
+// 可从设置覆盖
+let config = {
+  model: DEFAULT_MODEL,
+  embedModel: DEFAULT_EMBED_MODEL,
+  host: OLLAMA_HOST,
+  summarizePrompt: '请为以下内容生成一个简短的中文摘要（不超过50字）：\n\n{{content}}',
+  tagsPrompt: '请为以下内容生成3-5个中文标签（用逗号分隔）：\n\n{{content}}',
+  searchPrompt: '将以下搜索query转换为一个更适合搜索的关键词短句（保留核心语义，去除口语化表达）：\n\n搜索: {{query}}\n\n只输出转换后的关键词，不要其他解释。',
+  enabled: true,
+};
+
+function setConfig(newConfig) {
+  if (newConfig.model) config.model = newConfig.model;
+  if (newConfig.embedModel) config.embedModel = newConfig.embedModel;
+  if (newConfig.host) config.host = newConfig.host;
+  if (newConfig.summarizePrompt) config.summarizePrompt = newConfig.summarizePrompt;
+  if (newConfig.tagsPrompt) config.tagsPrompt = newConfig.tagsPrompt;
+  if (newConfig.searchPrompt) config.searchPrompt = newConfig.searchPrompt;
+  if (newConfig.enabled !== undefined) config.enabled = newConfig.enabled;
+}
+
+function getConfig() {
+  return { ...config };
+}
 
 /**
  * 生成摘要
  */
 async function summarize(text) {
+  if (!config.enabled) return null;
   if (!text || text.length < 50) return text;
 
   try {
-    const prompt = `请为以下内容生成一个简短的中文摘要（不超过50字）：\n\n${text.substring(0, 1000)}`;
+    const prompt = config.summarizePrompt
+      .replace('{{content}}', text.substring(0, 1000));
     const result = await _chat(prompt);
     return result;
   } catch (err) {
@@ -30,8 +57,10 @@ async function summarize(text) {
  * 为内容生成标签
  */
 async function generateTags(text) {
+  if (!config.enabled) return [];
   try {
-    const prompt = `请为以下内容生成3-5个中文标签（用逗号分隔）：\n\n${text.substring(0, 500)}`;
+    const prompt = config.tagsPrompt
+      .replace('{{content}}', text.substring(0, 500));
     const result = await _chat(prompt);
     if (result) {
       return result.split(/[,，、]/).map(t => t.trim()).filter(t => t.length > 0).slice(0, 5);
@@ -47,8 +76,9 @@ async function generateTags(text) {
  * 自然语言搜索增强
  */
 async function searchEnhance(query) {
+  if (!config.enabled) return query;
   try {
-    const prompt = `将以下搜索query转换为一个更适合搜索的关键词短句（保留核心语义，去除口语化表达）：\n\n搜索: ${query}\n\n只输出转换后的关键词，不要其他解释。`;
+    const prompt = config.searchPrompt.replace('{{query}}', query);
     const result = await _chat(prompt);
     return result || query;
   } catch (err) {
@@ -101,7 +131,7 @@ async function listModels() {
 
 // ==================== 内部方法 ====================
 
-async function _chat(prompt, model = MODEL) {
+async function _chat(prompt, model = config.model) {
   const body = JSON.stringify({
     model,
     prompt,
@@ -118,7 +148,7 @@ async function _chat(prompt, model = MODEL) {
 
 function _request(method, path, body = null) {
   return new Promise((resolve, reject) => {
-    const url = new URL(path, OLLAMA_HOST);
+    const url = new URL(path, config.host);
     const options = {
       hostname: url.hostname,
       port: url.port,
@@ -162,4 +192,6 @@ module.exports = {
   getEmbedding,
   checkHealth,
   listModels,
+  setConfig,
+  getConfig,
 };
