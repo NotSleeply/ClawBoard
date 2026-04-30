@@ -25,6 +25,7 @@ const TextTransform = require('./text-transform'); // v0.33.0 格式转换
 
 let mainWindow = null;
 let cycleWindow = null; // v0.39.0: Cycle mode window
+let quickPasteWindow = null; // v0.57.0: Quick paste floating menu
 let tray = null;
 let db = null;
 let clipboardWatcher = null;
@@ -143,6 +144,56 @@ function createCycleWindow() {
   });
 
   return cycleWindow;
+}
+
+// v0.57.0: Quick paste floating window
+function createQuickPasteWindow() {
+  if (quickPasteWindow && !quickPasteWindow.isDestroyed()) {
+    quickPasteWindow.close();
+    quickPasteWindow = null;
+  }
+
+  const { screen } = require('electron');
+  const cursorPos = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(cursorPos);
+  const b = display.workArea;
+  const w = 380, h = 400;
+  let x = cursorPos.x + 10;
+  let y = cursorPos.y + 10;
+  if (x + w > b.x + b.width) x = b.x + b.width - w - 10;
+  if (y + h > b.y + b.height) y = b.y + b.height - h - 10;
+  if (x < b.x) x = b.x + 10;
+  if (y < b.y) y = b.y + 10;
+
+  quickPasteWindow = new BrowserWindow({
+    width: w, height: h, x, y,
+    frame: false, transparent: true, resizable: false,
+    skipTaskbar: true, alwaysOnTop: true, show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  quickPasteWindow.loadFile(path.join(__dirname, 'quick-paste.html'));
+
+  // Send recent records after load
+  quickPasteWindow.webContents.on('did-finish-load', () => {
+    const recent = db.searchRecords({ limit: 30 });
+    quickPasteWindow.webContents.send('quick-paste-data', recent.map(r => ({
+      id: r.id, type: r.type, content: r.content ? r.content.substring(0, 200) : ''
+    })));
+  });
+
+  quickPasteWindow.once('ready-to-show', () => quickPasteWindow.show());
+  quickPasteWindow.on('blur', () => {
+    if (quickPasteWindow && !quickPasteWindow.isDestroyed()) quickPasteWindow.close();
+  });
+  quickPasteWindow.on('closed', () => { quickPasteWindow = null; });
+
+  return quickPasteWindow;
 }
 
 function createWindow() {
@@ -1266,6 +1317,9 @@ app.whenReady().then(async () => {
   // v0.39.0: 注册循环模式快捷键
   registerCycleShortcut();
 
+  // v0.57.0: 注册快速粘贴浮动菜单快捷键
+  registerQuickPasteShortcut();
+
   // 注册 IPC
   setupIPC();
 
@@ -1605,6 +1659,28 @@ function registerCycleShortcut() {
   } else {
     log.info('循环模式快捷键 ' + shortcut + ' 已注册');
     cycleShortcut = shortcut;
+  }
+}
+
+// v0.57.0: Register quick paste shortcut (Alt+Q)
+let quickPasteShortcut = null;
+function registerQuickPasteShortcut() {
+  if (quickPasteShortcut) {
+    globalShortcut.unregister(quickPasteShortcut);
+  }
+  const shortcut = 'Alt+Q';
+  try {
+    const ret = globalShortcut.register(shortcut, () => {
+      createQuickPasteWindow();
+    });
+    if (!ret) {
+      log.warn('快速粘贴快捷键注册失败: ' + shortcut);
+    } else {
+      log.info('快速粘贴快捷键 ' + shortcut + ' 已注册');
+      quickPasteShortcut = shortcut;
+    }
+  } catch (e) {
+    log.warn('快速粘贴快捷键注册失败:', e);
   }
 }
 
@@ -2327,6 +2403,24 @@ ipcMain.on('cycle-cancel', () => {
   if (cycleWindow && !cycleWindow.isDestroyed()) {
     cycleWindow.close();
   }
+});
+
+// v0.57.0: Quick paste IPC handlers
+ipcMain.on('quick-paste-select', (event, item) => {
+  if (quickPasteWindow && !quickPasteWindow.isDestroyed()) quickPasteWindow.close();
+  const record = db.getRecord(item.id);
+  if (record && record.content) {
+    clipboard.writeText(record.content);
+    // Simulate Ctrl+V paste
+    setTimeout(() => {
+      const { exec } = require('child_process');
+      exec('powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(\"^v\")"');
+    }, 100);
+  }
+});
+
+ipcMain.on('quick-paste-close', () => {
+  if (quickPasteWindow && !quickPasteWindow.isDestroyed()) quickPasteWindow.close();
 });
 
 // ==================== v0.48.0: 快捷片段 ====================

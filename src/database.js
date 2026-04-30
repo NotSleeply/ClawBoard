@@ -460,6 +460,35 @@ class Database {
     return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
   }
 
+  // v0.57.0: 快速粘贴搜索方法
+  searchRecords(options = {}) {
+    const limit = options.limit || 30;
+    const search = options.search;
+    try {
+      let result;
+      if (search) {
+        result = this.db.exec(
+          `SELECT id, type, content, created_at FROM records WHERE content LIKE ? ORDER BY created_at DESC LIMIT ?`,
+          [`%${search}%`, limit]
+        );
+      } else {
+        result = this.db.exec(
+          `SELECT id, type, content, created_at FROM records ORDER BY created_at DESC LIMIT ?`,
+          [limit]
+        );
+      }
+      if (result.length === 0 || result[0].values.length === 0) return [];
+      return result[0].values.map(row => {
+        const rec = {};
+        result[0].columns.forEach((col, i) => { rec[col] = row[i]; });
+        return rec;
+      });
+    } catch (e) {
+      console.error('searchRecords error:', e);
+      return [];
+    }
+  }
+
   // 获取来源应用列表及其记录数
   getSourceApps() {
     const result = this.db.exec(`
