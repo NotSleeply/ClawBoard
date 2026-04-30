@@ -2439,3 +2439,32 @@ ipcMain.handle('get-diagnostics', async () => {
     return { error: err.message };
   }
 });
+
+
+// v0.55.0: 模糊去重（MinHash）
+ipcMain.handle('find-fuzzy-duplicates', async (_, { threshold = 0.75 } = {}) => {
+  try {
+    return db._findFuzzyDuplicates(threshold);
+  } catch (err) {
+    log.error('find-fuzzy-duplicates error:', err);
+    return [];
+  }
+});
+
+ipcMain.handle('cleanup-fuzzy-duplicates', async (_, { threshold = 0.85 } = {}) => {
+  try {
+    return db.cleanupFuzzyDuplicates(threshold);
+  } catch (err) {
+    log.error('cleanup-fuzzy-duplicates error:', err);
+    return { deleted: 0, found: 0 };
+  }
+});
+
+ipcMain.handle('get-fuzzy-dedup-stats', async () => {
+  try {
+    return db.getFuzzyStats();
+  } catch (err) {
+    log.error('get-fuzzy-dedup-stats error:', err);
+    return { total: 0, fuzzyPairsFound: 0, samples: [] };
+  }
+});
