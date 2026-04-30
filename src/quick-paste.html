@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
+  <title>Quick Paste</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: rgba(30,30,40,0.95); color: #e0e0e0; border-radius: 8px; overflow: hidden; }
+    .quick-paste-list { max-height: 360px; overflow-y: auto; }
+    .quick-paste-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .quick-paste-item:hover { background: rgba(59,130,246,0.2); }
+    .quick-paste-item .type-icon { font-size: 14px; flex-shrink: 0; }
+    .quick-paste-item .preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .quick-paste-item .shortcut { color: rgba(255,255,255,0.3); font-size: 11px; flex-shrink: 0; }
+    .search-bar { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .search-bar input { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 6px 8px; color: #e0e0e0; font-size: 13px; outline: none; }
+    .search-bar input:focus { border-color: #3b82f6; }
+    .empty-hint { padding: 20px; text-align: center; color: rgba(255,255,255,0.3); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="search-bar"><input type="text" id="searchInput" placeholder="搜索..." autofocus></div>
+  <div class="quick-paste-list" id="itemList"></div>
+  <script>
+    const { ipcRenderer } = require('electron');
+    let items = [];
+    let filtered = [];
+
+    ipcRenderer.on('quick-paste-data', (_, data) => {
+      items = data;
+      filtered = data;
+      render();
+    });
+
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase();
+      filtered = q ? items.filter(i => (i.content || '').toLowerCase().includes(q)) : items;
+      render();
+    });
+
+    function render() {
+      const list = document.getElementById('itemList');
+      if (filtered.length === 0) {
+        list.innerHTML = '<div class="empty-hint">无匹配记录</div>';
+        return;
+      }
+      list.innerHTML = filtered.slice(0, 15).map((item, i) => {
+        const icon = { text: '📝', code: '💻', file: '📁', image: '🖼️' }[item.type] || '📋';
+        const preview = (item.content || '').substring(0, 80).replace(/\n/g, ' ');
+        const shortcut = i < 9 ? `${i + 1}` : '';
+        return `<div class="quick-paste-item" data-index="${i}" tabindex="0"><span class="type-icon">${icon}</span><span class="preview">${escapeHtml(preview)}</span>${shortcut ? `<span class="shortcut">${shortcut}</span>` : ''}</div>`;
+      }).join('');
+
+      list.querySelectorAll('.quick-paste-item').forEach(el => {
+        el.addEventListener('click', () => selectItem(parseInt(el.dataset.index)));
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter') selectItem(parseInt(el.dataset.index)); });
+      });
+    }
+
+    function selectItem(index) {
+      const item = filtered[index];
+      if (item) ipcRenderer.send('quick-paste-select', item);
+    }
+
+    // Number key shortcuts
+    document.addEventListener('keydown', (e) => {
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= 9 && num <= filtered.length) {
+        selectItem(num - 1);
+      }
+      if (e.key === 'Escape') ipcRenderer.send('quick-paste-close');
+    });
+
+    function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+  </script>
+</body>
+</html>
