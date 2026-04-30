@@ -1968,3 +1968,224 @@ Database.prototype.saveAISettings = function(settings) {
   }
 
 }
+
+
+
+// ==================== v0.55.0: MinHash 模糊去重 ====================
+// MinHash 实现（纯 JS，无需外部依赖）
+
+// 全局 MinHash 签名宽度
+const MH_NUM_HASHES = 128;
+
+// 生成单个 hash 值（murmurhash3 32-bit 风格）
+function _murmurHash3_32(key, seed) {
+  let h1 = seed;
+  const c1 = 0xcc9e2d51;
+  const c2 = 0x1b873593;
+  const chars = Array.from(key);
+  const len = chars.length;
+  const nblocks = Math.floor(len / 4);
+
+  for (let i = 0; i < nblocks; i++) {
+    let k1 = (chars[i*4] & 0xff) |
+            ((chars[i*4+1] & 0xff) << 8) |
+            ((chars[i*4+2] & 0xff) << 16) |
+            ((chars[i*4+3] & 0xff) << 24);
+    k1 = Math.imul(k1, c1);
+    k1 = (k1 << 15) | (k1 >>> 17);
+    k1 = Math.imul(k1, c2);
+    h1 ^= k1;
+    h1 = (h1 << 13) | (h1 >>> 19);
+    h1 = Math.imul(h1, 5) + 0xe6546b64;
+  }
+
+  let k1 = 0;
+  const tail = nblocks * 4;
+  switch (len & 3) {
+    case 3: k1 ^= (chars[tail+2] & 0xff) << 16;
+    case 2: k1 ^= (chars[tail+1] & 0xff) << 8;
+    case 1: k1 ^= (chars[tail] & 0xff);
+      k1 = Math.imul(k1, c1);
+      k1 = (k1 << 15) | (k1 >>> 17);
+      k1 = Math.imul(k1, c2);
+      h1 ^= k1;
+  }
+
+  h1 ^= len;
+  h1 ^= h1 >>> 16;
+  h1 = Math.imul(h1, 0x85ebca6b);
+  h1 ^= h1 >>> 13;
+  h1 = Math.imul(h1, 0xc2b2ae35);
+  h1 ^= h1 >>> 16;
+  return h1 >>> 0;
+}
+
+// 字符串的 3-gram 集合
+function _getNGrams(text, n = 3) {
+  const grams = new Set();
+  for (let i = 0; i <= text.length - n; i++) {
+    grams.add(text.substring(i, i + n));
+  }
+  return grams;
+}
+
+// 计算一条文本的 MinHash 签名（MH_NUM_HASHES 维）
+function _minhash(text) {
+  const tokens = _getNGrams(text.toLowerCase());
+  if (tokens.size === 0) return null;
+  const sig = new Int32Array(MH_NUM_HASHES);
+  sig.fill(0x7fffffff);
+  let pairIdx = 0;
+  for (let i = 0; i < MH_NUM_HASHES; i++) {
+    for (const tok of tokens) {
+      const h = _murmurHash3_32(tok + '#' + i, i + 1) >>> 0;
+      if (h < sig[i]) sig[i] = h;
+    }
+    pairIdx++;
+  }
+  return sig;
+}
+
+// Jaccard 相似度（基于 MinHash 签名）
+function _minhashJaccard(sig1, sig2) {
+  if (!sig1 || !sig2 || sig1.length !== sig2.length) return 0;
+  let match = 0;
+  for (let i = 0; i < sig1.length; i++) {
+    if (sig1[i] === sig2[i]) match++;
+  }
+  return match / sig1.length;
+}
+
+// 批量扫描并返回疑似模糊重复的配对
+// 返回 [{idA, idB, contentA, contentB, jaccard}]
+Database.prototype._findFuzzyDuplicates = function(threshold = 0.75, limit = 200) {
+  const rows = this.db.exec(
+    'SELECT id, content, type FROM records WHERE encrypted = 0 AND type IN (\"text\",\"code\") ORDER BY created_at DESC LIMIT ?',
+    [limit]
+  );
+  if (!rows[0] || rows[0].values.length === 0) return [];
+
+  const ids = rows[0].values.map(v => v[0]);
+  const contents = rows[0].values.map(v => v[1]);
+  const types = rows[0].values.map(v => v[2]);
+
+  const sigs = contents.map(c => _minhash(c));
+  const pairs = [];
+
+  outer:
+  for (let i = 0; i < sigs.length; i++) {
+    if (!sigs[i]) continue;
+    for (let j = i + 1; j < sigs.length; j++) {
+      if (!sigs[j]) continue;
+      const sim = _minhashJaccard(sigs[i], sigs[j]);
+      if (sim >= threshold) {
+        pairs.push({
+          idA: ids[i], idB: ids[j],
+          contentA: contents[i].substring(0, 150),
+          contentB: contents[j].substring(0, 150),
+          jaccard: Math.round(sim * 100),
+        });
+        if (pairs.length >= 50) break outer;
+      }
+    }
+  }
+  return pairs;
+};
+
+// 清理模糊重复项（保留最新，删除旧的）
+// threshold: Jaccard 相似度阈值
+Database.prototype.cleanupFuzzyDuplicates = function(threshold = 0.85) {
+  const dups = this._findFuzzyDuplicates(threshold);
+  let deletedCount = 0;
+  const toDelete = new Set();
+
+  for (const dup of dups) {
+    // idA 是更新的（列表按时间倒序，i < j，所以 idB 是更旧的）
+    toDelete.add(dup.idB);
+  }
+
+  for (const id of toDelete) {
+    this.db.run(
+      'DELETE FROM records WHERE id = ? AND favorite = 0 AND locked = 0',
+      [id]
+    );
+    deletedCount++;
+  }
+
+  if (deletedCount > 0) this._save();
+  return { deleted: deletedCount, found: dups.length };
+};
+
+// 获取模糊去重统计
+Database.prototype.getFuzzyStats = function() {
+  const all = this.db.exec(
+    'SELECT COUNT(*) FROM records WHERE encrypted = 0 AND type IN (\"text\",\"code\")'
+  )[0]?.values[0][0] || 0;
+  const dups = this._findFuzzyDuplicates(0.75);
+  return {
+    total: all,
+    fuzzyPairsFound: dups.length,
+    samples: dups.slice(0, 3),
+  };
+};
+
+// 改进版 findSimilar：多策略（编辑距离 + token 级别相似度）
+Database.prototype.findSimilar = function(content, threshold = 0.8, limit = 5) {
+  if (!content || content.length < 10) return [];
+
+  const result = this.db.exec(
+    SELECT id, content, created_at, favorite, type
+    FROM records
+    WHERE encrypted = 0 AND type = 'text'
+    ORDER BY created_at DESC
+    LIMIT 200
+  );
+
+  if (result.length === 0 || result[0].values.length === 0) return [];
+
+  const textLower = content.toLowerCase();
+  const contentTokens = new Set(textLower.split(/\s+/).filter(t => t.length > 2));
+
+  const similar = [];
+  for (const row of result[0].values) {
+    const [id, recordContent, createdAt, favorite, type] = row;
+
+    // 策略 1：编辑距离相似度（排除完全相同）
+    const levSim = this._similarity(content, recordContent);
+    if (levSim >= threshold && levSim < 0.9999) {
+      similar.push({
+        id,
+        content: recordContent.substring(0, 200),
+        similarity: Math.round(levSim * 100),
+        strategy: 'edit',
+        created_at: createdAt,
+        favorite: favorite === 1,
+        type,
+      });
+      continue;
+    }
+
+    // 策略 2：Token 级重叠（适合长文本有轻微差异的情况）
+    const recTokens = new Set(recordContent.toLowerCase().split(/\s+/).filter(t => t.length > 2));
+    let overlap = 0;
+    for (const tok of contentTokens) {
+      if (recTokens.has(tok)) overlap++;
+    }
+    const union = contentTokens.size + recTokens.size - overlap;
+    const tokenSim = union > 0 ? overlap / union : 0;
+
+    if (tokenSim >= threshold && tokenSim < 0.9999) {
+      similar.push({
+        id,
+        content: recordContent.substring(0, 200),
+        similarity: Math.round(tokenSim * 100),
+        strategy: 'token',
+        created_at: createdAt,
+        favorite: favorite === 1,
+        type,
+      });
+    }
+  }
+
+  return similar.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+};
