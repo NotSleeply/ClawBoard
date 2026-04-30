@@ -596,6 +596,31 @@ function setupIPC() {
     }
   });
 
+  // v0.58.0: AI 配置管理
+  ipcMain.handle('get-ai-config', async () => {
+    try { return AI.getConfig(); } catch (e) { return {}; }
+  });
+
+  ipcMain.handle('update-ai-config', async (_, updates) => {
+    try { return AI.updateConfig(updates); } catch (e) { log.error('update-ai-config error:', e); return null; }
+  });
+
+  ipcMain.handle('get-ai-prompts', async () => {
+    try { return AI.getPrompts(); } catch (e) { return {}; }
+  });
+
+  ipcMain.handle('update-ai-prompt', async (_, { key, template }) => {
+    try { return AI.updatePrompt(key, template); } catch (e) { return false; }
+  });
+
+  ipcMain.handle('reset-ai-defaults', async () => {
+    try { return AI.resetToDefaults(); } catch (e) { return false; }
+  });
+
+  ipcMain.handle('get-ai-defaults', async () => {
+    try { return { config: AI.getDefaultConfig(), prompts: AI.getDefaultPrompts() }; } catch (e) { return null; }
+  });
+
   // 获取设置
   ipcMain.handle('get-settings', async () => {
     try {

@@ -12,27 +12,82 @@ const DEFAULT_EMBED_MODEL = 'nomic-embed-text';
 
 // 可从设置覆盖
 let config = {
-  model: DEFAULT_MODEL,
+  chatModel: DEFAULT_MODEL,
   embedModel: DEFAULT_EMBED_MODEL,
-  host: OLLAMA_HOST,
-  summarizePrompt: '请为以下内容生成一个简短的中文摘要（不超过50字）：\n\n{{content}}',
-  tagsPrompt: '请为以下内容生成3-5个中文标签（用逗号分隔）：\n\n{{content}}',
-  searchPrompt: '将以下搜索query转换为一个更适合搜索的关键词短句（保留核心语义，去除口语化表达）：\n\n搜索: {{query}}\n\n只输出转换后的关键词，不要其他解释。',
+  ollamaUrl: OLLAMA_HOST,
+  autoSummary: true,
+  autoTag: true,
+  autoEmbed: true,
   enabled: true,
 };
 
+// v0.58.0: 提示词模板
+let prompts = {
+  summary: '请为以下内容生成一个简短的中文摘要（不超过50字）：\n\n{{content}}',
+  tag: '请为以下内容生成3-5个中文标签（用逗号分隔）：\n\n{{content}}\n\n类型：{{type}}\n来源：{{source}}',
+  search: '将以下搜索query转换为一个更适合搜索的关键词短句（保留核心语义，去除口语化表达）：\n\n搜索: {{query}}\n\n只输出转换后的关键词，不要其他解释。',
+};
+
+// 保存默认值用于一键重置
+const _defaultConfig = JSON.parse(JSON.stringify(config));
+const _defaultPrompts = JSON.parse(JSON.stringify(prompts));
+
+// 兼容旧接口
 function setConfig(newConfig) {
-  if (newConfig.model) config.model = newConfig.model;
+  if (newConfig.chatModel || newConfig.model) config.chatModel = newConfig.chatModel || newConfig.model;
   if (newConfig.embedModel) config.embedModel = newConfig.embedModel;
-  if (newConfig.host) config.host = newConfig.host;
-  if (newConfig.summarizePrompt) config.summarizePrompt = newConfig.summarizePrompt;
-  if (newConfig.tagsPrompt) config.tagsPrompt = newConfig.tagsPrompt;
-  if (newConfig.searchPrompt) config.searchPrompt = newConfig.searchPrompt;
+  if (newConfig.ollamaUrl || newConfig.host) config.ollamaUrl = newConfig.ollamaUrl || newConfig.host;
+  if (newConfig.summarizePrompt) prompts.summary = newConfig.summarizePrompt;
+  if (newConfig.tagsPrompt) prompts.tag = newConfig.tagsPrompt;
+  if (newConfig.searchPrompt) prompts.search = newConfig.searchPrompt;
+  if (newConfig.autoSummary !== undefined) config.autoSummary = newConfig.autoSummary;
+  if (newConfig.autoTag !== undefined) config.autoTag = newConfig.autoTag;
+  if (newConfig.autoEmbed !== undefined) config.autoEmbed = newConfig.autoEmbed;
   if (newConfig.enabled !== undefined) config.enabled = newConfig.enabled;
 }
 
 function getConfig() {
   return { ...config };
+}
+
+// v0.58.0: AI 配置管理
+function getPrompts() {
+  return { ...prompts };
+}
+
+function getDefaultConfig() {
+  return JSON.parse(JSON.stringify(_defaultConfig));
+}
+
+function getDefaultPrompts() {
+  return JSON.parse(JSON.stringify(_defaultPrompts));
+}
+
+function updateConfig(updates) {
+ Object.assign(config, updates);
+  return { ...config };
+}
+
+function updatePrompt(key, template) {
+  if (prompts.hasOwnProperty(key)) {
+    prompts[key] = template;
+    return true;
+  }
+  return false;
+}
+
+function resetToDefaults() {
+  Object.assign(config, JSON.parse(JSON.stringify(_defaultConfig)));
+  Object.assign(prompts, JSON.parse(JSON.stringify(_defaultPrompts)));
+  return true;
+}
+
+function renderPrompt(key, variables) {
+  let template = prompts[key] || '';
+  for (const [k, v] of Object.entries(variables || {})) {
+    template = template.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), v || '');
+  }
+  return template;
 }
 
 /**
@@ -43,8 +98,7 @@ async function summarize(text) {
   if (!text || text.length < 50) return text;
 
   try {
-    const prompt = config.summarizePrompt
-      .replace('{{content}}', text.substring(0, 1000));
+    const prompt = renderPrompt('summary', { content: text.substring(0, 1000) });
     const result = await _chat(prompt);
     return result;
   } catch (err) {
@@ -59,8 +113,7 @@ async function summarize(text) {
 async function generateTags(text) {
   if (!config.enabled) return [];
   try {
-    const prompt = config.tagsPrompt
-      .replace('{{content}}', text.substring(0, 500));
+    const prompt = renderPrompt('tag', { content: text.substring(0, 500) });
     const result = await _chat(prompt);
     if (result) {
       return result.split(/[,，、]/).map(t => t.trim()).filter(t => t.length > 0).slice(0, 5);
@@ -78,7 +131,7 @@ async function generateTags(text) {
 async function searchEnhance(query) {
   if (!config.enabled) return query;
   try {
-    const prompt = config.searchPrompt.replace('{{query}}', query);
+    const prompt = renderPrompt('search', { query });
     const result = await _chat(prompt);
     return result || query;
   } catch (err) {
@@ -93,7 +146,7 @@ async function searchEnhance(query) {
 async function getEmbedding(text) {
   try {
     const body = JSON.stringify({
-      model: EMBED_MODEL,
+      model: config.embedModel,
       input: text.substring(0, 2000),
     });
 
@@ -131,7 +184,7 @@ async function listModels() {
 
 // ==================== 内部方法 ====================
 
-async function _chat(prompt, model = config.model) {
+async function _chat(prompt, model = config.chatModel) {
   const body = JSON.stringify({
     model,
     prompt,
@@ -194,4 +247,12 @@ module.exports = {
   listModels,
   setConfig,
   getConfig,
+  // v0.58.0: AI 配置管理
+  getPrompts,
+  getDefaultConfig,
+  getDefaultPrompts,
+  updateConfig,
+  updatePrompt,
+  resetToDefaults,
+  renderPrompt,
 };
