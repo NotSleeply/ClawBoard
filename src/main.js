@@ -16,6 +16,7 @@ log.info('ClawBoard 启动...');
 // 模块
 const ClipboardWatcher = require('./clipboard');
 const Database = require('./database');
+const Platform = require('./platform'); // v0.60.0 跨平台抽象
 const AI = require('./ai');
 const OCRService = require('./ocr'); // v0.17.0 OCR服务
 const SmartPaste = require('./smart-paste'); // v0.31.0 智能粘贴
@@ -1497,21 +1498,21 @@ process.on('unhandledRejection', (reason) => {
 // v0.29.0: 播放通知声音
 function playNotificationSound() {
   try {
-    // 使用系统默认声音
     const { exec } = require('child_process');
-    if (process.platform === 'win32') {
-      // Windows: 使用 PowerShell 播放系统声音
-      exec('powershell -c "[System.Media.SystemSounds]::Beep.Play()"', { windowsHide: true });
-    } else if (process.platform === 'darwin') {
-      // macOS: 使用 afplay
-      exec('afplay /System/Library/Sounds/Glass.aiff');
-    } else {
-      // Linux: 使用 canberra-gtk-play 或 paplay
-      exec('canberra-gtk-play -i message', (err) => {
-        if (err) {
-          exec('paplay /usr/share/sounds/freedesktop/stereo/message.oga', () => {});
-        }
-      });
+    const cmd = Platform.getNotificationSoundCommand();
+    if (cmd) {
+      if (Platform.isWindows) {
+        exec(cmd, { windowsHide: true });
+      } else if (Platform.isMac) {
+        exec(cmd);
+      } else {
+        // Linux: try canberra first, fallback to paplay
+        exec(cmd, (err) => {
+          if (err) {
+            exec('paplay /usr/share/sounds/freedesktop/stereo/message.oga', () => {});
+          }
+        });
+      }
     }
   } catch (err) {
     log.warn('播放通知声音失败:', err.message);
