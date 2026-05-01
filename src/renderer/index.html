@@ -682,7 +682,7 @@
           </div>
         </div>
 
-        <!-- v0.54.0: AI 设置 -->
+        <!-- v0.59.0: AI 设置 -->
         <div class="settings-tab-content" id="settingsAiSettings" style="display:none">
           <div style="margin-bottom:0.8rem;color:var(--muted);font-size:0.85rem">
             自定义 AI 模型与提示词，需要本地运行 <a href="https://ollama.com" target="_blank" style="color:var(--accent)">Ollama</a> 服务。
@@ -708,21 +708,21 @@
           <div class="setting-section-title" style="margin-top:1rem">提示词模板</div>
           <div class="setting-item">
             <label>📝 摘要生成提示词</label>
-            <textarea id="settingAiSummarizePrompt" rows="3" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.85rem;resize:vertical;font-family:monospace">请为以下内容生成一个简短的中文摘要（不超过50字）：\n\n{{content}}</textarea>
-            <small style="color:var(--muted);font-size:0.75rem">可用变量: {{content}}</small>
+            <textarea id="settingAiSummarizePrompt" rows="4" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.85rem;resize:vertical;font-family:monospace"></textarea>
+            <small style="color:var(--muted);font-size:0.75rem">可用变量: {{content}} {{type}} {{source}}</small>
           </div>
           <div class="setting-item">
             <label>🏷️ 标签生成提示词</label>
-            <textarea id="settingAiTagsPrompt" rows="3" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.85rem;resize:vertical;font-family:monospace">请为以下内容生成3-5个中文标签（用逗号分隔）：\n\n{{content}}</textarea>
-            <small style="color:var(--muted);font-size:0.75rem">可用变量: {{content}}</small>
+            <textarea id="settingAiTagsPrompt" rows="4" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.85rem;resize:vertical;font-family:monospace"></textarea>
+            <small style="color:var(--muted);font-size:0.75rem">可用变量: {{content}} {{type}} {{source}}</small>
           </div>
           <div class="setting-item">
             <label>🔍 搜索增强提示词</label>
-            <textarea id="settingAiSearchPrompt" rows="3" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.85rem;resize:vertical;font-family:monospace">将以下搜索query转换为一个更适合搜索的关键词短句（保留核心语义，去除口语化表达）：\n\n搜索: {{query}}\n\n只输出转换后的关键词，不要其他解释。</textarea>
+            <textarea id="settingAiSearchPrompt" rows="4" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:0.85rem;resize:vertical;font-family:monospace"></textarea>
             <small style="color:var(--muted);font-size:0.75rem">可用变量: {{query}}</small>
           </div>
           <div class="setting-item" style="margin-top:1rem">
-            <button class="btn-secondary" id="btnResetAiPrompts">🔄 恢复默认提示词</button>
+            <button class="btn-secondary" id="btnResetAiPrompts">🔄 重置为默认</button>
           </div>
         </div>
 
@@ -731,7 +731,7 @@
           <div class="about-header" style="text-align:center;padding:1.5rem 0">
             <div style="font-size:2.5rem">📋</div>
             <h3 style="margin:0.5rem 0 0.2rem;font-size:1.3rem">ClawBoard</h3>
-            <div id="aboutVersion" style="color:var(--muted);font-size:0.9rem">v0.46.0</div>
+            <div id="aboutVersion" style="color:var(--muted);font-size:0.9rem">v0.59.0</div>
           </div>
           <div class="diagnostics-box" style="background:var(--surface2);border-radius:10px;padding:1rem;font-size:0.82rem;line-height:1.8">
             <div id="diagnosticsInfo">加载中…</div>
