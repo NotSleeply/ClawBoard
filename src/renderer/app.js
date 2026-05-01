@@ -196,6 +196,8 @@
         if (tab.dataset.tab === 'autoEncrypt') loadAutoEncryptSettings();
         // v0.48.0: 切换到快捷片段 tab 时加载片段
         if (tab.dataset.tab === 'snippets') { loadSnippets(); initSnippetsUI(); }
+        // v0.59.0: 切换到 AI 设置 tab 时加载 AI 配置
+        if (tab.dataset.tab === 'aiSettings') loadAISettingsTab();
       });
     });
 
@@ -1590,14 +1592,15 @@
         console.error('加载自动过期设置失败:', e);
       }
 
-      // v0.54.0: 加载 AI 设置
+      // v0.59.0: 加载 AI 设置（使用新 IPC API）
       try {
-        const aiSettings = await window.ClawBoard.aiGetSettings();
-        if (aiSettings.model) $('#settingAiChatModel').value = aiSettings.model;
-        if (aiSettings.embedModel) $('#settingAiEmbedModel').value = aiSettings.embedModel;
-        if (aiSettings.summarizePrompt) $('#settingAiSummarizePrompt').value = aiSettings.summarizePrompt;
-        if (aiSettings.tagsPrompt) $('#settingAiTagsPrompt').value = aiSettings.tagsPrompt;
-        if (aiSettings.searchPrompt) $('#settingAiSearchPrompt').value = aiSettings.searchPrompt;
+        const aiConfig = await window.ClawBoard.getAIConfig();
+        const aiPrompts = await window.ClawBoard.getAIPrompts();
+        if (aiConfig.chatModel) $('#settingAiChatModel').value = aiConfig.chatModel;
+        if (aiConfig.embedModel) $('#settingAiEmbedModel').value = aiConfig.embedModel;
+        if (aiPrompts.summary) $('#settingAiSummarizePrompt').value = aiPrompts.summary;
+        if (aiPrompts.tag) $('#settingAiTagsPrompt').value = aiPrompts.tag;
+        if (aiPrompts.search) $('#settingAiSearchPrompt').value = aiPrompts.search;
         // 刷新模型列表
         loadAiModels();
       } catch (e) {
@@ -1605,6 +1608,22 @@
       }
     } catch (err) {
       console.error('加载设置失败:', err);
+    }
+  }
+
+  // v0.59.0: 加载 AI 设置 tab（切换标签时调用）
+  async function loadAISettingsTab() {
+    try {
+      const aiConfig = await window.ClawBoard.getAIConfig();
+      const aiPrompts = await window.ClawBoard.getAIPrompts();
+      if (aiConfig.chatModel) $('#settingAiChatModel').value = aiConfig.chatModel;
+      if (aiConfig.embedModel) $('#settingAiEmbedModel').value = aiConfig.embedModel;
+      if (aiPrompts.summary) $('#settingAiSummarizePrompt').value = aiPrompts.summary;
+      if (aiPrompts.tag) $('#settingAiTagsPrompt').value = aiPrompts.tag;
+      if (aiPrompts.search) $('#settingAiSearchPrompt').value = aiPrompts.search;
+      loadAiModels();
+    } catch (e) {
+      console.error('加载 AI 设置 tab 失败:', e);
     }
   }
 
@@ -3343,15 +3362,16 @@
       };
       await window.ClawBoard.saveAutoExpirySettings(expirySettings);
       
-      // v0.54.0: 保存 AI 设置
-      const aiSettings = {
-        model: $('#settingAiChatModel').value,
-        embedModel: $('#settingAiEmbedModel').value,
-        summarizePrompt: $('#settingAiSummarizePrompt').value,
-        tagsPrompt: $('#settingAiTagsPrompt').value,
-        searchPrompt: $('#settingAiSearchPrompt').value
-      };
-      await window.ClawBoard.aiSaveSettings(aiSettings);
+      // v0.59.0: 保存 AI 设置（使用新 IPC API）
+      const chatModel = $('#settingAiChatModel').value;
+      const embedModel = $('#settingAiEmbedModel').value;
+      await window.ClawBoard.updateAIConfig({ chatModel, embedModel });
+      const summaryPrompt = $('#settingAiSummarizePrompt').value;
+      const tagPrompt = $('#settingAiTagsPrompt').value;
+      const searchPrompt = $('#settingAiSearchPrompt').value;
+      if (summaryPrompt) await window.ClawBoard.updateAIPrompt({ key: 'summary', template: summaryPrompt });
+      if (tagPrompt) await window.ClawBoard.updateAIPrompt({ key: 'tag', template: tagPrompt });
+      if (searchPrompt) await window.ClawBoard.updateAIPrompt({ key: 'search', template: searchPrompt });
       
       // 更新全局快捷键
       await window.ClawBoard.updateShortcut(shortcuts.global);
@@ -3406,13 +3426,24 @@
   // v0.29.0: 测试通知按钮
   $('#btnTestNotification').addEventListener('click', handleTestNotification);
 
-  // v0.54.0: AI 设置相关按钮
+  // v0.59.0: AI 设置相关按钮
   $('#btnRefreshAiModels').addEventListener('click', loadAiModels);
-  $('#btnResetAiPrompts').addEventListener('click', () => {
-    $('#settingAiSummarizePrompt').value = '请为以下内容生成一个简短的中文摘要（不超过50字）：\n\n{{content}}';
-    $('#settingAiTagsPrompt').value = '请为以下内容生成3-5个中文标签（用逗号分隔）：\n\n{{content}}';
-    $('#settingAiSearchPrompt').value = '将以下搜索query转换为一个更适合搜索的关键词短句（保留核心语义，去除口语化表达）：\n\n搜索: {{query}}\n\n只输出转换后的关键词，不要其他解释。';
-    showToast('✅ 已恢复默认提示词', 'success');
+  $('#btnResetAiPrompts').addEventListener('click', async () => {
+    if (!confirm('确定重置 AI 设置为默认值？')) return;
+    try {
+      const defaults = await window.ClawBoard.resetAIDefaults();
+      // 重新加载 AI 设置以反映默认值
+      const aiConfig = await window.ClawBoard.getAIConfig();
+      const aiPrompts = await window.ClawBoard.getAIPrompts();
+      if (aiConfig.chatModel) $('#settingAiChatModel').value = aiConfig.chatModel;
+      if (aiConfig.embedModel) $('#settingAiEmbedModel').value = aiConfig.embedModel;
+      if (aiPrompts.summary) $('#settingAiSummarizePrompt').value = aiPrompts.summary;
+      if (aiPrompts.tag) $('#settingAiTagsPrompt').value = aiPrompts.tag;
+      if (aiPrompts.search) $('#settingAiSearchPrompt').value = aiPrompts.search;
+      showToast('✅ 已重置为默认值', 'success');
+    } catch (e) {
+      showToast('❌ 重置失败', 'error');
+    }
   });
 
   // v0.31.0: 立即清理过期条目
