@@ -302,6 +302,36 @@
     $('#btnBatchEncrypt').addEventListener('click', handleBatchEncrypt);   // v0.51.0
     $('#btnBatchCopy').addEventListener('click', handleBatchCopy);         // v0.51.0
 
+    // v0.62.0: Diff 对比按钮
+    $('#btnBatchDiff').addEventListener('click', () => {
+      if (selectedIds.size !== 2) {
+        showToast('请选择恰好 2 条记录进行对比', 'error');
+        return;
+      }
+      const ids = Array.from(selectedIds);
+      Promise.all([window.ClawBoard.getRecord(ids[0]), window.ClawBoard.getRecord(ids[1])])
+        .then(([a, b]) => openDiffPanel(a, b))
+        .catch(() => showToast('加载记录失败', 'error'));
+    });
+    $('#btnCloseDiff').addEventListener('click', () => {
+      document.getElementById('diffOverlay').classList.remove('show');
+    });
+    document.getElementById('diffOverlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('diffOverlay')) {
+        document.getElementById('diffOverlay').classList.remove('show');
+      }
+    });
+    document.querySelectorAll('.diff-view-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.diff-view-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentDiffView = btn.dataset.view;
+        if (document.getElementById('diffOverlay').classList.contains('show') && diffRecordA && diffRecordB) {
+          renderDiffContent(diffRecordA, diffRecordB);
+        }
+      });
+    });
+
     // v0.51.0: 批量标签对话框
     $('#btnCloseBatchTag').addEventListener('click', () => $('#batchTagOverlay').classList.remove('show'));
     $('#btnCancelBatchTag').addEventListener('click', () => $('#batchTagOverlay').classList.remove('show'));
@@ -4236,6 +4266,72 @@
         }
       });
     }
+  }
+
+  // ==================== v0.62.0: Diff 对比 ====================
+  let currentDiffView = 'split';
+  let diffRecordA = null, diffRecordB = null;
+
+  function openDiffPanel(recordA, recordB) {
+    diffRecordA = recordA;
+    diffRecordB = recordB;
+    renderDiffContent(recordA, recordB);
+    document.getElementById('diffOverlay').classList.add('show');
+  }
+
+  function renderDiffContent(recordA, recordB) {
+    const content = document.getElementById('diffContent');
+    const stats = document.getElementById('diffStats');
+    const textA = recordA.encrypted ? '[加密内容]' : (recordA.content || '');
+    const textB = recordB.encrypted ? '[加密内容]' : (recordB.content || '');
+    const changes = Diff.diffLines(textA, textB);
+    let added = 0, removed = 0;
+    let html = '';
+    if (currentDiffView === 'split') {
+      html = renderSplitDiff(changes);
+    } else {
+      html = renderUnifiedDiff(changes);
+    }
+    changes.forEach(part => {
+      if (part.added) added += part.count;
+      if (part.removed) removed += part.count;
+    });
+    stats.textContent = `+${added} -${removed} 行变更`;
+    content.innerHTML = html;
+  }
+
+  function renderUnifiedDiff(changes) {
+    let html = '<div class="diff-unified">';
+    changes.forEach(part => {
+      const cls = part.added ? 'diff-added' : part.removed ? 'diff-removed' : 'diff-context';
+      const lines = part.value.split('\n');
+      lines.forEach(line => {
+        const prefix = part.added ? '+' : part.removed ? '-' : ' ';
+        html += `<div class="${cls}"><span class="diff-prefix">${prefix}</span>${escapeHtml(line)}</div>`;
+      });
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function renderSplitDiff(changes) {
+    let leftHtml = '<div class="diff-split"><div class="diff-left">';
+    let rightParts = [];
+    changes.forEach(part => {
+      const lines = part.value.split('\n');
+      lines.forEach(line => {
+        if (part.removed) {
+          leftHtml += `<div class="diff-removed"><span class="diff-prefix">-</span>${escapeHtml(line)}</div>`;
+        } else if (part.added) {
+          rightParts.push(`<div class="diff-added"><span class="diff-prefix">+</span>${escapeHtml(line)}</div>`);
+        } else {
+          leftHtml += `<div class="diff-context"><span class="diff-prefix"> </span>${escapeHtml(line)}</div>`;
+          rightParts.push(`<div class="diff-context"><span class="diff-prefix"> </span>${escapeHtml(line)}</div>`);
+        }
+      });
+    });
+    leftHtml += '</div><div class="diff-right">' + rightParts.join('') + '</div></div>';
+    return leftHtml;
   }
 
   // ==================== 启动 ====================

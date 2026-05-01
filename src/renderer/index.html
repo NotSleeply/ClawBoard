@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; img-src 'self' data: file:; font-src https://fonts.gstatic.com; connect-src 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; img-src 'self' data: file:; font-src https://fonts.gstatic.com; connect-src 'self';">
   <title>🦞 ClawBoard</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
@@ -15,6 +15,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
   <!-- QR Code Generator -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <!-- jsdiff 内容对比 (v0.62.0) -->
+  <script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js"></script>
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -68,6 +70,7 @@
     <button class="batch-btn" id="btnBatchMoveToGroup" title="移动到分组">📁 移动</button>
     <button class="batch-btn" id="btnBatchAddTag" title="批量添加标签">🏷️ 标签</button>
     <button class="batch-btn" id="btnBatchEncrypt" title="批量加密">🔒 加密</button>
+    <button class="batch-btn" id="btnBatchDiff" title="对比选中条目">🔍 对比</button>
     <button class="batch-btn danger" id="btnBatchDelete" title="批量删除">🗑️ 删除</button>
     <button class="batch-close" id="btnExitMultiSelect">取消</button>
   </div>
@@ -902,6 +905,22 @@
           <button class="btn-primary" id="btnSaveEditor">💾 保存 (Ctrl+S)</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- v0.62.0: Diff 对比面板 -->
+  <div class="diff-overlay" id="diffOverlay">
+    <div class="diff-panel">
+      <div class="diff-header">
+        <h3>📋 内容对比</h3>
+        <button class="diff-close" id="btnCloseDiff">✕</button>
+      </div>
+      <div class="diff-controls">
+        <button class="diff-view-btn active" data-view="split">分栏视图</button>
+        <button class="diff-view-btn" data-view="unified">统一视图</button>
+        <span class="diff-stats" id="diffStats"></span>
+      </div>
+      <div class="diff-content" id="diffContent"></div>
     </div>
   </div>
     <div class="encryption-panel" style="width:400px">
