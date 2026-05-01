@@ -439,6 +439,27 @@ function setupIPC() {
     }
   });
 
+  // v0.61.0: 统计与可视化
+  ipcMain.handle('get-stats-by-type', async () => {
+    try { return db.getStatsByType(); } catch (e) { log.error('get-stats-by-type error:', e); return []; }
+  });
+
+  ipcMain.handle('get-stats-by-app', async (_, limit) => {
+    try { return db.getStatsByApp(limit || 10); } catch (e) { log.error('get-stats-by-app error:', e); return []; }
+  });
+
+  ipcMain.handle('get-daily-stats', async (_, days) => {
+    try { return db.getDailyStats(days || 30); } catch (e) { log.error('get-daily-stats error:', e); return []; }
+  });
+
+  ipcMain.handle('get-hourly-stats', async () => {
+    try { return db.getHourlyStats(); } catch (e) { log.error('get-hourly-stats error:', e); return Array(24).fill(0); }
+  });
+
+  ipcMain.handle('get-weekly-trend', async () => {
+    try { return db.getWeeklyTrend(); } catch (e) { log.error('get-weekly-trend error:', e); return []; }
+  });
+
   // 获取系统健康状态 (v0.26.0)
   ipcMain.handle('get-system-health', async () => {
     try {

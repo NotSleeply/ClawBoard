@@ -18,6 +18,12 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
   getStats: () => ipcRenderer.invoke('get-stats'),
   getDetailedStats: () => ipcRenderer.invoke('get-detailed-stats'),
+  // v0.61.0: 统计与可视化
+  getStatsByType: () => ipcRenderer.invoke('get-stats-by-type'),
+  getStatsByApp: (limit) => ipcRenderer.invoke('get-stats-by-app', limit),
+  getDailyStats: (days) => ipcRenderer.invoke('get-daily-stats', days),
+  getHourlyStats: () => ipcRenderer.invoke('get-hourly-stats'),
+  getWeeklyTrend: () => ipcRenderer.invoke('get-weekly-trend'),
   getSourceApps: () => ipcRenderer.invoke('get-source-apps'),
   getAllTags: () => ipcRenderer.invoke('get-all-tags'),
   addTag: (recordId, tag) => ipcRenderer.invoke('add-tag', { recordId, tag }),

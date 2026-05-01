@@ -2218,3 +2218,116 @@ Database.prototype.findSimilar = function(content, threshold = 0.8, limit = 5) {
 
   return similar.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
 };
+
+// ==================== v0.61.0: 统计与可视化 ====================
+
+Database.prototype.getStatsByType = function() {
+  try {
+    const result = this.db.exec(`
+      SELECT type, COUNT(*) as count
+      FROM records
+      GROUP BY type
+      ORDER BY count DESC
+    `);
+    if (!result.length || !result[0].values.length) return [];
+    return result[0].values.map(row => ({ type: row[0], count: row[1] }));
+  } catch (e) {
+    console.error('getStatsByType error:', e);
+    return [];
+  }
+};
+
+Database.prototype.getStatsByApp = function(limit) {
+  limit = limit || 10;
+  try {
+    const result = this.db.exec(`
+      SELECT source_app, COUNT(*) as count
+      FROM records
+      WHERE source_app IS NOT NULL AND source_app != ''
+      GROUP BY source_app
+      ORDER BY count DESC
+      LIMIT ${limit}
+    `);
+    if (!result.length || !result[0].values.length) return [];
+    return result[0].values.map(row => ({ source_app: row[0], count: row[1] }));
+  } catch (e) {
+    console.error('getStatsByApp error:', e);
+    return [];
+  }
+};
+
+Database.prototype.getDailyStats = function(days) {
+  days = days || 30;
+  try {
+    const result = this.db.exec(`
+      SELECT
+        DATE(created_at) as date,
+        COUNT(*) as count,
+        SUM(CASE WHEN type='text' THEN 1 ELSE 0 END) as text_count,
+        SUM(CASE WHEN type='code' THEN 1 ELSE 0 END) as code_count,
+        SUM(CASE WHEN type='file' THEN 1 ELSE 0 END) as file_count,
+        SUM(CASE WHEN type='image' THEN 1 ELSE 0 END) as image_count
+      FROM records
+      WHERE created_at >= DATE('now', '-${days} days')
+      GROUP BY DATE(created_at)
+      ORDER BY date ASC
+    `);
+    if (!result.length || !result[0].values.length) return [];
+    return result[0].values.map(row => ({
+      date: row[0],
+      count: row[1],
+      text_count: row[2],
+      code_count: row[3],
+      file_count: row[4],
+      image_count: row[5]
+    }));
+  } catch (e) {
+    console.error('getDailyStats error:', e);
+    return [];
+  }
+};
+
+Database.prototype.getHourlyStats = function() {
+  try {
+    const result = this.db.exec(`
+      SELECT
+        CAST(strftime('%H', created_at) AS INTEGER) as hour,
+        COUNT(*) as count
+      FROM records
+      WHERE created_at >= DATE('now', '-30 days')
+      GROUP BY hour
+      ORDER BY hour
+    `);
+    const hourly = Array(24).fill(0);
+    if (result.length > 0 && result[0].values.length > 0) {
+      result[0].values.forEach(row => { hourly[row[0]] = row[1]; });
+    }
+    return hourly;
+  } catch (e) {
+    console.error('getHourlyStats error:', e);
+    return Array(24).fill(0);
+  }
+};
+
+Database.prototype.getWeeklyTrend = function() {
+  try {
+    const result = this.db.exec(`
+      SELECT
+        strftime('%w', created_at) as weekday,
+        COUNT(*) as count
+      FROM records
+      WHERE created_at >= DATE('now', '-30 days')
+      GROUP BY weekday
+      ORDER BY weekday
+    `);
+    const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    if (!result.length || !result[0].values.length) return [];
+    return result[0].values.map(row => ({
+      day: dayNames[parseInt(row[0])],
+      count: row[1]
+    }));
+  } catch (e) {
+    console.error('getWeeklyTrend error:', e);
+    return [];
+  }
+};
