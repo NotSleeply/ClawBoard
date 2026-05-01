@@ -2309,6 +2309,30 @@ Database.prototype.getHourlyStats = function() {
   }
 };
 
+// v0.62.0: Calendar heatmap data
+Database.prototype.getCalendarData = function(days) {
+  days = days || 365;
+  try {
+    const result = this.db.exec(`
+      SELECT 
+        DATE(created_at) as date,
+        COUNT(*) as count
+      FROM records 
+      WHERE created_at >= DATE('now', '-' || ${days} || ' days')
+      GROUP BY DATE(created_at)
+      ORDER BY date ASC
+    `);
+    const dataMap = {};
+    if (result.length && result[0].values.length) {
+      result[0].values.forEach(row => { dataMap[row[0]] = row[1]; });
+    }
+    return { days: days, dataMap: dataMap };
+  } catch (e) {
+    console.error('getCalendarData error:', e);
+    return { days: days, dataMap: {} };
+  }
+};
+
 Database.prototype.getWeeklyTrend = function() {
   try {
     const result = this.db.exec(`
