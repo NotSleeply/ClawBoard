@@ -460,6 +460,12 @@ function setupIPC() {
     try { return db.getWeeklyTrend(); } catch (e) { log.error('get-weekly-trend error:', e); return []; }
   });
 
+  // v0.62.0: Calendar heatmap
+  ipcMain.handle('get-calendar-data', async (_, days) => {
+    try { return db.getCalendarData(days || 365); } 
+    catch (e) { log.error('get-calendar-data error:', e); return { days: 365, dataMap: {} }; }
+  });
+
   // 获取系统健康状态 (v0.26.0)
   ipcMain.handle('get-system-health', async () => {
     try {
