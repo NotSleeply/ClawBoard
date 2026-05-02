@@ -165,6 +165,10 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   exportRecordsJSON: () => ipcRenderer.invoke('export-records-json'),
   exportRecordsCSV: () => ipcRenderer.invoke('export-records-csv'),
   importRecords: (data) => ipcRenderer.invoke('import-records', data),
+  // v0.63.0: 导入导出增强
+  exportWithFilters: (options) => ipcRenderer.invoke('export-with-filters', options),
+  importRecordsEnhanced: (data) => ipcRenderer.invoke('import-records-enhanced', data),
+  getExportCount: (filters) => ipcRenderer.invoke('get-export-count', filters),
   showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
   showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),
   writeFile: (data) => ipcRenderer.invoke('write-file', data),
