@@ -37,13 +37,22 @@ let autoExpiryTimer = null; // v0.31.0 忽略规则实例
 let hotkeyTemplates = null; // v0.32.0 快捷键模板实例
 
 // v0.29.0: 通知与声音设置
+// v0.64.0: 通知合并增强
 let notificationSettings = {
   enabled: false,
   soundEnabled: false,
   showPreview: true,
   ignoreLargeText: true,
-  largeTextThreshold: 1000
+  largeTextThreshold: 1000,
+  // v0.64.0: 通知合并
+  mergeEnabled: true,
+  mergeWindow: 5000, // 合并时间窗口（毫秒）
+  position: 'bottom-right' // 通知位置
 };
+
+// v0.64.0: 通知合并队列
+let notificationQueue = [];
+let notificationTimer = null;
 
 // 单实例锁
 const gotTheLock = app.requestSingleInstanceLock();
@@ -679,6 +688,7 @@ function setupIPC() {
   });
 
   // v0.29.0: 通知设置相关 IPC
+  // v0.64.0: 扩展通知合并配置
   ipcMain.handle('get-notification-settings', async () => {
     try {
       return {
@@ -686,7 +696,11 @@ function setupIPC() {
         soundEnabled: notificationSettings.soundEnabled,
         showPreview: notificationSettings.showPreview,
         ignoreLargeText: notificationSettings.ignoreLargeText,
-        largeTextThreshold: notificationSettings.largeTextThreshold
+        largeTextThreshold: notificationSettings.largeTextThreshold,
+        // v0.64.0
+        mergeEnabled: notificationSettings.mergeEnabled,
+        mergeWindow: notificationSettings.mergeWindow,
+        position: notificationSettings.position
       };
     } catch (err) {
       log.error('get-notification-settings error:', err);
@@ -704,6 +718,10 @@ function setupIPC() {
       dbSettings.notificationPreview = settings.showPreview;
       dbSettings.notificationIgnoreLarge = settings.ignoreLargeText;
       dbSettings.notificationLargeThreshold = settings.largeTextThreshold;
+      // v0.64.0
+      dbSettings.notificationMergeEnabled = settings.mergeEnabled;
+      dbSettings.notificationMergeWindow = settings.mergeWindow;
+      dbSettings.notificationPosition = settings.position;
       return db.saveSettings(dbSettings);
     } catch (err) {
       log.error('update-notification-settings error:', err);
@@ -1583,79 +1601,173 @@ function showClipboardNotification(record) {
       return;
     }
 
-    // 准备通知内容
-    let title = '📋 已捕获剪贴板';
-    let body = '';
-    
-    switch (record.type) {
-      case 'text':
-        title = '📝 已捕获文字';
-        body = notificationSettings.showPreview 
-          ? (record.content || '').substring(0, 100) + (contentLength > 100 ? '...' : '')
-          : `文字内容 (${contentLength} 字符)`;
-        break;
-      case 'code':
-        title = '💻 已捕获代码';
-        body = notificationSettings.showPreview
-          ? (record.content || '').substring(0, 100) + (contentLength > 100 ? '...' : '')
-          : `代码片段 (${contentLength} 字符)`;
-        break;
-      case 'image':
-        title = '🖼️ 已捕获图片';
-        body = '图片已保存到剪贴板历史';
-        break;
-      case 'file':
-        title = '📁 已捕获文件';
-        body = notificationSettings.showPreview
-          ? (record.content || '').substring(0, 100)
-          : '文件路径已保存';
-        break;
-      default:
-        body = notificationSettings.showPreview
-          ? (record.content || '').substring(0, 100)
-          : '新内容已捕获';
-    }
-
-    // 创建通知
-    const notification = new Notification({
-      title: title,
-      body: body,
-      icon: path.join(__dirname, '../assets/icon.png'),
-      silent: !notificationSettings.soundEnabled, // 如果启用自定义声音，则静音系统通知声音
-      timeoutType: 'default'
-    });
-
-    notification.on('click', () => {
-      // 点击通知时打开主窗口
-      if (mainWindow) {
-        mainWindow.show();
-        mainWindow.focus();
-        // 可以在这里选中对应的记录
-        mainWindow.webContents.send('select-record', record.id);
+    // v0.64.0: 通知合并逻辑
+    if (notificationSettings.mergeEnabled) {
+      notificationQueue.push({
+        record,
+        type: record.type,
+        timestamp: Date.now()
+      });
+      
+      // 设置或重置合并定时器
+      if (notificationTimer) {
+        clearTimeout(notificationTimer);
       }
-    });
-
-    notification.show();
-
-    // 播放自定义声音（如果启用且系统通知声音被静音）
-    if (notificationSettings.soundEnabled && notificationSettings.enabled) {
-      playNotificationSound();
+      
+      notificationTimer = setTimeout(() => {
+        flushNotificationQueue();
+      }, notificationSettings.mergeWindow);
+      
+      return; // 等待合并刷新
     }
 
-    log.info('已显示剪贴板捕获通知:', record.type);
+    // 直接显示单条通知（合并禁用时）
+    showSingleNotification(record);
   } catch (err) {
     log.warn('显示通知失败:', err.message);
   }
 }
 
+// v0.64.0: 刷新通知队列（合并显示）
+function flushNotificationQueue() {
+  if (notificationQueue.length === 0) return;
+  
+  const count = notificationQueue.length;
+  const latestRecord = notificationQueue[count - 1].record;
+  
+  // 统计各类型数量
+  const typeCounts = {};
+  for (const item of notificationQueue) {
+    typeCounts[item.type] = (typeCounts[item.type] || 0) + 1;
+  }
+  
+  let title, body;
+  
+  if (count === 1) {
+    // 单条通知：正常显示
+    showSingleNotification(latestRecord);
+  } else {
+    // 多条合并通知
+    title = `📋 已捕获 ${count} 条内容`;
+    
+    // 构建类型摘要
+    const typeLabels = {
+      text: '文字',
+      code: '代码',
+      image: '图片',
+      file: '文件'
+    };
+    const parts = [];
+    for (const [type, cnt] of Object.entries(typeCounts)) {
+      parts.push(`${typeLabels[type] || type}×${cnt}`);
+    }
+    body = `包含: ${parts.join(', ')}`;
+    
+    const notification = new Notification({
+      title,
+      body,
+      icon: path.join(__dirname, '../assets/icon.png'),
+      silent: !notificationSettings.soundEnabled,
+      timeoutType: 'default'
+    });
+    
+    notification.on('click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+    
+    notification.show();
+    
+    if (notificationSettings.soundEnabled) {
+      playNotificationSound();
+    }
+    
+    log.info(`已显示合并通知: ${count} 条`);
+  }
+  
+  // 清空队列
+  notificationQueue = [];
+  notificationTimer = null;
+}
+
+// v0.64.0: 显示单条通知
+function showSingleNotification(record) {
+  const contentLength = record.content ? record.content.length : 0;
+  
+  // 准备通知内容
+  let title = '📋 已捕获剪贴板';
+  let body = '';
+  
+  switch (record.type) {
+    case 'text':
+      title = '📝 已捕获文字';
+      body = notificationSettings.showPreview 
+        ? (record.content || '').substring(0, 100) + (contentLength > 100 ? '...' : '')
+        : `文字内容 (${contentLength} 字符)`;
+      break;
+    case 'code':
+      title = '💻 已捕获代码';
+      body = notificationSettings.showPreview
+        ? (record.content || '').substring(0, 100) + (contentLength > 100 ? '...' : '')
+        : `代码片段 (${contentLength} 字符)`;
+      break;
+    case 'image':
+      title = '🖼️ 已捕获图片';
+      body = '图片已保存到剪贴板历史';
+      break;
+    case 'file':
+      title = '📁 已捕获文件';
+      body = notificationSettings.showPreview
+        ? (record.content || '').substring(0, 100)
+        : '文件路径已保存';
+      break;
+    default:
+      body = notificationSettings.showPreview
+        ? (record.content || '').substring(0, 100)
+        : '新内容已捕获';
+  }
+
+  // 创建通知
+  const notification = new Notification({
+    title: title,
+    body: body,
+    icon: path.join(__dirname, '../assets/icon.png'),
+    silent: !notificationSettings.soundEnabled,
+    timeoutType: 'default'
+  });
+
+  notification.on('click', () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('select-record', record.id);
+    }
+  });
+
+  notification.show();
+
+  if (notificationSettings.soundEnabled) {
+    playNotificationSound();
+  }
+
+  log.info('已显示剪贴板捕获通知:', record.type);
+}
+
 // v0.29.0: 更新通知设置
+// v0.64.0: 扩展通知合并配置
 function updateNotificationSettings(settings) {
   notificationSettings = {
     enabled: settings?.notificationEnabled ?? false,
     soundEnabled: settings?.notificationSound ?? false,
     showPreview: settings?.notificationPreview ?? true,
     ignoreLargeText: settings?.notificationIgnoreLarge ?? true,
-    largeTextThreshold: settings?.notificationLargeThreshold ?? 1000
+    largeTextThreshold: settings?.notificationLargeThreshold ?? 1000,
+    // v0.64.0: 通知合并
+    mergeEnabled: settings?.notificationMergeEnabled ?? true,
+    mergeWindow: settings?.notificationMergeWindow ?? 5000,
+    position: settings?.notificationPosition ?? 'bottom-right'
   };
   log.info('通知设置已更新:', notificationSettings);
 }
