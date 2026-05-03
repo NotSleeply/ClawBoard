@@ -24,6 +24,7 @@ const IgnoreRules = require('./ignore-rules'); // v0.31.0 忽略规则
 const HotkeyTemplates = require('./hotkey-templates'); // v0.32.0 快捷键模板
 const TextTransform = require('./text-transform'); // v0.33.0 格式转换
 const AutoCategorize = require('./auto-categorize'); // v0.65.0 自动分类
+const Insights = require('./insights'); // v0.69.0 智能洞察
 
 let mainWindow = null;
 let cycleWindow = null; // v0.39.0: Cycle mode window
@@ -37,6 +38,7 @@ let ignoreRules = null; // v0.31.0
 let autoExpiryTimer = null; // v0.31.0 忽略规则实例
 let hotkeyTemplates = null; // v0.32.0 快捷键模板实例
 let autoCat = null; // v0.65.0 自动分类实例
+let insightsEngine = null; // v0.69.0 智能洞察实例
 let monitoringPaused = false; // v0.66.0: 监控控制状态
 
 // v0.67.0: 全局快捷键自定义配置
@@ -579,6 +581,17 @@ function setupIPC() {
 
   ipcMain.handle('get-weekly-trend', async () => {
     try { return db.getWeeklyTrend(); } catch (e) { log.error('get-weekly-trend error:', e); return []; }
+  });
+
+  // v0.69.0: 智能洞察
+  ipcMain.handle('get-insights', async () => {
+    try {
+      if (!insightsEngine) return [];
+      return insightsEngine.generateInsights();
+    } catch (e) {
+      log.error('get-insights error:', e);
+      return [];
+    }
   });
 
   // v0.62.0: Calendar heatmap
@@ -1481,6 +1494,10 @@ app.whenReady().then(async () => {
   // v0.65.0: 初始化自动分类引擎
   autoCat = new AutoCategorize();
   log.info('[AutoCategorize] 自动分类引擎已初始化');
+
+  // v0.69.0: 初始化智能洞察引擎
+  insightsEngine = new Insights(db);
+  log.info('[Insights] 智能洞察引擎已初始化');
 
   // 创建窗口和托盘
   createWindow();
