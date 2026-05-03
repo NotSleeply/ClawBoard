@@ -2967,6 +2967,58 @@ ipcMain.handle('get-diagnostics', async () => {
 });
 
 
+// v0.70.0: Storage compression
+ipcMain.handle('get-storage-stats', async () => {
+  try {
+    const dbPath = path.join(app.getPath('userData'), 'clawboard.db');
+    let dbSize = 0;
+    if (fs.existsSync(dbPath)) {
+      dbSize = fs.statSync(dbPath).size;
+    }
+    const stats = db.getDetailedStats ? db.getDetailedStats() : db.getStats();
+    let compressedCount = 0;
+    try {
+      compressedCount = db.db.exec('SELECT COUNT(*) as count FROM records WHERE compressed = 1')[0]?.values[0][0] || 0;
+    } catch (e) {}
+    return {
+      dbSize,
+      dbSizeMB: Math.round(dbSize / 1024 / 1024 * 10) / 10,
+      totalRecords: stats.total || 0,
+      compressedRecords: compressedCount,
+      compressionRatio: compressedCount > 0 ? Math.round(compressedCount / (stats.total || 1) * 100) : 0
+    };
+  } catch (e) {
+    log.error('get-storage-stats error:', e);
+    return { dbSize: 0, dbSizeMB: 0, totalRecords: 0, compressedRecords: 0, compressionRatio: 0 };
+  }
+});
+
+ipcMain.handle('compress-all', async () => {
+  try {
+    const lz = require('lz-string');
+    const result = db.db.exec('SELECT id, content FROM records WHERE compressed = 0 AND LENGTH(content) > 1024');
+    if (!result.length || !result[0].values.length) return { success: true, compressed: 0 };
+    let compressed = 0;
+    for (const row of result[0].values) {
+      const [id, content] = row;
+      try {
+        const compressedStr = lz.compress(content);
+        if (compressedStr.length < content.length) {
+          db.db.run('UPDATE records SET content = ?, compressed = 1 WHERE id = ?', [compressedStr, id]);
+          compressed++;
+        }
+      } catch (e) {
+        // Skip this record
+      }
+    }
+    if (compressed > 0) db._save();
+    return { success: true, compressed };
+  } catch (e) {
+    log.error('compress-all error:', e);
+    return { success: false, error: e.message };
+  }
+});
+
 // v0.55.0: 模糊去重（MinHash）
 ipcMain.handle('find-fuzzy-duplicates', async (_, { threshold = 0.75 } = {}) => {
   try {
