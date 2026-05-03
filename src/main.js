@@ -39,6 +39,34 @@ let hotkeyTemplates = null; // v0.32.0 快捷键模板实例
 let autoCat = null; // v0.65.0 自动分类实例
 let monitoringPaused = false; // v0.66.0: 监控控制状态
 
+// v0.67.0: 全局快捷键自定义配置
+let shortcutsConfig = {
+  cyclePaste: 'Alt+V',
+  quickPaste: 'Alt+Q',
+  toggleMonitoring: 'Alt+Ctrl+P'
+};
+
+function loadShortcutsConfig() {
+  try {
+    const configPath = require('path').join(app.getPath('userData'), 'shortcuts.json');
+    if (require('fs').existsSync(configPath)) {
+      const saved = JSON.parse(require('fs').readFileSync(configPath, 'utf8'));
+      Object.assign(shortcutsConfig, saved);
+    }
+  } catch (e) {
+    log.error('loadShortcutsConfig error:', e);
+  }
+}
+
+function saveShortcutsConfig() {
+  try {
+    const configPath = require('path').join(app.getPath('userData'), 'shortcuts.json');
+    require('fs').writeFileSync(configPath, JSON.stringify(shortcutsConfig, null, 2), 'utf8');
+  } catch (e) {
+    log.error('saveShortcutsConfig error:', e);
+  }
+}
+
 // v0.29.0: 通知与声音设置
 // v0.64.0: 通知合并增强
 let notificationSettings = {
@@ -1893,35 +1921,43 @@ function registerGlobalShortcut(settings) {
 }
 
 // v0.39.0: Register cycle mode shortcut (Alt+V)
+// v0.67.0: 使用可配置快捷键
 function registerCycleShortcut() {
   if (cycleShortcut) {
     globalShortcut.unregister(cycleShortcut);
   }
-  const shortcut = 'Alt+V';
-  const ret = globalShortcut.register(shortcut, () => {
-    if (cycleWindow && !cycleWindow.isDestroyed()) {
-      // Already open: cycle to next item
-      cycleWindow.webContents.send('cycle-next');
+  const shortcut = shortcutsConfig.cyclePaste || 'Alt+V';
+  if (!shortcut) return; // 留空则禁用
+  try {
+    const ret = globalShortcut.register(shortcut, () => {
+      if (cycleWindow && !cycleWindow.isDestroyed()) {
+        // Already open: cycle to next item
+        cycleWindow.webContents.send('cycle-next');
+      } else {
+        // Open cycle window
+        createCycleWindow();
+      }
+    });
+    if (!ret) {
+      log.warn('循环模式快捷键注册失败: ' + shortcut);
     } else {
-      // Open cycle window
-      createCycleWindow();
+      log.info('循环模式快捷键 ' + shortcut + ' 已注册');
+      cycleShortcut = shortcut;
     }
-  });
-  if (!ret) {
-    log.warn('循环模式快捷键注册失败: ' + shortcut);
-  } else {
-    log.info('循环模式快捷键 ' + shortcut + ' 已注册');
-    cycleShortcut = shortcut;
+  } catch (e) {
+    log.warn('循环模式快捷键注册失败:', e);
   }
 }
 
 // v0.57.0: Register quick paste shortcut (Alt+Q)
+// v0.67.0: 使用可配置快捷键
 let quickPasteShortcut = null;
 function registerQuickPasteShortcut() {
   if (quickPasteShortcut) {
     globalShortcut.unregister(quickPasteShortcut);
   }
-  const shortcut = 'Alt+Q';
+  const shortcut = shortcutsConfig.quickPaste || 'Alt+Q';
+  if (!shortcut) return; // 留空则禁用
   try {
     const ret = globalShortcut.register(shortcut, () => {
       createQuickPasteWindow();
