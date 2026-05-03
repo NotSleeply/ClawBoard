@@ -23,6 +23,7 @@ const SmartPaste = require('./smart-paste'); // v0.31.0 智能粘贴
 const IgnoreRules = require('./ignore-rules'); // v0.31.0 忽略规则
 const HotkeyTemplates = require('./hotkey-templates'); // v0.32.0 快捷键模板
 const TextTransform = require('./text-transform'); // v0.33.0 格式转换
+const AutoCategorize = require('./auto-categorize'); // v0.65.0 自动分类
 
 let mainWindow = null;
 let cycleWindow = null; // v0.39.0: Cycle mode window
@@ -35,6 +36,7 @@ let smartPaste = null; // v0.31.0 智能粘贴实例
 let ignoreRules = null; // v0.31.0
 let autoExpiryTimer = null; // v0.31.0 忽略规则实例
 let hotkeyTemplates = null; // v0.32.0 快捷键模板实例
+let autoCat = null; // v0.65.0 自动分类实例
 
 // v0.29.0: 通知与声音设置
 // v0.64.0: 通知合并增强
@@ -1365,6 +1367,10 @@ app.whenReady().then(async () => {
     }
   });
   log.info('[HotkeyTemplates] 快捷键模板系统已初始化');
+
+  // v0.65.0: 初始化自动分类引擎
+  autoCat = new AutoCategorize();
+  log.info('[AutoCategorize] 自动分类引擎已初始化');
 
   // 创建窗口和托盘
   createWindow();
