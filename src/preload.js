@@ -206,6 +206,11 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   snippetsStats: () => ipcRenderer.invoke('snippets-stats'),
   snippetsRenderContent: (content) => ipcRenderer.invoke('snippets-render-content', content),
 
+  // v0.66.0: 监控控制
+  toggleMonitoring: () => ipcRenderer.invoke('toggle-monitoring'),
+  getMonitoringStatus: () => ipcRenderer.invoke('get-monitoring-status'),
+  clearRecordsFiltered: (filters) => ipcRenderer.invoke('clear-records-filtered', filters),
+
   // 移除监听
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);

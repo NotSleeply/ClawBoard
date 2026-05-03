@@ -37,6 +37,7 @@ let ignoreRules = null; // v0.31.0
 let autoExpiryTimer = null; // v0.31.0 忽略规则实例
 let hotkeyTemplates = null; // v0.32.0 快捷键模板实例
 let autoCat = null; // v0.65.0 自动分类实例
+let monitoringPaused = false; // v0.66.0: 监控控制状态
 
 // v0.29.0: 通知与声音设置
 // v0.64.0: 通知合并增强
@@ -282,6 +283,23 @@ function createTray() {
     },
     { type: 'separator' },
     {
+      label: '⏸️ 暂停监控',
+      click: async () => {
+        const result = { paused: !monitoringPaused };
+        if (monitoringPaused) {
+          clipboardWatcher.start();
+          monitoringPaused = false;
+        } else {
+          clipboardWatcher.stop();
+          monitoringPaused = true;
+        }
+        if (tray) {
+          tray.displayBalloon({ title: 'ClawBoard', content: monitoringPaused ? '监控已暂停' : '监控已恢复', icon: nativeImage.createFromPath(path.join(__dirname, '../assets/tray-icon.png')) });
+        }
+      }
+    },
+    { type: 'separator' },
+    {
       label: '📊 统计信息',
       click: () => {
         if (db) {
@@ -416,6 +434,70 @@ function setupIPC() {
     } catch (err) {
       log.error('clear-history error:', err);
       return false;
+    }
+  });
+
+  // v0.66.0: 监控控制 — 暂停/恢复
+  ipcMain.handle('toggle-monitoring', async () => {
+    try {
+      if (monitoringPaused) {
+        clipboardWatcher.start();
+        monitoringPaused = false;
+        if (tray) tray.setImage(path.join(__dirname, '../assets/tray-icon.png'));
+        return { success: true, paused: false };
+      } else {
+        clipboardWatcher.stop();
+        monitoringPaused = true;
+        if (tray) tray.setImage(path.join(__dirname, '../assets/tray-icon.png'));
+        return { success: true, paused: true };
+      }
+    } catch (e) {
+      log.error('toggle-monitoring error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('get-monitoring-status', async () => {
+    return { paused: monitoringPaused };
+  });
+
+  // v0.66.0: 条件清空历史
+  ipcMain.handle('clear-records-filtered', async (_, { range, type, favorite }) => {
+    try {
+      let query = 'DELETE FROM records WHERE 1=1';
+      const params = [];
+
+      const now = new Date();
+      if (range === 'today') {
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        query += ' AND created_at >= ?';
+        params.push(today.toISOString());
+      } else if (range === 'week') {
+        const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+        query += ' AND created_at >= ?';
+        params.push(weekAgo.toISOString());
+      } else if (range === 'month') {
+        const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+        query += ' AND created_at >= ?';
+        params.push(monthAgo.toISOString());
+      }
+
+      if (type !== 'all') {
+        query += ' AND type = ?';
+        params.push(type);
+      }
+
+      if (favorite) {
+        query += ' AND favorite = 1';
+      }
+
+      const stmt = db.db.prepare(query);
+      const result = stmt.run(...params);
+
+      return { success: true, deleted: result.changes };
+    } catch (e) {
+      log.error('clear-records-filtered error:', e);
+      return { success: false, error: e.message };
     }
   });
 

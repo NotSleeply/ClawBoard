@@ -428,6 +428,7 @@
         <button class="settings-tab" data-tab="autoEncrypt">🔐 自动加密</button>
         <button class="settings-tab" data-tab="snippets">📋 快捷片段</button>
         <button class="settings-tab" data-tab="aiSettings">🤖 AI 设置</button>
+        <button class="settings-tab" data-tab="monitoring">⏸️ 监控</button>
         <button class="settings-tab" data-tab="about">ℹ️ 关于</button>
       </div>
       <div class="settings-body">
@@ -726,6 +727,44 @@
           </div>
           <div class="setting-item" style="margin-top:1rem">
             <button class="btn-secondary" id="btnResetAiPrompts">🔄 重置为默认</button>
+          </div>
+        </div>
+
+        <!-- v0.66.0: 监控控制 -->
+        <div class="settings-tab-content" id="settingsMonitoring" style="display:none">
+          <h3>⏸️ 剪贴板监控</h3>
+          <div class="monitoring-status" id="monitoringStatus">
+            <span class="status-dot running" id="statusDot"></span>
+            <span id="statusText">运行中</span>
+          </div>
+          <button class="btn-primary" id="btnToggleMonitoring" style="max-width:200px">暂停监控</button>
+
+          <h4>清空历史</h4>
+          <div class="clear-options">
+            <div class="clear-group">
+              <label>时间范围</label>
+              <select id="clearRange">
+                <option value="all">全部</option>
+                <option value="today">今天</option>
+                <option value="week">最近7天</option>
+                <option value="month">最近30天</option>
+              </select>
+            </div>
+            <div class="clear-group">
+              <label>类型</label>
+              <select id="clearType">
+                <option value="all">全部类型</option>
+                <option value="text">文字</option>
+                <option value="code">代码</option>
+                <option value="file">文件</option>
+                <option value="image">图片</option>
+              </select>
+            </div>
+            <div class="clear-group">
+              <label>仅收藏</label>
+              <input type="checkbox" id="clearFavorite">
+            </div>
+            <button class="btn-danger" id="btnClearFiltered">清空选中记录</button>
           </div>
         </div>
 
