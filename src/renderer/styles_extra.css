@@ -172,3 +172,11 @@
 .hover-preview-body{padding:0.6rem;font-size:0.85rem;line-height:1.5;color:var(--text);max-height:300px;overflow:auto;word-break:break-word;white-space:pre-wrap}
 .hover-preview-body.code-preview{font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:0.8rem;background:var(--surface2);padding:0.8rem}
 .hover-preview-body img{max-width:100%;max-height:280px;border-radius:4px;object-fit:contain}
+
+/* v0.68.0: 搜索设置 */
+#settingsSearch h3{margin-bottom:1rem}
+#settingsSearch .setting-item{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+#settingsSearch .setting-item label{font-size:0.85rem;color:var(--text)}
+#settingsSearch .setting-item input[type="number"]{width:80px;padding:0.35rem 0.5rem;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem}
+#settingsSearch small{font-size:12px;color:var(--muted)}
+
