@@ -668,7 +668,13 @@
         $('#exportOverlay').classList.add('show');
       });
       statsContent.appendChild(exportBtn);
+
+      // v0.69.0: 加载智能洞察
+      await loadInsights();
     };
+
+    // v0.69.0: 智能洞察按钮
+    $('#btnGenerateInsights').addEventListener('click', loadInsights);
 
     // 标签面板
     $('#btnTags').addEventListener('click', async () => {
@@ -1423,6 +1429,34 @@
       showToast('已批量删除');
     }
   });
+
+  // v0.69.0: 加载智能洞察
+  async function loadInsights() {
+    const section = document.getElementById('insightsSection');
+    const list = document.getElementById('insightsList');
+    if (!section || !list) return;
+
+    try {
+      const insights = await window.ClawBoard.getInsights();
+      if (!insights || insights.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+
+      section.style.display = 'block';
+      list.innerHTML = insights.map(i => `
+        <div class="insight-card insight-${i.priority}">
+          <div class="insight-icon">${i.icon}</div>
+          <div class="insight-content">
+            <div class="insight-title">${escapeHtml(i.title)}</div>
+            <div class="insight-desc">${escapeHtml(i.desc)}</div>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.error('Load insights failed:', e);
+    }
+  }
 
   async function loadDetailedStats() {
     const loading = $('#statsLoading');

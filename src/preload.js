@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   getWeeklyTrend: () => ipcRenderer.invoke('get-weekly-trend'),
   // v0.62.0: Calendar heatmap
   getCalendarData: (days) => ipcRenderer.invoke('get-calendar-data', days),
+  // v0.69.0: 智能洞察
+  getInsights: () => ipcRenderer.invoke('get-insights'),
   getSourceApps: () => ipcRenderer.invoke('get-source-apps'),
   getAllTags: () => ipcRenderer.invoke('get-all-tags'),
   addTag: (recordId, tag) => ipcRenderer.invoke('add-tag', { recordId, tag }),
