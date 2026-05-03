@@ -5,6 +5,7 @@
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const lz = require('lz-string');
 
 class Database {
   constructor(userDataPath) {
@@ -142,6 +143,13 @@ class Database {
       // 列已存在，忽略
     }
 
+    // v0.70.0: 添加压缩标记列
+    try {
+      this.db.run(`ALTER TABLE records ADD COLUMN compressed INTEGER DEFAULT 0`);
+    } catch (e) {
+      // 列已存在，忽略
+    }
+
     // 添加 AI 设置表（v0.54.0 AI 能力扩展）
     this.db.run(`
       CREATE TABLE IF NOT EXISTS ai_settings (
@@ -199,13 +207,27 @@ class Database {
   // 添加记录
   addRecord({ type, content, summary, source, source_app, source_title, source_url, tags = '[]', ai_summary = null, embedding = null, language = null, encrypted = false, ocr_text = null, merged_from = null, is_merged = false, sensitive_types = '' }) {
     let finalContent = content;
+    let compressed = 0;
     if (encrypted && this.encryptionKey) {
       finalContent = this._encrypt(content, this.encryptionKey);
     }
 
+    // v0.70.0: Compress large content (skip encrypted records)
+    if (!encrypted && finalContent.length > 1024) {
+      try {
+        const compressedStr = lz.compress(finalContent);
+        if (compressedStr.length < finalContent.length) {
+          finalContent = compressedStr;
+          compressed = 1;
+        }
+      } catch (e) {
+        console.error('Compression failed:', e);
+      }
+    }
+
     this.db.run(
-      `INSERT INTO records (type, content, summary, source, source_app, source_title, source_url, tags, ai_summary, embedding, language, encrypted, ocr_text, merged_from, is_merged, sensitive_types) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [type, finalContent, summary, source || 'clipboard', source_app || null, source_title || null, source_url || null, tags, ai_summary, embedding, language, encrypted ? 1 : 0, ocr_text, merged_from, is_merged ? 1 : 0, sensitive_types]
+      `INSERT INTO records (type, content, compressed, summary, source, source_app, source_title, source_url, tags, ai_summary, embedding, language, encrypted, ocr_text, merged_from, is_merged, sensitive_types) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [type, finalContent, compressed, summary, source || 'clipboard', source_app || null, source_title || null, source_url || null, tags, ai_summary, embedding, language, encrypted ? 1 : 0, ocr_text, merged_from, is_merged ? 1 : 0, sensitive_types]
     );
 
     // 自动清理旧记录（保留收藏）
@@ -1220,6 +1242,14 @@ class Database {
     columns.forEach((col, i) => {
       record[col] = values[i];
     });
+    // v0.70.0: Decompress if needed
+    if (record.compressed && record.content) {
+      try {
+        record.content = lz.decompress(record.content);
+      } catch (e) {
+        console.error('Decompression failed:', e);
+      }
+    }
     // 加密记录的内容替换为占位符
     if (record.encrypted && !this.encryptionKey) {
       record.content = '🔒 加密内容';

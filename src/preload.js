@@ -213,6 +213,10 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   getMonitoringStatus: () => ipcRenderer.invoke('get-monitoring-status'),
   clearRecordsFiltered: (filters) => ipcRenderer.invoke('clear-records-filtered', filters),
 
+  // v0.70.0: Storage compression
+  getStorageStats: () => ipcRenderer.invoke('get-storage-stats'),
+  compressAll: () => ipcRenderer.invoke('compress-all'),
+
   // 移除监听
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);

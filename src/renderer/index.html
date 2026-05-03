@@ -437,6 +437,7 @@
         <button class="settings-tab" data-tab="snippets">📋 快捷片段</button>
         <button class="settings-tab" data-tab="aiSettings">🤖 AI 设置</button>
         <button class="settings-tab" data-tab="monitoring">⏸️ 监控</button>
+        <button class="settings-tab" data-tab="storage">💾 存储</button>
         <button class="settings-tab" data-tab="search">🔍 搜索</button>
         <button class="settings-tab" data-tab="about">ℹ️ 关于</button>
       </div>
@@ -798,6 +799,29 @@
             <div><code style="background:var(--surface2);padding:1px 5px;border-radius:3px">/正则表达式/</code> 正则搜索</div>
             <div style="margin-top:0.3rem">可组合使用，如: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">type:code tag:snippet "function"</code></div>
           </div>
+        </div>
+
+        <!-- v0.70.0: 存储管理 -->
+        <div class="settings-tab-content" id="settingsStorage" style="display:none">
+          <h3>💾 存储管理</h3>
+
+          <div class="storage-stats" id="storageStats">
+            <div class="stat-item">
+              <span class="stat-label">数据库大小</span>
+              <span class="stat-value" id="dbSize">0 MB</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">压缩记录</span>
+              <span class="stat-value" id="compressedCount">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">压缩率</span>
+              <span class="stat-value" id="compressionRatio">0%</span>
+            </div>
+          </div>
+
+          <button class="btn-primary" id="btnCompressAll">📦 压缩所有大记录</button>
+          <small style="display:block;margin-top:0.75rem;font-size:12px;color:var(--muted)">压缩 > 1KB 的未压缩记录，压缩后自动解压读取，无感知</small>
         </div>
 
         <!-- v0.37.0: 关于 & 诊断 -->

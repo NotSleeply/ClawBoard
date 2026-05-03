@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "clawboard",
   "version": "0.69.0",
   "description": "AI驱动的本地剪贴板管理器 - 智能记录、语义搜索、永久收藏",
@@ -26,6 +26,7 @@
   "dependencies": {
     "electron-log": "^5.0.0",
     "electron-updater": "^6.1.7",
+    "lz-string": "^1.5.0",
     "qrcode-generator": "^2.0.4",
     "sql.js": "^1.10.0"
   },

@@ -202,6 +202,8 @@
         if (tab.dataset.tab === 'monitoring') loadMonitoringPanel();
         // v0.68.0: 切换到搜索 tab 时加载搜索设置
         if (tab.dataset.tab === 'search') loadSearchSettingsTab();
+        // v0.70.0: 切换到存储 tab 时加载存储统计
+        if (tab.dataset.tab === 'storage') loadStoragePanel();
       });
     });
 
