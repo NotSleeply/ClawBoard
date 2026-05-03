@@ -21,6 +21,7 @@ const AI = require('./ai');
 const OCRService = require('./ocr'); // v0.17.0 OCR服务
 const SmartPaste = require('./smart-paste'); // v0.31.0 智能粘贴
 const IgnoreRules = require('./ignore-rules'); // v0.31.0 忽略规则
+const AutoCategorizer = require('./auto-categorize'); // v0.65.0 自动分类规则
 const HotkeyTemplates = require('./hotkey-templates'); // v0.32.0 快捷键模板
 const TextTransform = require('./text-transform'); // v0.33.0 格式转换
 
@@ -33,6 +34,7 @@ let clipboardWatcher = null;
 let ocrService = null; // v0.17.0 OCR服务实例
 let smartPaste = null; // v0.31.0 智能粘贴实例
 let ignoreRules = null; // v0.31.0
+let autoCategorizer = null; // v0.65.0 自动分类规则
 let autoExpiryTimer = null; // v0.31.0 忽略规则实例
 let hotkeyTemplates = null; // v0.32.0 快捷键模板实例
 
@@ -1352,6 +1354,10 @@ app.whenReady().then(async () => {
   global.db = db;
   global.ignoreRules = ignoreRules;
 
+  // v0.65.0: 初始化自动分类规则
+  autoCategorizer = new AutoCategorizer(db, log);
+  global.autoCategorizer = autoCategorizer;
+
   // v0.31.0: 启动自动过期清理定时器
   startAutoExpiryTimer();
 
@@ -1931,6 +1937,99 @@ ipcMain.handle('show-clipboard-notification', async (_, { type, preview, source 
   } catch (err) {
     log.error('show-clipboard-notification error:', err);
     return { success: false, message: err.message };
+  }
+});
+
+
+// ==================== v0.65.0: 自动分类规则 ====================
+
+ipcMain.handle('get-auto-categorize-rules', async () => {
+  try {
+    if (!autoCategorizer) autoCategorizer = new AutoCategorizer(db, log);
+    return autoCategorizer.getAllRules();
+  } catch (err) {
+    log.error('get-auto-categorize-rules error:', err);
+    return [];
+  }
+});
+
+ipcMain.handle('get-auto-categorize-rule', async (_, id) => {
+  try {
+    if (!autoCategorizer) autoCategorizer = new AutoCategorizer(db, log);
+    return autoCategorizer.getRule(id);
+  } catch (err) {
+    log.error('get-auto-categorize-rule error:', err);
+    return null;
+  }
+});
+
+ipcMain.handle('create-auto-categorize-rule', async (_, data) => {
+  try {
+    if (!autoCategorizer) autoCategorizer = new AutoCategorizer(db, log);
+    return autoCategorizer.createRule(data);
+  } catch (err) {
+    log.error('create-auto-categorize-rule error:', err);
+    return null;
+  }
+});
+
+ipcMain.handle('update-auto-categorize-rule', async (_, { id, ...updates }) => {
+  try {
+    if (!autoCategorizer) autoCategorizer = new AutoCategorizer(db, log);
+    return autoCategorizer.updateRule(id, updates);
+  } catch (err) {
+    log.error('update-auto-categorize-rule error:', err);
+    return null;
+  }
+});
+
+ipcMain.handle('delete-auto-categorize-rule', async (_, id) => {
+  try {
+    if (!autoCategorizer) autoCategorizer = new AutoCategorizer(db, log);
+    return autoCategorizer.deleteRule(id);
+  } catch (err) {
+    log.error('delete-auto-categorize-rule error:', err);
+    return false;
+  }
+});
+
+ipcMain.handle('toggle-auto-categorize-rule', async (_, id) => {
+  try {
+    if (!autoCategorizer) autoCategorizer = new AutoCategorizer(db, log);
+    return autoCategorizer.toggleRule(id);
+  } catch (err) {
+    log.error('toggle-auto-categorize-rule error:', err);
+    return null;
+  }
+});
+
+ipcMain.handle('reorder-auto-categorize-rules', async (_, orderedIds) => {
+  try {
+    if (!autoCategorizer) autoCategorizer = new AutoCategorizer(db, log);
+    return autoCategorizer.reorderRules(orderedIds);
+  } catch (err) {
+    log.error('reorder-auto-categorize-rules error:', err);
+    return [];
+  }
+});
+
+ipcMain.handle('batch-auto-categorize', async (_, options) => {
+  try {
+    if (!autoCategorizer) autoCategorizer = new AutoCategorizer(db, log);
+    return autoCategorizer.batchCategorize(options || {});
+  } catch (err) {
+    log.error('batch-auto-categorize error:', err);
+    return { total: 0, categorized: 0, results: [] };
+  }
+});
+
+ipcMain.handle('get-auto-categorize-stats', async () => {
+  try {
+    if (!autoCategorizer) autoCategorizer = new AutoCategorizer(db, log);
+    return autoCategorizer.getRuleStats();
+  } catch (err) {
+    log.error('get-auto-categorize-stats error:', err);
+    return { total: 0, enabled: 0, disabled: 0, withGroup: 0, withoutGroup: 0 };
   }
 });
 

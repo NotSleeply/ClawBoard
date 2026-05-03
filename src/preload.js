@@ -206,6 +206,18 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   snippetsStats: () => ipcRenderer.invoke('snippets-stats'),
   snippetsRenderContent: (content) => ipcRenderer.invoke('snippets-render-content', content),
 
+  // v0.65.0: 自动分类规则
+  getAutoCategorizeRules: () => ipcRenderer.invoke('get-auto-categorize-rules'),
+  getAutoCategorizeRule: (id) => ipcRenderer.invoke('get-auto-categorize-rule', id),
+  createAutoCategorizeRule: (data) => ipcRenderer.invoke('create-auto-categorize-rule', data),
+  updateAutoCategorizeRule: (id, updates) => ipcRenderer.invoke('update-auto-categorize-rule', { id, ...updates }),
+  deleteAutoCategorizeRule: (id) => ipcRenderer.invoke('delete-auto-categorize-rule', id),
+  toggleAutoCategorizeRule: (id) => ipcRenderer.invoke('toggle-auto-categorize-rule', id),
+  reorderAutoCategorizeRules: (orderedIds) => ipcRenderer.invoke('reorder-auto-categorize-rules', orderedIds),
+  batchAutoCategorize: (options) => ipcRenderer.invoke('batch-auto-categorize', options),
+  getAutoCategorizeStats: () => ipcRenderer.invoke('get-auto-categorize-stats'),
+  onAutoCategorized: (callback) => ipcRenderer.on('auto-categorized', (_, data) => callback(data)),
+
   // 移除监听
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);

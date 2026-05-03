@@ -134,6 +134,9 @@ class ClipboardWatcher {
 
       this.log.info(`新记录: [${type}] ${trimmed.substring(0, 50)}...`);
 
+      // v0.65.0: 自动分类
+      this._autoCategorize(record);
+
       // 通知渲染进程
       if (global.mainWindow && !global.mainWindow.isDestroyed()) {
         global.mainWindow.webContents.send('new-record', record);
@@ -154,6 +157,9 @@ class ClipboardWatcher {
       });
 
       this.log.info(`新记录: [${type}] ${trimmed.substring(0, 50)}...`);
+
+      // v0.65.0: 自动分类
+      this._autoCategorize(record);
 
       if (global.mainWindow && !global.mainWindow.isDestroyed()) {
         global.mainWindow.webContents.send('new-record', record);
@@ -403,6 +409,25 @@ class ClipboardWatcher {
     const trimmed = text.trim();
     if (trimmed.length <= 100) return trimmed;
     return trimmed.substring(0, 97) + '...';
+  }
+
+  // v0.65.0: 自动分类
+  _autoCategorize(record) {
+    if (!global.autoCategorizer) return;
+    const match = global.autoCategorizer.categorize(record);
+    if (match) {
+      this.db.moveRecordToGroup(record.id, match.groupId);
+      this.log.info(`自动分类: [${match.ruleName}] → ${match.groupName}`);
+      // 通知渲染进程更新
+      if (global.mainWindow && !global.mainWindow.isDestroyed()) {
+        global.mainWindow.webContents.send('auto-categorized', {
+          recordId: record.id,
+          ruleName: match.ruleName,
+          groupName: match.groupName,
+          groupId: match.groupId,
+        });
+      }
+    }
   }
 
   _getImageHash(image) {
