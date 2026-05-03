@@ -198,6 +198,8 @@
         if (tab.dataset.tab === 'snippets') { loadSnippets(); initSnippetsUI(); }
         // v0.59.0: 切换到 AI 设置 tab 时加载 AI 配置
         if (tab.dataset.tab === 'aiSettings') loadAISettingsTab();
+        // v0.66.0: 切换到监控 tab 时加载状态
+        if (tab.dataset.tab === 'monitoring') loadMonitoringPanel();
       });
     });
 
@@ -4333,6 +4335,70 @@
     leftHtml += '</div><div class="diff-right">' + rightParts.join('') + '</div></div>';
     return leftHtml;
   }
+
+  // ==================== v0.66.0: 监控控制 ====================
+  async function loadMonitoringPanel() {
+    try {
+      const status = await window.ClawBoard.getMonitoringStatus();
+      updateMonitoringUI(status.paused);
+    } catch (e) {
+      console.error('Load monitoring status failed:', e);
+    }
+  }
+
+  function updateMonitoringUI(paused) {
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    const btn = document.getElementById('btnToggleMonitoring');
+    if (!dot || !text || !btn) return;
+    if (paused) {
+      dot.className = 'status-dot paused';
+      text.textContent = '已暂停';
+      btn.textContent = '恢复监控';
+    } else {
+      dot.className = 'status-dot running';
+      text.textContent = '运行中';
+      btn.textContent = '暂停监控';
+    }
+  }
+
+  // Event: toggle monitoring (bind once via init)
+  document.addEventListener('DOMContentLoaded', () => {
+    const btnToggle = document.getElementById('btnToggleMonitoring');
+    if (btnToggle) {
+      btnToggle.addEventListener('click', async () => {
+        try {
+          const result = await window.ClawBoard.toggleMonitoring();
+          if (result.success) {
+            updateMonitoringUI(result.paused);
+            showToast(result.paused ? '监控已暂停' : '监控已恢复', 'success');
+          }
+        } catch (e) {
+          showToast('操作失败', 'error');
+        }
+      });
+    }
+
+    const btnClear = document.getElementById('btnClearFiltered');
+    if (btnClear) {
+      btnClear.addEventListener('click', async () => {
+        const range = document.getElementById('clearRange').value;
+        const type = document.getElementById('clearType').value;
+        const favorite = document.getElementById('clearFavorite').checked;
+        if (!confirm('确定清空符合条件的记录？此操作不可撤销！')) return;
+        try {
+          const result = await window.ClawBoard.clearRecordsFiltered({ range, type, favorite });
+          if (result.success) {
+            showToast(`已清空 ${result.deleted} 条记录`, 'success');
+            await loadRecords();
+            await loadStats();
+          }
+        } catch (e) {
+          showToast('清空失败', 'error');
+        }
+      });
+    }
+  });
 
   // ==================== 启动 ====================
   document.addEventListener('DOMContentLoaded', init);
