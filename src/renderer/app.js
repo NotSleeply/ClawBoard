@@ -200,6 +200,8 @@
         if (tab.dataset.tab === 'aiSettings') loadAISettingsTab();
         // v0.66.0: 切换到监控 tab 时加载状态
         if (tab.dataset.tab === 'monitoring') loadMonitoringPanel();
+        // v0.68.0: 切换到搜索 tab 时加载搜索设置
+        if (tab.dataset.tab === 'search') loadSearchSettingsTab();
       });
     });
 
@@ -827,9 +829,24 @@
         options.groupId = currentGroupId;
       }
 
+      // v0.68.0: 检测是否使用增强搜索语法
+      const hasEnhancedSyntax = searchQuery && (
+        /date:\d/.test(searchQuery) ||
+        /type:\w/.test(searchQuery) ||
+        /tag:\S/.test(searchQuery) ||
+        /"[^"]+"/.test(searchQuery) ||
+        /^\/.+\//.test(searchQuery)
+      );
+
       if (searchQuery) {
-        options.search = searchQuery;
-        records = await window.ClawBoard.search(searchQuery);
+        if (hasEnhancedSyntax) {
+          // 增强搜索：先加载全部记录（不带搜索词），再客户端过滤
+          records = await window.ClawBoard.getRecords({ ...options, search: undefined });
+          records = enhancedSearchFilter(records, searchQuery);
+        } else {
+          options.search = searchQuery;
+          records = await window.ClawBoard.search(searchQuery);
+        }
       } else {
         records = await window.ClawBoard.getRecords(options);
       }
@@ -3160,6 +3177,82 @@
     }
   }
 
+  // ==================== v0.68.0: 增强搜索 ====================
+  function enhancedSearchFilter(allRecords, query) {
+    if (!query || !query.trim()) return allRecords;
+
+    const q = query.trim();
+    let results = [...allRecords];
+    let remaining = q;
+
+    // 日期范围: date:YYYY-MM-DD..YYYY-MM-DD
+    const dateMatch = remaining.match(/date:(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})/);
+    if (dateMatch) {
+      const start = new Date(dateMatch[1]);
+      const end = new Date(dateMatch[2]);
+      end.setHours(23, 59, 59, 999);
+      results = results.filter(r => {
+        const d = new Date(r.created_at);
+        return d >= start && d <= end;
+      });
+      remaining = remaining.replace(/date:\S+/, '').trim();
+    }
+
+    // 类型过滤: type:text|code|file|image
+    const typeMatch = remaining.match(/type:(\w+)/);
+    if (typeMatch) {
+      results = results.filter(r => r.type === typeMatch[1]);
+      remaining = remaining.replace(/type:\S+/, '').trim();
+    }
+
+    // 标签过滤: tag:xxx
+    const tagMatch = remaining.match(/tag:(\S+)/);
+    if (tagMatch) {
+      results = results.filter(r => {
+        try {
+          const tags = JSON.parse(r.tags || '[]');
+          return tags.includes(tagMatch[1]);
+        } catch { return false; }
+      });
+      remaining = remaining.replace(/tag:\S+/, '').trim();
+    }
+
+    // 精确短语: "exact phrase"
+    const exactMatch = remaining.match(/"([^"]+)"/);
+    if (exactMatch) {
+      const phrase = exactMatch[1].toLowerCase();
+      results = results.filter(r => {
+        const content = (r.content || '').toLowerCase();
+        return content.includes(phrase);
+      });
+      remaining = remaining.replace(/"[^"]+"/, '').trim();
+    }
+
+    // 正则搜索: /pattern/flags
+    const regexMatch = remaining.match(/^\/(.+)\/(\w*)$/);
+    if (regexMatch) {
+      try {
+        const regex = new RegExp(regexMatch[1], regexMatch[2]);
+        results = results.filter(r => regex.test(r.content || ''));
+      } catch (e) {
+        showToast('无效的正则表达式: ' + e.message, 'error');
+        return [];
+      }
+      return results;
+    }
+
+    // 默认关键词搜索（如果还有剩余文字）
+    if (remaining) {
+      const keywords = remaining.toLowerCase().split(/\s+/).filter(Boolean);
+      results = results.filter(r => {
+        const content = (r.content || '').toLowerCase();
+        return keywords.every(kw => content.includes(kw));
+      });
+    }
+
+    return results;
+  }
+
   // ==================== 操作处理 ====================
   async function handleSearch() {
     searchQuery = searchInput.value.trim();
@@ -3742,6 +3835,35 @@
     closeSearchHistory();
     showToast('🗑️ 搜索历史已清除', 'success');
   }
+
+  // v0.68.0: 搜索设置 tab
+  function loadSearchSettingsTab() {
+    const countEl = document.getElementById('searchHistoryCount');
+    if (countEl) countEl.textContent = searchHistory.length;
+    const maxEl = document.getElementById('settingSearchHistoryMax');
+    if (maxEl) maxEl.value = SEARCH_HISTORY_MAX;
+  }
+
+  // v0.68.0: 搜索设置事件
+  document.addEventListener('DOMContentLoaded', () => {
+    const btnClear = document.getElementById('btnClearSearchHistory');
+    if (btnClear) {
+      btnClear.addEventListener('click', () => {
+        if (!confirm('确定清除所有搜索历史？')) return;
+        clearAllSearchHistory();
+        const countEl = document.getElementById('searchHistoryCount');
+        if (countEl) countEl.textContent = '0';
+      });
+    }
+    const maxInput = document.getElementById('settingSearchHistoryMax');
+    if (maxInput) {
+      maxInput.addEventListener('change', () => {
+        // SEARCH_HISTORY_MAX is const, so we store override in localStorage
+        localStorage.setItem('searchHistoryMax', maxInput.value);
+        showToast('已更新搜索历史上限', 'success');
+      });
+    }
+  });
 
   function initSearchHistoryUI() {
     // 创建搜索历史下拉容器
