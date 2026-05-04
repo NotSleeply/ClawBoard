@@ -37,6 +37,13 @@
   let searchHistoryDropdown = null;
   let isSearchHistoryOpen = false;
 
+  // v0.71.0: 图片操作状态
+  let imgScale = 1;
+  let imgRotation = 0;
+  const IMG_SCALE_STEP = 0.25;
+  const IMG_SCALE_MIN = 0.25;
+  const IMG_SCALE_MAX = 4.0;
+
   // ==================== DOM 元素 ====================
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => document.querySelectorAll(sel);
@@ -60,6 +67,8 @@
     loadSearchHistory();      // v0.35.0: 加载搜索历史
     initSearchHistoryUI();    // v0.35.0: 初始化搜索历史下拉
     loadHoverPreviewSettings(); // v0.46.0: 加载悬浮预览设置
+    initImageActions();        // v0.71.0: 初始化图片操作
+    initFilePreviewToggle();   // v0.71.0: 初始化文件预览
     await loadGroups();
     await loadRecords();
     await loadStats();
@@ -2231,6 +2240,51 @@
     return div.innerHTML;
   }
 
+  // ==================== v0.71.0: 代码语言检测 ====================
+  function detectCodeLanguage(code) {
+    if (!code || code.length < 10) return null;
+    const firstLine = code.split('\n')[0].trim();
+    // Shebang
+    if (firstLine.startsWith('#!/')) {
+      if (firstLine.includes('python')) return 'python';
+      if (firstLine.includes('bash') || firstLine.includes('sh')) return 'bash';
+      if (firstLine.includes('node')) return 'javascript';
+      if (firstLine.includes('perl')) return 'perl';
+      if (firstLine.includes('ruby')) return 'ruby';
+    }
+    // 特征检测
+    const lines = code.split('\n');
+    let score = {};
+    const patterns = {
+      javascript: [/\bconst\s+\w+\s*=\s*(?:require|import|\{|\[)/, /=>\s*[{(]/, /\bfunction\s*\w+\s*\(/, /console\.log\(/, /\blet\s+\w+\s*=/, /\bdocument\./, /\bmodule\.exports/],
+      typescript: [/:\s*(?:string|number|boolean|void|any)\b/, /\binterface\s+\w+/, /\btype\s+\w+\s*=/, /<\w+>\s*\(/, /as\s+(?:string|number)/],
+      python: [/\bdef\s+\w+\s*\(/, /\bimport\s+\w+/, /\bfrom\s+\w+\s+import/, /\bprint\s*\(/, /\bclass\s+\w+[:(]/, /\bif\s+__name__/, /\bself\./, /^\s{4}\S/m],
+      java: [/\bpublic\s+(?:class|interface|enum)\s+\w+/, /\bSystem\.out\.print/, /\bprivate\s+\w+\s+\w+;/, /\bpackage\s+\w/],
+      go: [/\bfunc\s+(?:\w+|\()\s*\(/, /\bfmt\.Print/, /\bpackage\s+main/, /:=\s/],
+      rust: [/\bfn\s+\w+\s*(?:<|\()/, /\blet\s+mut\s+/, /\bimpl\s+\w+/, /\bprintln!\(/],
+      css: [/[.#]\w+\s*\{/, /\bcolor:\s*/, /\bbackground(?:-color)?:\s*/, /@media\s/],
+      html: [/<!DOCTYPE\s+html/i, /<html/i, /<div\s/, /<script/i, /class="/, /href="/],
+      sql: [/\bSELECT\s+/i, /\bFROM\s+/i, /\bWHERE\s+/i, /\bINSERT\s+INTO/i, /\bCREATE\s+TABLE/i],
+      json: [/^\s*[\[{]/m, /"\w+"\s*:/, /^\s*\}/m],
+      yaml: [/^\w+\s*:/m, /^\s+-\s+\w+/m, /^---$/m],
+      xml: [/<\?xml/i, /<\w+[^>]*\/>/, /<\w+[^>]*>/],
+      bash: [/^\s*\w+\s+\|\s*\w+/m, /\becho\s+/, /\bfi\b/, /\bdone\b/, /\bexport\s+/],
+      php: [/<\?php/, /\$\w+\s*=/, /\bfunction\s+\w+\s*\(/, /->\w+/]
+    };
+    for (const [lang, pats] of Object.entries(patterns)) {
+      score[lang] = 0;
+      for (const p of pats) {
+        if (p.test(code)) score[lang]++;
+      }
+    }
+    // 返回得分最高的
+    let best = null, bestScore = 0;
+    for (const [lang, s] of Object.entries(score)) {
+      if (s > bestScore) { bestScore = s; best = lang; }
+    }
+    return bestScore >= 2 ? best : null;
+  }
+
   // ==================== 详情面板 ====================
   function isMarkdown(text) {
     // 检测常见 Markdown 语法特征
@@ -2284,16 +2338,183 @@
       content.style.display = '';
       preview.classList.remove('show');
       if (record.type === 'image') {
-        content.innerHTML = `<img src="file://${record.content}" alt="图片">`;
-      } else if (record.type === 'code' && record.language) {
-        content.innerHTML = `<code class="hljs language-${record.language}">${escapeHtml(record.content)}</code>`;
-        hljs.highlightElement(content.querySelector('code'));
+        content.innerHTML = `<img src="file://${record.content}" alt="图片" style="max-width:100%;border-radius:8px;transition:transform 0.2s">`;
+      } else if (record.type === 'code') {
+        // v0.71.0: 自动检测语言，无语言标记时尝试推断
+        const lang = record.language || detectCodeLanguage(record.content);
+        content.innerHTML = `<code class="hljs ${lang ? 'language-' + lang : ''}">${escapeHtml(record.content)}</code>`;
+        if (content.querySelector('code')) {
+          hljs.highlightElement(content.querySelector('code'));
+        }
       } else {
         // v0.35.0: 详情面板搜索高亮
         const text = escapeHtml(record.content);
         content.innerHTML = `<code>${searchQuery ? highlightText(text, searchQuery) : text}</code>`;
       }
     }
+  }
+
+  // ==================== v0.71.0: 图片操作 ====================
+
+  function initImageActions() {
+    const zoomIn = $('#btnImageZoomIn');
+    const zoomOut = $('#btnImageZoomOut');
+    const rotate = $('#btnImageRotate');
+    const save = $('#btnImageSave');
+    const copyClip = $('#btnImageCopyClip');
+
+    if (zoomIn) zoomIn.addEventListener('click', () => {
+      imgScale = Math.min(IMG_SCALE_MAX, imgScale + IMG_SCALE_STEP);
+      applyImageTransform();
+    });
+    if (zoomOut) zoomOut.addEventListener('click', () => {
+      imgScale = Math.max(IMG_SCALE_MIN, imgScale - IMG_SCALE_STEP);
+      applyImageTransform();
+    });
+    if (rotate) rotate.addEventListener('click', () => {
+      imgRotation = (imgRotation + 90) % 360;
+      applyImageTransform();
+    });
+    if (save) save.addEventListener('click', async () => {
+      if (!selectedRecord || selectedRecord.type !== 'image') return;
+      try {
+        const { dialog } = require('@electron/remote') || {};
+        const result = await window.electronAPI?.saveImage?.(selectedRecord.content);
+        if (result && result.success) showToast('图片已保存');
+        else showToast(result?.error || '保存失败');
+      } catch (e) {
+        showToast('保存图片功能暂不可用');
+      }
+    });
+    if (copyClip) copyClip.addEventListener('click', async () => {
+      if (!selectedRecord || selectedRecord.type !== 'image') return;
+      try {
+        const result = await window.electronAPI?.invoke('copy-image-clipboard', selectedRecord.content);
+        if (result && result.success) showToast('图片已复制到剪贴板');
+        else showToast(result?.error || '复制失败');
+      } catch (e) {
+        showToast('复制图片失败');
+      }
+    });
+  }
+
+  function applyImageTransform() {
+    const img = $('#detailContent img');
+    if (!img) return;
+    img.style.transform = `scale(${imgScale}) rotate(${imgRotation}deg)`;
+    img.style.transition = 'transform 0.2s ease';
+  }
+
+  async function loadImageInfo(filePath) {
+    try {
+      const result = await window.electronAPI?.invoke('get-image-info', filePath);
+      if (!result || !result.success) return null;
+      return result;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function showImageInfo(info) {
+    const bar = $('#imageInfoBar');
+    if (!bar || !info) { if (bar) bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    $('#imgInfoDimension').textContent = `📐 ${info.width} × ${info.height}`;
+    $('#imgInfoFormat').textContent = `🎨 ${info.format}`;
+    const sizeStr = info.fileSize > 1024 * 1024
+      ? `${(info.fileSize / (1024 * 1024)).toFixed(1)} MB`
+      : `${(info.fileSize / 1024).toFixed(1)} KB`;
+    $('#imgInfoSize').textContent = `📦 ${sizeStr}`;
+    $('#imgInfoRatio').textContent = `📏 ${info.width}:${info.height}`;
+  }
+
+  // v0.71.0: 文件预览
+  function isTextFileExtension(filePath) {
+    const textExts = new Set([
+      '.txt', '.md', '.markdown', '.json', '.csv', '.tsv',
+      '.xml', '.html', '.htm', '.css', '.js', '.jsx', '.ts', '.tsx',
+      '.py', '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.go', '.rs',
+      '.rb', '.php', '.sh', '.bash', '.ps1', '.bat', '.cmd',
+      '.yaml', '.yml', '.toml', '.ini', '.conf', '.cfg', '.env',
+      '.sql', '.log', '.gitignore', '.dockerignore', '.editorconfig',
+      '.vue', '.svelte', '.scss', '.sass', '.less',
+      '.lua', '.r', '.swift', '.kt', '.dart', '.zig'
+    ]);
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    return textExts.has('.' + ext);
+  }
+
+  function getFileIcon(ext) {
+    const iconMap = {
+      '.js': '🟨', '.jsx': '🟨', '.ts': '🔷', '.tsx': '🔷',
+      '.py': '🐍', '.java': '☕', '.go': '🔵', '.rs': '🦀',
+      '.html': '🌐', '.htm': '🌐', '.css': '🎨', '.scss': '🎨', '.less': '🎨',
+      '.json': '📋', '.yaml': '📋', '.yml': '📋', '.toml': '📋', '.xml': '📋',
+      '.md': '📝', '.markdown': '📝', '.txt': '📄',
+      '.sh': '🖥️', '.bash': '🖥️', '.ps1': '🖥️', '.bat': '🖥️', '.cmd': '🖥️',
+      '.sql': '🗃️', '.log': '📋', '.csv': '📊', '.tsv': '📊',
+      '.vue': '💚', '.svelte': '🔥', '.php': '🐘', '.rb': '💎',
+      '.c': '⚙️', '.cpp': '⚙️', '.h': '⚙️', '.hpp': '⚙️',
+      '.cs': '🟣', '.swift': '🍊', '.kt': '🟣', '.dart': '🎯', '.zig': '⚡',
+      '.lua': '🌙', '.r': '📈', '.ini': '⚙️', '.conf': '⚙️', '.env': '🔐', '.cfg': '⚙️'
+    };
+    return iconMap['.' + ext] || '📄';
+  }
+
+  async function loadFilePreview(filePath) {
+    const area = $('#filePreviewArea');
+    if (!area || !isTextFileExtension(filePath)) {
+      if (area) area.style.display = 'none';
+      return;
+    }
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    area.style.display = 'block';
+    $('#filePreviewIcon').textContent = getFileIcon(ext);
+    $('#filePreviewName').textContent = filePath.split(/[\/]/).pop() || filePath;
+    $('#filePreviewMeta').textContent = ext.toUpperCase();
+    $('#filePreviewContent').style.display = 'none';
+    $('#btnFilePreviewToggle').textContent = '▼ 展开';
+  }
+
+  function initFilePreviewToggle() {
+    const btn = $('#btnFilePreviewToggle');
+    const content = $('#filePreviewContent');
+    if (!btn || !content) return;
+    btn.addEventListener('click', async () => {
+      if (content.style.display === 'none') {
+        // 加载并显示内容
+        if (!selectedRecord) return;
+        try {
+          const result = await window.electronAPI?.invoke('read-file-preview', selectedRecord.content);
+          if (result && result.success) {
+            content.textContent = result.content;
+            // 尝试代码高亮
+            const ext = result.extension;
+            if (ext && hljs.getLanguage(ext)) {
+              content.innerHTML = '';
+              const code = document.createElement('code');
+              code.className = `language-${ext}`;
+              code.textContent = result.content;
+              content.appendChild(code);
+              hljs.highlightElement(code);
+            }
+            content.style.display = 'block';
+            btn.textContent = '▲ 收起';
+          } else {
+            content.textContent = result?.error || '无法读取文件内容';
+            content.style.display = 'block';
+            btn.textContent = '▲ 收起';
+          }
+        } catch (e) {
+          content.textContent = '读取文件失败';
+          content.style.display = 'block';
+          btn.textContent = '▲ 收起';
+        }
+      } else {
+        content.style.display = 'none';
+        btn.textContent = '▼ 展开';
+      }
+    });
   }
 
   function openDetailPanel(record) {
@@ -2370,6 +2591,25 @@
     }
 
     renderPreviewContent(record);
+
+    // v0.71.0: 图片操作和文件预览
+    const imageActions = $('#imageActions');
+    const imageInfoBar = $('#imageInfoBar');
+    if (record.type === 'image' && !record.encrypted) {
+      imageActions.style.display = 'flex';
+      imgScale = 1;
+      imgRotation = 0;
+      loadImageInfo(record.content).then(info => showImageInfo(info));
+    } else {
+      imageActions.style.display = 'none';
+      if (imageInfoBar) imageInfoBar.style.display = 'none';
+    }
+    if (record.type === 'file' && !record.encrypted) {
+      loadFilePreview(record.content);
+    } else {
+      const fileArea = $('#filePreviewArea');
+      if (fileArea) fileArea.style.display = 'none';
+    }
 
     // v0.17.0: 显示 OCR 结果（图片类型）
     const ocrSection = $('#ocrSection');

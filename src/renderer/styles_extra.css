@@ -180,3 +180,23 @@
 #settingsSearch .setting-item input[type="number"]{width:80px;padding:0.35rem 0.5rem;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem}
 #settingsSearch small{font-size:12px;color:var(--muted)}
 
+/* v0.71.0: 图片操作栏 */
+.image-actions{display:flex;gap:0.4rem;padding:0 0.5rem 0.5rem;flex-wrap:wrap}
+.image-actions .detail-btn{padding:0.35rem 0.7rem;font-size:0.8rem;border-radius:6px;background:var(--btn-bg);color:var(--muted);border:1px solid var(--border);transition:all 0.2s;cursor:pointer}
+.image-actions .detail-btn:hover{background:var(--accent-bg);color:var(--accent);border-color:var(--accent)}
+
+/* v0.71.0: 图片信息栏 */
+.image-info-bar{display:flex;gap:1rem;padding:0.5rem 0.8rem;margin-bottom:0.5rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;flex-wrap:wrap}
+.image-info-item{font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:0.3rem}
+.image-info-item span{font-weight:500;color:var(--text)}
+
+/* v0.71.0: 文件预览区域 */
+.file-preview-area{margin-top:0.5rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.file-preview-header{display:flex;align-items:center;gap:0.6rem;padding:0.6rem 0.8rem;border-bottom:1px solid var(--border);font-size:0.85rem}
+.file-preview-icon{font-size:1rem}
+.file-preview-name{flex:1;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-preview-meta{font-size:0.75rem;padding:0.15rem 0.5rem;border-radius:4px;background:var(--badge-bg);color:var(--muted)}
+.file-preview-toggle{background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.8rem;padding:0.2rem 0.5rem;border-radius:4px;transition:all 0.2s}
+.file-preview-toggle:hover{background:var(--accent-bg)}
+.file-preview-content{padding:0.8rem;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:0.82rem;line-height:1.6;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow:auto;background:var(--surface2);color:var(--text);margin:0}
+

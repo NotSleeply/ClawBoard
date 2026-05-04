@@ -147,8 +147,26 @@
         <button class="detail-btn" id="btnImageZoomOut" title="缩小">🔍-</button>
         <button class="detail-btn" id="btnImageRotate" title="旋转90°">🔄</button>
         <button class="detail-btn" id="btnImageSave" title="保存到文件">💾</button>
+        <button class="detail-btn" id="btnImageCopyClip" title="复制图片到剪贴板">📋</button>
       </div>
       <pre id="detailContent"></pre>
+      <!-- v0.71.0: Image info bar -->
+      <div class="image-info-bar" id="imageInfoBar" style="display:none">
+        <span class="image-info-item" id="imgInfoDimension">📐 --</span>
+        <span class="image-info-item" id="imgInfoFormat">🎨 --</span>
+        <span class="image-info-item" id="imgInfoSize">📦 --</span>
+        <span class="image-info-item" id="imgInfoRatio">📏 --</span>
+      </div>
+      <!-- v0.71.0: File preview area -->
+      <div class="file-preview-area" id="filePreviewArea" style="display:none">
+        <div class="file-preview-header">
+          <span class="file-preview-icon" id="filePreviewIcon">📄</span>
+          <span class="file-preview-name" id="filePreviewName">--</span>
+          <span class="file-preview-meta" id="filePreviewMeta">--</span>
+          <button class="file-preview-toggle" id="btnFilePreviewToggle" title="展开/收起预览">▼ 展开</button>
+        </div>
+        <pre class="file-preview-content" id="filePreviewContent" style="display:none"></pre>
+      </div>
       <div class="detail-preview" id="detailPreview"></div>
       <!-- v0.17.0: OCR 结果展示 -->
       <div class="ocr-section" id="ocrSection" style="display:none">
