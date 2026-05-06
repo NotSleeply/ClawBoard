@@ -200,3 +200,16 @@
 .file-preview-toggle:hover{background:var(--accent-bg)}
 .file-preview-content{padding:0.8rem;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:0.82rem;line-height:1.6;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow:auto;background:var(--surface2);color:var(--text);margin:0}
 
+/* v0.72.0: 回收站面板 */
+.trash-stats{display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.8rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:0.6rem;font-size:0.85rem;color:var(--text)}
+.trash-hint{font-size:0.75rem;color:var(--muted)}
+.trash-toolbar{display:flex;gap:0.5rem;margin-bottom:0.6rem;justify-content:flex-end}
+.trash-list{flex:1;overflow-y:auto;max-height:55vh}
+.trash-item{display:flex;align-items:center;gap:0.8rem;padding:0.7rem 0.8rem;border:1px solid var(--border);border-radius:8px;margin-bottom:0.4rem;background:var(--surface);transition:all 0.15s}
+.trash-item:hover{background:var(--surface2);border-color:var(--accent)}
+.trash-item-content{flex:1;min-width:0}
+.trash-item-preview{font-size:0.85rem;color:var(--text);line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trash-item-meta{display:flex;gap:0.8rem;margin-top:0.3rem;font-size:0.75rem;color:var(--muted)}
+.trash-item-type{padding:0.1rem 0.4rem;border-radius:3px;background:var(--badge-bg);text-transform:uppercase;font-size:0.7rem;letter-spacing:0.5px}
+.trash-item-actions{display:flex;gap:0.4rem;flex-shrink:0}
+
