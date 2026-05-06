@@ -447,14 +447,39 @@ function setupIPC() {
     }
   });
 
-  // 删除记录
-  ipcMain.handle('delete-record', async (event, id) => {
+  // v0.72.0: 删除记录（支持软删除/永久删除）
+  ipcMain.handle('delete-record', async (event, id, permanent = false) => {
     try {
-      return db.deleteRecord(id);
+      return db.deleteRecord(id, permanent);
     } catch (err) {
       log.error('delete-record error:', err);
       return false;
     }
+  });
+
+  // v0.72.0: 获取回收站列表
+  ipcMain.handle('get-trash-records', async (_, limit = 50, offset = 0) => {
+    try { return db.getTrashRecords(limit, offset); } catch (err) { log.error('get-trash-records error:', err); return []; }
+  });
+
+  // v0.72.0: 获取回收站统计
+  ipcMain.handle('get-trash-stats', async () => {
+    try { return db.getTrashStats(); } catch (err) { log.error('get-trash-stats error:', err); return { total: 0 }; }
+  });
+
+  // v0.72.0: 恢复回收站记录
+  ipcMain.handle('restore-from-trash', async (_, trashId) => {
+    try { return db.restoreFromTrash(trashId); } catch (err) { log.error('restore-from-trash error:', err); return false; }
+  });
+
+  // v0.72.0: 永久删除回收站记录
+  ipcMain.handle('delete-trash-record', async (_, trashId) => {
+    try { return db.deleteTrashRecord(trashId); } catch (err) { log.error('delete-trash-record error:', err); return false; }
+  });
+
+  // v0.72.0: 清空回收站
+  ipcMain.handle('empty-trash', async () => {
+    try { return db.emptyTrash(); } catch (err) { log.error('empty-trash error:', err); return false; }
   });
 
   // 清空历史
@@ -1714,6 +1739,8 @@ function startAutoExpiryTimer() {
           mainWindow.webContents.send('expiry-cleanup', { count });
         }
       }
+      // v0.72.0: 自动清理过期回收站记录
+      db.autoCleanTrash();
     } catch (err) {
       log.error('自动过期清理失败:', err);
     }
@@ -1722,6 +1749,8 @@ function startAutoExpiryTimer() {
   if (count > 0) {
     log.info('启动时自动过期清理: 删除了 ' + count + ' 条过期记录');
   }
+  // v0.72.0: 启动时清理过期回收站记录
+  db.autoCleanTrash();
 }
 
 function showClipboardNotification(record) {

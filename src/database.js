@@ -190,6 +190,34 @@ class Database {
       )
     `);
 
+    // v0.72.0: 回收站表
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS trash (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        original_id INTEGER NOT NULL,
+        type TEXT NOT NULL DEFAULT 'text',
+        content TEXT NOT NULL,
+        summary TEXT,
+        source TEXT DEFAULT 'clipboard',
+        source_app TEXT,
+        source_title TEXT,
+        source_url TEXT,
+        favorite INTEGER DEFAULT 0,
+        tags TEXT DEFAULT '[]',
+        ai_summary TEXT,
+        embedding BLOB,
+        language TEXT,
+        locked INTEGER DEFAULT 0,
+        encrypted INTEGER DEFAULT 0,
+        synced INTEGER DEFAULT 0,
+        ocr_text TEXT,
+        merged_from TEXT,
+        is_merged INTEGER DEFAULT 0,
+        sensitive_types TEXT DEFAULT '',
+        deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     this._save();
   }
 
@@ -771,11 +799,101 @@ class Database {
     return this.getRecord(id);
   }
 
-  // 删除记录
-  deleteRecord(id) {
+  // v0.72.0: 软删除记录（移入回收站）
+  deleteRecord(id, permanent = false) {
+    if (permanent) {
+      this.db.run(`DELETE FROM records WHERE id = ?`, [id]);
+      this._save();
+      return true;
+    }
+    // 软删除：复制到回收站
+    const record = this.getRecord(id);
+    if (!record) return false;
+    this.db.run(`
+      INSERT INTO trash (original_id, type, content, summary, source, source_app, source_title, source_url,
+        favorite, tags, ai_summary, embedding, language, locked, encrypted, synced, ocr_text, merged_from, is_merged, sensitive_types)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+      [id, record.type, record.content, record.summary, record.source, record.source_app, record.source_title,
+        record.source_url, record.favorite, record.tags, record.ai_summary, record.embedding,
+        record.language, record.locked, record.encrypted, record.synced, record.ocr_text,
+        record.merged_from, record.is_merged, record.sensitive_types]
+    );
     this.db.run(`DELETE FROM records WHERE id = ?`, [id]);
     this._save();
     return true;
+  }
+
+  // v0.72.0: 永久删除单条回收站记录
+  deleteTrashRecord(id) {
+    this.db.run(`DELETE FROM trash WHERE id = ?`, [id]);
+    this._save();
+    return true;
+  }
+
+  // v0.72.0: 清空回收站
+  emptyTrash() {
+    this.db.run(`DELETE FROM trash`);
+    this._save();
+    return true;
+  }
+
+  // v0.72.0: 恢复回收站记录
+  restoreFromTrash(trashId) {
+    const trashRecord = this.getTrashRecord(trashId);
+    if (!trashRecord) return false;
+    this.db.run(`
+      INSERT INTO records (type, content, summary, source, source_app, source_title, source_url,
+        favorite, tags, ai_summary, embedding, language, locked, encrypted, synced, ocr_text, merged_from, is_merged, sensitive_types)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+      [trashRecord.type, trashRecord.content, trashRecord.summary, trashRecord.source, trashRecord.source_app,
+        trashRecord.source_title, trashRecord.source_url, trashRecord.favorite, trashRecord.tags,
+        trashRecord.ai_summary, trashRecord.embedding, trashRecord.language, trashRecord.locked,
+        trashRecord.encrypted, trashRecord.synced, trashRecord.ocr_text, trashRecord.merged_from,
+        trashRecord.is_merged, trashRecord.sensitive_types]
+    );
+    this.db.run(`DELETE FROM trash WHERE id = ?`, [trashId]);
+    this._save();
+    return true;
+  }
+
+  // v0.72.0: 获取回收站单条记录
+  getTrashRecord(id) {
+    const result = this.db.exec(`SELECT * FROM trash WHERE id = ?`, [id]);
+    if (!result.length || !result[0].values.length) return null;
+    const cols = result[0].columns;
+    const row = result[0].values[0];
+    const record = {};
+    cols.forEach((c, i) => { record[c] = row[i]; });
+    return record;
+  }
+
+  // v0.72.0: 获取回收站列表
+  getTrashRecords(limit = 50, offset = 0) {
+    const result = this.db.exec(
+      `SELECT * FROM trash ORDER BY deleted_at DESC LIMIT ? OFFSET ?`,
+      [limit, offset]
+    );
+    if (!result.length) return [];
+    const cols = result[0].columns;
+    return result[0].values.map(row => {
+      const record = {};
+      cols.forEach((c, i) => { record[c] = row[i]; });
+      return record;
+    });
+  }
+
+  // v0.72.0: 获取回收站统计
+  getTrashStats() {
+    const total = this.db.exec(`SELECT COUNT(*) FROM trash`)[0]?.values[0][0] || 0;
+    return { total };
+  }
+
+  // v0.72.0: 自动清理过期回收站记录（30天）
+  autoCleanTrash() {
+    this.db.run(`DELETE FROM trash WHERE datetime(deleted_at) < datetime('now', '-30 days')`);
+    this._save();
   }
 
   // 清空历史

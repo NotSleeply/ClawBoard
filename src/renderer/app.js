@@ -470,6 +470,26 @@
       await loadPinnedList();
     });
 
+    // v0.72.0: 回收站面板
+    $('#btnTrash').addEventListener('click', async () => {
+      $('#trashOverlay').classList.add('show');
+      await loadTrashPanel();
+    });
+    $('#btnCloseTrash').addEventListener('click', () => {
+      $('#trashOverlay').classList.remove('show');
+    });
+    $('#trashOverlay').addEventListener('click', (e) => {
+      if (e.target === $('#trashOverlay')) {
+        $('#trashOverlay').classList.remove('show');
+      }
+    });
+    $('#btnEmptyTrash').addEventListener('click', async () => {
+      if (!confirm('确定要清空回收站吗？此操作不可撤销！')) return;
+      await window.ClawBoard.emptyTrash();
+      showToast('🗑️ 回收站已清空', 'success');
+      await loadTrashPanel();
+    });
+
     // 云端同步面板 v0.28.0
     $('#btnCloudSync').addEventListener('click', async () => {
       $('#cloudSyncOverlay').classList.add('show');
@@ -1438,6 +1458,84 @@
       await loadPinnedList();
       await loadPinnedStats();
       showToast('已批量删除');
+    }
+  });
+
+  // v0.72.0: 回收站面板
+  async function loadTrashPanel() {
+    const trashLoading = document.getElementById('trashLoading');
+    const trashEmpty = document.getElementById('trashEmpty');
+    const trashList = document.getElementById('trashList');
+    const trashCount = document.getElementById('trashCount');
+
+    if (trashLoading) trashLoading.style.display = 'block';
+    if (trashEmpty) trashEmpty.style.display = 'none';
+
+    try {
+      const stats = await window.ClawBoard.getTrashStats();
+      if (trashCount) trashCount.textContent = stats.total || 0;
+
+      const records = await window.ClawBoard.getTrashRecords(100, 0);
+      if (trashLoading) trashLoading.style.display = 'none';
+
+      if (!records || records.length === 0) {
+        if (trashEmpty) trashEmpty.style.display = 'block';
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      records.forEach(r => {
+        const item = document.createElement('div');
+        item.className = 'trash-item';
+        const preview = (r.content || '').substring(0, 120);
+        const timeStr = r.deleted_at ? new Date(r.deleted_at).toLocaleString('zh-CN') : '';
+        item.innerHTML = `
+          <div class="trash-item-content">
+            <div class="trash-item-preview">${escapeHtml(preview)}${(r.content || '').length > 120 ? '...' : ''}</div>
+            <div class="trash-item-meta">
+              <span class="trash-item-type">${escapeHtml(r.type || 'text')}</span>
+              <span class="trash-item-time">删除于 ${escapeHtml(timeStr)}</span>
+            </div>
+          </div>
+          <div class="trash-item-actions">
+            <button class="batch-btn" data-action="restore" data-id="${r.id}" title="恢复">♻️ 恢复</button>
+            <button class="batch-btn danger" data-action="permanent-delete" data-id="${r.id}" title="永久删除">🗑️</button>
+          </div>
+        `;
+        fragment.appendChild(item);
+      });
+
+      // 移除旧的 trash items（保留 loading 和 empty）
+ trashList.querySelectorAll('.trash-item').forEach(el => el.remove());
+      trashList.appendChild(fragment);
+    } catch (e) {
+      console.error('Load trash panel failed:', e);
+      if (trashLoading) trashLoading.style.display = 'none';
+    }
+  }
+
+  // v0.72.0: 回收站事件委托
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const id = parseInt(btn.dataset.id);
+
+    if (action === 'restore') {
+      const ok = await window.ClawBoard.restoreFromTrash(id);
+      if (ok) {
+        showToast('♻️ 已恢复', 'success');
+        await loadTrashPanel();
+        await loadRecords();
+        await loadStats();
+      } else {
+        showToast('恢复失败', 'error');
+      }
+    } else if (action === 'permanent-delete') {
+      if (!confirm('确定永久删除此记录？此操作不可撤销！')) return;
+      await window.ClawBoard.deleteTrashRecord(id);
+      showToast('已永久删除', 'success');
+      await loadTrashPanel();
     }
   });
 

@@ -43,6 +43,7 @@
       </span>
       <button class="icon-btn" id="btnSettings" title="设置">⚙️</button>
       <button class="icon-btn" id="btnPinnedManager" title="置顶管理">📌</button>
+      <button class="icon-btn" id="btnTrash" title="回收站">🗑️</button>
       <button class="icon-btn" id="btnCloudSync" title="云端同步">☁️</button>
     </div>
   </header>
@@ -324,6 +325,34 @@
         <div class="pinned-list" id="pinnedList">
           <div class="loading" id="pinnedLoading">
             <div class="spinner"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 回收站面板 v0.72.0 -->
+  <div class="settings-overlay" id="trashOverlay">
+    <div class="settings-panel" style="width:600px">
+      <div class="settings-header">
+        <h2>🗑️ 回收站</h2>
+        <button class="detail-close" id="btnCloseTrash">×</button>
+      </div>
+      <div class="settings-body">
+        <div class="trash-stats" id="trashStats">
+          <span>回收站中有 <strong id="trashCount">0</strong> 条记录</span>
+          <span class="trash-hint">超过 30 天将自动清理</span>
+        </div>
+        <div class="trash-toolbar">
+          <button class="batch-btn danger" id="btnEmptyTrash" title="清空回收站">🗑️ 清空回收站</button>
+        </div>
+        <div class="trash-list" id="trashList">
+          <div class="loading" id="trashLoading">
+            <div class="spinner"></div>
+          </div>
+          <div class="empty-state" id="trashEmpty" style="display:none">
+            <div class="empty-icon">🗑️</div>
+            <p>回收站为空</p>
           </div>
         </div>
       </div>

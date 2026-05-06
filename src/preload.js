@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   toggleFavorite: (id) => ipcRenderer.invoke('toggle-favorite', id),
   updateNote: (id, note) => ipcRenderer.invoke('update-note', { id, note }),
   updateItemContent: (id, content) => ipcRenderer.invoke('update-item-content', { id, content }),
-  deleteRecord: (id) => ipcRenderer.invoke('delete-record', id),
+  deleteRecord: (id, permanent) => ipcRenderer.invoke('delete-record', id, permanent),
   clearHistory: () => ipcRenderer.invoke('clear-history'),
   copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
   getStats: () => ipcRenderer.invoke('get-stats'),
@@ -216,6 +216,13 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   // v0.70.0: Storage compression
   getStorageStats: () => ipcRenderer.invoke('get-storage-stats'),
   compressAll: () => ipcRenderer.invoke('compress-all'),
+
+  // v0.72.0: 回收站
+  getTrashRecords: (limit, offset) => ipcRenderer.invoke('get-trash-records', limit, offset),
+  getTrashStats: () => ipcRenderer.invoke('get-trash-stats'),
+  restoreFromTrash: (trashId) => ipcRenderer.invoke('restore-from-trash', trashId),
+  deleteTrashRecord: (trashId) => ipcRenderer.invoke('delete-trash-record', trashId),
+  emptyTrash: () => ipcRenderer.invoke('empty-trash'),
 
   // 移除监听
   removeAllListeners: (channel) => {
