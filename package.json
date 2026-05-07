@@ -2,7 +2,7 @@
   "name": "clawboard",
   "version": "0.73.0",
   "description": "AI驱动的本地剪贴板管理器 - 智能记录、语义搜索、永久收藏",
-  "main": "src/main.js",
+  "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",

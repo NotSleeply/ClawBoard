@@ -569,6 +569,17 @@ ClawBoard/
 
 ---
 
+## 📚 文档
+
+- [项目结构说明](./docs/PROJECT_STRUCTURE.md) - 完整的目录结构和文件说明
+- [架构设计文档](./docs/ARCHITECTURE.md) - 系统架构和模块设计
+- [迁移指南](./docs/MIGRATION_GUIDE.md) - 代码重构后的迁移说明
+- [跨平台开发](./docs/CROSSPLATFORM.md) - 跨平台适配指南
+- [贡献指南](./CONTRIBUTING.md) - 如何参与项目开发
+- [更新日志](./CHANGELOG.md) - 版本更新记录
+
+---
+
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
