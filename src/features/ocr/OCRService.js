@@ -73,21 +73,34 @@ class OCRService {
     }
   }
 
-  _resolveLocalLangPath() {
+  _getLocalLangConfig() {
     if (!this.langPath) return null;
     const langCodes = this.language.split("+").filter(Boolean);
     if (langCodes.length === 0) return null;
-    const missing = langCodes.some(
-      (code) => !fs.existsSync(path.join(this.langPath, `${code}.traineddata`)),
+
+    const hasPlain = langCodes.every((code) =>
+      fs.existsSync(path.join(this.langPath, `${code}.traineddata`)),
     );
-    return missing ? null : this.langPath;
+    if (hasPlain) {
+      return { langPath: this.langPath, gzip: false };
+    }
+
+    const hasGzip = langCodes.every((code) =>
+      fs.existsSync(path.join(this.langPath, `${code}.traineddata.gz`)),
+    );
+    if (hasGzip) {
+      return { langPath: this.langPath, gzip: true };
+    }
+
+    return null;
   }
 
   _getWorkerOptions() {
     const options = {};
-    const resolvedLangPath = this._resolveLocalLangPath();
-    if (resolvedLangPath) {
-      options.langPath = resolvedLangPath;
+    const localConfig = this._getLocalLangConfig();
+    if (localConfig) {
+      options.langPath = localConfig.langPath;
+      options.gzip = localConfig.gzip;
     }
     if (this.cachePath) {
       options.cachePath = this.cachePath;
