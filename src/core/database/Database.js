@@ -498,8 +498,10 @@ class Database {
     return this._rowToRecord(result[0].columns, result[0].values[0]);
   }
 
-  // 获取记录列表
-  getRecords({ type, limit = 50, offset = 0, search, favorite, sourceApp } = {}) {
+  // 获取记录列表 — 合并版 (fix #159)
+  // 原先 getRecords 被定义了 3 次，JS 后定义覆盖前定义导致功能丢失
+  // 现在合并为一个完整方法，支持所有参数
+  getRecords({ type, limit = 50, offset = 0, search, favorite, sourceApp, tag, groupId } = {}) {
     let sql = 'SELECT * FROM records WHERE 1=1';
     const params = [];
 
@@ -525,7 +527,23 @@ class Database {
       params.push(sourceApp);
     }
 
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    // 按标签筛选
+    if (tag) {
+      sql += ' AND tags LIKE ?';
+      params.push(`%"${tag}"%`);
+    }
+
+    // 按分组筛选
+    if (groupId !== undefined) {
+      if (groupId === null) {
+        sql += ' AND group_id IS NULL';
+      } else {
+        sql += ' AND group_id = ?';
+        params.push(groupId);
+      }
+    }
+
+    sql += ' ORDER BY sort_order ASC, created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
     const result = this.db.exec(sql, params);
@@ -637,44 +655,7 @@ class Database {
     return true;
   }
 
-  // 获取带标签的记录
-  getRecords({ type, limit = 50, offset = 0, search, favorite, sourceApp, tag } = {}) {
-    let sql = 'SELECT * FROM records WHERE 1=1';
-    const params = [];
 
-    if (type) {
-      sql += ' AND type = ?';
-      params.push(type);
-    }
-
-    if (favorite) {
-      sql += ' AND favorite = 1';
-    }
-
-    if (search) {
-      sql += ' AND (content LIKE ? OR summary LIKE ? OR ocr_text LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-      sql += ' AND encrypted = 0';
-    }
-
-    if (sourceApp) {
-      sql += ' AND source_app = ?';
-      params.push(sourceApp);
-    }
-
-    // 按标签筛选
-    if (tag) {
-      sql += ' AND tags LIKE ?';
-      params.push(`%"${tag}"%`);
-    }
-
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
-
-    const result = this.db.exec(sql, params);
-    if (result.length === 0) return [];
-    return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
-  }
 
   // 删除标签（从所有记录中移除）
   deleteTag(tag) {
@@ -1183,52 +1164,7 @@ class Database {
     return true;
   }
 
-  // 获取分组中的记录
-  getRecords({ type, limit = 50, offset = 0, search, favorite, sourceApp, tag, groupId } = {}) {
-    let sql = 'SELECT * FROM records WHERE 1=1';
-    const params = [];
 
-    if (type) {
-      sql += ' AND type = ?';
-      params.push(type);
-    }
-
-    if (favorite) {
-      sql += ' AND favorite = 1';
-    }
-
-    if (search) {
-      sql += ' AND (content LIKE ? OR summary LIKE ? OR ocr_text LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-      sql += ' AND encrypted = 0';
-    }
-
-    if (sourceApp) {
-      sql += ' AND source_app = ?';
-      params.push(sourceApp);
-    }
-
-    if (tag) {
-      sql += ' AND tags LIKE ?';
-      params.push(`%"${tag}"%`);
-    }
-
-    if (groupId !== undefined) {
-      if (groupId === null) {
-        sql += ' AND group_id IS NULL';
-      } else {
-        sql += ' AND group_id = ?';
-        params.push(groupId);
-      }
-    }
-
-    sql += ' ORDER BY sort_order ASC, created_at DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
-
-    const result = this.db.exec(sql, params);
-    if (result.length === 0) return [];
-    return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
-  }
 
   // 更新记录排序
   updateRecordSortOrder(recordId, newOrder, newGroupId = null) {
