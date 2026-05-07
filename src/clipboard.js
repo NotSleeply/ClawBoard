@@ -324,11 +324,26 @@ class ClipboardWatcher {
   }
 
   _isFilePath(text) {
-    // Windows 文件路径检测
+    const trimmed = text.trim();
+
+    // Windows 路径
     const windowsPath = /^[a-zA-Z]:\\[\s\S]*$/;
     // UNC 路径
     const uncPath = /^\\\\[\s\S]+$/;
-    return windowsPath.test(text.trim()) || uncPath.test(text.trim());
+
+    // Unix 路径 (macOS/Linux) - v0.74.0: 跨平台适配
+    // 绝对路径：以 / 开头，包含常见根目录
+    const unixAbsolutePath = /^\/(Users|home|tmp|var|etc|opt|usr|root|srv|mnt|media)(\/[\w.\-+]+)+(\.\w+)?$/;
+    // Home 目录缩写：~ 开头
+    const homePath = /^~\/[\w.\-+]+(\/[\w.\-+]+)*(\.\w+)?$/;
+    // 其他绝对路径（以 / 开头且包含多个层级）
+    const otherAbsolutePath = /^\/[\w.\-+]+\/[\w./\-+]+(\.\w+)?$/;
+
+    return windowsPath.test(trimmed) ||
+           uncPath.test(trimmed) ||
+           unixAbsolutePath.test(trimmed) ||
+           homePath.test(trimmed) ||
+           otherAbsolutePath.test(trimmed);
   }
 
   _isCode(text) {

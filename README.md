@@ -4,7 +4,7 @@
 
 [![GitHub stars](https://img.shields.io/github/stars/NotSleeply/ClawBoard)](https://github.com/NotSleeply/ClawBoard)
 [![License](https://img.shields.io/github/license/NotSleeply/ClawBoard)](./LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-blue)](https://github.com/NotSleeply/ClawBoard)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)](https://github.com/NotSleeply/ClawBoard)
 
 ---
 
@@ -21,15 +21,73 @@
 
 ---
 
+## 🌍 多平台适配 (v0.74.0)
+
+### 已完成的跨平台优化
+
+- ✅ **文件路径识别** - 自动检测 Windows (`C:\`), macOS (`/Users/...`), Linux (`/home/...`) 路径格式
+- ✅ **快速粘贴模拟** - Windows (PowerShell) / macOS (AppleScript) / Linux (xdotool)
+- ✅ **终端打开** - Windows Terminal / macOS Terminal / gnome-terminal
+- ✅ **通知声音** - Windows Beep / macOS afplay / Linux canberra-gtk-play
+- ✅ **默认快捷键** - macOS 使用 Option 键，Windows/Linux 使用 Alt 键
+- ✅ **打包配置** - 支持 NSIS/Portable (.exe)、DMG/ZIP、AppImage/.deb
+
+### 已知限制
+
+#### macOS
+- 首次运行需要手动授权：
+  - 系统偏好设置 > 安全性与隐私 > 完全磁盘访问权限
+  - 系统偏好设置 > 安全性与隐私 > 辅助功能（全局快捷键）
+- 循环粘贴模式（Alt+V）可能需要在「辅助功能」中授权
+- 某些企业 MDM 策略可能限制应用运行
+
+#### Linux
+- 快速粘贴（Alt+V）需要安装 `xdotool`: `sudo apt install xdotool`
+- 通知系统依赖桌面环境（GNOME/KDE/XFCE）
+- Wayland 下全局快捷键可能受限（建议使用 X11）
+- 文件路径识别仅支持常见目录（/home, /tmp, /var, /etc, /opt）
+
+#### 跨平台通用
+- AI 功能需要本地 Ollama 服务（所有平台相同）
+- OCR 识别使用 Tesseract.js（所有平台相同）
+- 数据库格式兼容（SQLite，所有平台相同）
+
+### 测试矩阵
+
+| 功能 | Windows | macOS | Linux |
+|------|:-------:|:-----:|:-----:|
+| 剪贴板监控 | ✅ | ⚠️ 需授权 | ✅ |
+| 全局快捷键 | ✅ | ⚠️ 需授权 | ✅ |
+| 系统托盘 | ✅ | ✅ | ✅ |
+| 通知显示 | ✅ | ✅ | ⚠️ 需依赖 |
+| 文件路径识别 | ✅ | ✅ | ✅ |
+| 终端打开 | ✅ | ✅ | ✅ |
+| 快速粘贴 | ✅ | ✅ | ⚠️ 需xdotool |
+| AI 摘要 | ✅ | ✅ | ✅ |
+| OCR 识别 | ✅ | ✅ | ✅ |
+| 加密存储 | ✅ | ✅ | ✅ |
+
+---
+
 ## 🚀 快速开始
 
 ### 环境要求
 
-- **Windows** 10/11
+**支持的平台：**
+
+| 平台 | 状态 | 最低版本 | 备注 |
+|------|------|---------|------|
+| Windows | ✅ 官方支持 | 10/11 | 主力开发平台 |
+| macOS | ⚠️ 实验性支持 | 12 (Monterey) | Apple Silicon + Intel |
+| Linux | ⚠️ 实验性支持 | Ubuntu 20.04+ | 需要安装依赖 |
+
+**通用依赖：**
 - [Node.js](https://nodejs.org/) 18+
 - [Ollama](https://ollama.com/)（可选，用于 AI 摘要功能）
 
-### 安装
+### 安装方式
+
+#### 方式一：从源码运行（推荐开发测试）
 
 ```bash
 # 克隆仓库
@@ -39,8 +97,70 @@ cd ClawBoard
 # 安装依赖
 npm install
 
-# 运行
-npm start
+# 运行（开发模式）
+npm run dev
+```
+
+#### 方式二：Windows 安装包
+
+```bash
+# 构建 Windows 安装包（NSIS + Portable）
+npm run build:win
+
+# 输出文件在 dist/ 目录：
+# - ClawBoard-x.x.x-setup.exe (安装版)
+# - ClawBoard-x.x.x-portable.exe (便携版)
+```
+
+#### 方式三：macOS 安装包
+
+```bash
+# 构建 macOS .dmg 和 .zip 包
+npm run build:mac
+
+# 输出文件：
+# - ClawBoard-x.x.x.dmg (DMG 安装包)
+# - ClawBoard-x.x.x-mac.zip (ZIP 压缩包)
+```
+
+> **macOS 首次运行提示：**
+> - 需要在「系统偏好设置 > 安全性与隐私」中允许应用运行
+> - 需要授予「辅助功能」权限（用于全局快捷键）
+> - 可能需要「完全磁盘访问权限」（用于剪贴板监控）
+
+#### 方式四：Linux 安装包
+
+```bash
+# 构建 Linux AppImage 和 .deb 包
+npm run build:linux
+
+# 输出文件：
+# - ClawBoard-x.x.x-x64.AppImage (AppImage)
+# - clawboard_x.x.x_amd64.deb (Debian/Ubuntu 包)
+
+# Debian/Ubuntu 安装 .deb 包
+sudo dpkg -i clawboard_x.x.x_amd64.deb
+sudo apt-get install -f  # 安装依赖
+
+# 运行 AppImage
+chmod +x ClawBoard-x.x.x-x64.AppImage
+./ClawBoard-x.x.x-x64.AppImage
+```
+
+> **Linux 依赖：**
+> ```bash
+> # 快速粘贴功能需要 xdotool
+> sudo apt install xdotool
+>
+> # 系统通知需要 libnotify
+> sudo apt install libnotify4 canberra-gtk-module
+> ```
+
+### 构建所有平台（CI/CD 使用）
+
+```bash
+# 同时构建 Windows、macOS、Linux
+npm run build:all
 ```
 
 ### Ollama 配置（可选）

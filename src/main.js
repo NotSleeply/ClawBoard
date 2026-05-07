@@ -43,11 +43,11 @@ let insightsEngine = null; // v0.69.0 智能洞察实例
 let ruleEngine = null; // v0.73.0 规则引擎实例
 let monitoringPaused = false; // v0.66.0: 监控控制状态
 
-// v0.67.0: 全局快捷键自定义配置
+// v0.67.0: 全局快捷键自定义配置（跨平台适配 v0.74.0）
 let shortcutsConfig = {
-  cyclePaste: 'Alt+V',
-  quickPaste: 'Alt+Q',
-  toggleMonitoring: 'Alt+Ctrl+P'
+  cyclePaste: Platform.getDefaultCyclePasteShortcut(),
+  quickPaste: Platform.getDefaultQuickPasteShortcut(),
+  toggleMonitoring: Platform.isMac ? 'Option+Ctrl+P' : 'Alt+Ctrl+P'
 };
 
 function loadShortcutsConfig() {
@@ -2985,10 +2985,26 @@ ipcMain.on('quick-paste-select', (event, item) => {
   const record = db.getRecord(item.id);
   if (record && record.content) {
     clipboard.writeText(record.content);
-    // Simulate Ctrl+V paste
+
+    // 模拟粘贴操作（跨平台适配 v0.74.0）
     setTimeout(() => {
       const { exec } = require('child_process');
-      exec('powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(\"^v\")"');
+      const pasteCmd = Platform.getQuickPasteCommand();
+
+      if (pasteCmd) {
+        // Windows: 使用 PowerShell SendKeys
+        exec(pasteCmd, { windowsHide: true });
+      } else if (process.platform === 'darwin') {
+        // macOS: 使用 AppleScript 模拟 Cmd+V
+        exec(`osascript -e 'tell application "System Events" to keystroke "v" using command down'`, (err) => {
+          if (err) log.warn('macOS 快速粘贴失败:', err.message);
+        });
+      } else if (process.platform === 'linux') {
+        // Linux: 使用 xdotool 模拟 Ctrl+V
+        exec('xdotool key ctrl+v', (err) => {
+          if (err) log.warn('Linux 快速粘贴失败: xdotool 不可用，请安装: sudo apt install xdotool');
+        });
+      }
     }, 100);
   }
 });
