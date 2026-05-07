@@ -2440,7 +2440,8 @@ ipcMain.handle('batch-auto-encrypt', async () => {
     log.error('batch-auto-encrypt error:', err);
     return { success: false, message: err.message };
   }
-});\n
+});
+
 // ==================== v0.31.0: 自动过期清理 ====================
 
 ipcMain.handle('get-auto-expiry-settings', async () => {
