@@ -218,6 +218,24 @@ class Database {
       )
     `);
 
+    // v0.73.0: 规则引擎表
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        enabled INTEGER DEFAULT 1,
+        priority INTEGER DEFAULT 50,
+        condition TEXT NOT NULL,
+        action TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_executed_at DATETIME,
+        execution_count INTEGER DEFAULT 0
+      )
+    `);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_rules_priority ON rules(priority DESC)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_rules_enabled ON rules(enabled)`);
+
     this._save();
   }
 

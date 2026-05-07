@@ -25,6 +25,7 @@ const HotkeyTemplates = require('./hotkey-templates'); // v0.32.0 快捷键模�
 const TextTransform = require('./text-transform'); // v0.33.0 格式转换
 const AutoCategorize = require('./auto-categorize'); // v0.65.0 自动分类
 const Insights = require('./insights'); // v0.69.0 智能洞察
+const RuleEngine = require('./rule-engine'); // v0.73.0 规则引擎
 
 let mainWindow = null;
 let cycleWindow = null; // v0.39.0: Cycle mode window
@@ -39,6 +40,7 @@ let autoExpiryTimer = null; // v0.31.0 忽略规则实例
 let hotkeyTemplates = null; // v0.32.0 快捷键模板实例
 let autoCat = null; // v0.65.0 自动分类实例
 let insightsEngine = null; // v0.69.0 智能洞察实例
+let ruleEngine = null; // v0.73.0 规则引擎实例
 let monitoringPaused = false; // v0.66.0: 监控控制状态
 
 // v0.67.0: 全局快捷键自定义配置
@@ -616,6 +618,113 @@ function setupIPC() {
     } catch (e) {
       log.error('get-insights error:', e);
       return [];
+    }
+  });
+
+  // ==================== v0.73.0: 规则引擎 ====================
+  ipcMain.handle('get-rules', async () => {
+    try {
+      if (!ruleEngine) ruleEngine = new RuleEngine(db);
+      return ruleEngine.getRules();
+    } catch (e) {
+      log.error('get-rules error:', e);
+      return [];
+    }
+  });
+
+  ipcMain.handle('add-rule', async (_, rule) => {
+    try {
+      if (!ruleEngine) ruleEngine = new RuleEngine(db);
+      return ruleEngine.addRule(rule);
+    } catch (e) {
+      log.error('add-rule error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('update-rule', async (_, { id, ...updates }) => {
+    try {
+      if (!ruleEngine) ruleEngine = new RuleEngine(db);
+      return ruleEngine.updateRule(id, updates);
+    } catch (e) {
+      log.error('update-rule error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('delete-rule', async (_, id) => {
+    try {
+      if (!ruleEngine) ruleEngine = new RuleEngine(db);
+      return ruleEngine.deleteRule(id);
+    } catch (e) {
+      log.error('delete-rule error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('reset-rules', async () => {
+    try {
+      if (!ruleEngine) ruleEngine = new RuleEngine(db);
+      return ruleEngine.resetToDefaults();
+    } catch (e) {
+      log.error('reset-rules error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('get-rule-templates', async () => {
+    try {
+      if (!ruleEngine) ruleEngine = new RuleEngine(db);
+      return ruleEngine.getBuiltInTemplates();
+    } catch (e) {
+      log.error('get-rule-templates error:', e);
+      return [];
+    }
+  });
+
+  ipcMain.handle('export-rules', async () => {
+    try {
+      if (!ruleEngine) ruleEngine = new RuleEngine(db);
+      return ruleEngine.exportRules();
+    } catch (e) {
+      log.error('export-rules error:', e);
+      return '[]';
+    }
+  });
+
+  ipcMain.handle('import-rules', async (_, jsonStr) => {
+    try {
+      if (!ruleEngine) ruleEngine = new RuleEngine(db);
+      return ruleEngine.importRules(jsonStr);
+    } catch (e) {
+      log.error('import-rules error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('get-rule-execution-log', async (_, limit) => {
+    try {
+      if (!ruleEngine) ruleEngine = new RuleEngine(db);
+      return ruleEngine.getExecutionLog(limit || 20);
+    } catch (e) {
+      log.error('get-rule-execution-log error:', e);
+      return [];
+    }
+  });
+
+  ipcMain.handle('test-rule', async (_, { content, type, sourceApp }) => {
+    try {
+      if (!ruleEngine) ruleEngine = new RuleEngine(db);
+      const result = ruleEngine.process({
+        content,
+        type: type || 'text',
+        sourceApp: sourceApp || '',
+        tags: '[]'
+      });
+      return { success: true, result };
+    } catch (e) {
+      log.error('test-rule error:', e);
+      return { success: false, error: e.message };
     }
   });
 
@@ -1523,6 +1632,10 @@ app.whenReady().then(async () => {
   // v0.69.0: 初始化智能洞察引擎
   insightsEngine = new Insights(db);
   log.info('[Insights] 智能洞察引擎已初始化');
+
+  // v0.73.0: 初始化规则引擎
+  ruleEngine = new RuleEngine(db);
+  log.info('[RuleEngine] 规则引擎已初始化');
 
   // 创建窗口和托盘
   createWindow();
