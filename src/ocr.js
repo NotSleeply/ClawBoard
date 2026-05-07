@@ -36,18 +36,18 @@ class OCRService {
     if (!Array.isArray(langCodes) || langCodes.length === 0) {
       return { success: false, error: '无效的语言代码' }; // 返回错误而非抛出
     }
-    
+
     // 终止旧的 worker
     if (this.worker) {
       await this.worker.terminate();
       this.worker = null;
       this.isReady = false;
     }
-    
+
     this.currentLanguages = langCodes;
     const langStr = langCodes.join('+');
     this.language = langStr;
-    
+
     try {
       await this.init();
       return { success: true, language: langStr }; // 返回成功对象
@@ -65,7 +65,7 @@ class OCRService {
   // 初始化 OCR Worker
   async init() {
     if (this.isReady) return true;
-    
+
     try {
       this.worker = await createWorker(this.language);
       this.isReady = true;
@@ -89,7 +89,7 @@ class OCRService {
     try {
       const result = await this.worker.recognize(imagePathOrBuffer);
       const text = result.data.text.trim();
-      
+
       return {
         success: true,
         text: text,

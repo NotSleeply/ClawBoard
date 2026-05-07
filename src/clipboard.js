@@ -77,7 +77,7 @@ class ClipboardWatcher {
       const ignoreResult = global.ignoreRules.shouldIgnore(trimmed, {
         sourceApp: this.currentSource.app
       });
-      
+
       // 自动加密：检测到敏感信息但需要加密而非忽略
       if (ignoreResult.autoEncrypt) {
         // 需要加密密钥才能自动加密
@@ -292,7 +292,7 @@ class ClipboardWatcher {
             // 更新记录的 OCR 文本
             this.db.updateOCRText(record.id, ocrResult.text);
             this.log.info(`图片 OCR 完成: ${ocrResult.text.substring(0, 50)}...`);
-            
+
             // 通知渲染进程更新
             if (global.mainWindow && !global.mainWindow.isDestroyed()) {
               global.mainWindow.webContents.send('ocr-complete', { id: record.id, text: ocrResult.text });
@@ -340,10 +340,10 @@ class ClipboardWatcher {
     const otherAbsolutePath = /^\/[\w.\-+]+\/[\w./\-+]+(\.\w+)?$/;
 
     return windowsPath.test(trimmed) ||
-           uncPath.test(trimmed) ||
-           unixAbsolutePath.test(trimmed) ||
-           homePath.test(trimmed) ||
-           otherAbsolutePath.test(trimmed);
+      uncPath.test(trimmed) ||
+      unixAbsolutePath.test(trimmed) ||
+      homePath.test(trimmed) ||
+      otherAbsolutePath.test(trimmed);
   }
 
   _isCode(text) {
@@ -362,10 +362,10 @@ class ClipboardWatcher {
 
   _detectLanguage(text) {
     const trimmed = text.trim();
-    
+
     // JavaScript/TypeScript
     if (/^(const|let|var|function|class|import|export|async|await)\s/.test(trimmed) ||
-        /=>\s*{/.test(trimmed) || /\(.*\)\s*=>/.test(trimmed)) {
+      /=>\s*{/.test(trimmed) || /\(.*\)\s*=>/.test(trimmed)) {
       return 'javascript';
     }
     // Python
@@ -378,7 +378,7 @@ class ClipboardWatcher {
     }
     // CSS
     if (/^(\.|#)[\w-]+\s*{/.test(trimmed) ||
-        /(margin|padding|color|background):\s*/.test(trimmed)) {
+      /(margin|padding|color|background):\s*/.test(trimmed)) {
       return 'css';
     }
     // Java
@@ -406,10 +406,10 @@ class ClipboardWatcher {
       return 'json';
     }
     // Shell/Bash
-    if (/^#!/ .test(trimmed) || /^(echo|cd|ls|grep|awk|sed)\s/.test(trimmed)) {
+    if (/^#!/.test(trimmed) || /^(echo|cd|ls|grep|awk|sed)\s/.test(trimmed)) {
       return 'bash';
     }
-    
+
     return 'javascript';
   }
 

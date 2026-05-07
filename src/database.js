@@ -287,10 +287,10 @@ class Database {
   // 加密已有记录
   encryptRecord(id) {
     if (!this.encryptionKey) return false;
-    
+
     const record = this.getRecord(id);
     if (!record || record.encrypted) return false;
-    
+
     const encryptedContent = this._encrypt(record.content, this.encryptionKey);
     this.db.run(
       `UPDATE records SET content = ?, encrypted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
@@ -303,10 +303,10 @@ class Database {
   // 解密记录（临时解密查看）
   decryptRecord(id) {
     if (!this.encryptionKey) return null;
-    
+
     const record = this.getRecord(id);
     if (!record || !record.encrypted) return record;
-    
+
     const decryptedContent = this._decrypt(record.content, this.encryptionKey);
     return { ...record, content: decryptedContent, decrypted: true };
   }
@@ -314,10 +314,10 @@ class Database {
   // 取消加密
   removeEncryption(id) {
     if (!this.encryptionKey) return false;
-    
+
     const record = this.getRecord(id);
     if (!record || !record.encrypted) return false;
-    
+
     const decryptedContent = this._decrypt(record.content, this.encryptionKey);
     this.db.run(
       `UPDATE records SET content = ?, encrypted = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
@@ -585,7 +585,7 @@ class Database {
           tags.forEach(tag => {
             tagCount[tag] = (tagCount[tag] || 0) + 1;
           });
-        } catch (e) {}
+        } catch (e) { }
       });
     }
 
@@ -602,7 +602,7 @@ class Database {
     let tags = [];
     try {
       tags = JSON.parse(record.tags || '[]');
-    } catch (e) {}
+    } catch (e) { }
 
     tag = tag.trim();
     if (!tag || tags.includes(tag)) return true; // 标签已存在
@@ -621,7 +621,7 @@ class Database {
     let tags = [];
     try {
       tags = JSON.parse(record.tags || '[]');
-    } catch (e) {}
+    } catch (e) { }
 
     const index = tags.indexOf(tag);
     if (index === -1) return true;
@@ -686,7 +686,7 @@ class Database {
           this.db.run(`UPDATE records SET tags = ? WHERE id = ?`, [JSON.stringify(tags), id]);
           count++;
         }
-      } catch (e) {}
+      } catch (e) { }
     });
 
     if (count > 0) this._save();
@@ -696,19 +696,19 @@ class Database {
   // 搜索（支持关键词 + 语义搜索）
   async search(query, limit = 50, useSemantic = true) {
     if (!query) return [];
-    
+
     // 先尝试关键词搜索（包含 ocr_text 和 note）
     const keywordResult = this.db.exec(
       `SELECT * FROM records WHERE content LIKE ? OR summary LIKE ? OR ocr_text LIKE ? OR note LIKE ? ORDER BY created_at DESC LIMIT ?`,
       [`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`, limit]
     );
-    
+
     // 如果不启用语义搜索或没有 embedding 列，直接返回关键词结果
     if (!useSemantic) {
       if (keywordResult.length === 0) return [];
       return keywordResult[0].values.map(row => this._rowToRecord(keywordResult[0].columns, row));
     }
-    
+
     // 语义搜索需要外部传入 embedding 和 AI 模块
     // 这里先返回关键词结果，语义搜索由外部处理
     if (keywordResult.length === 0) return [];
@@ -718,16 +718,16 @@ class Database {
   // 语义搜索（使用嵌入向量）
   async semanticSearch(query, embeddingFunc, limit = 10) {
     if (!query || !embeddingFunc) return [];
-    
+
     try {
       // 生成查询的 embedding
       const queryEmbedding = await embeddingFunc(query);
       if (!queryEmbedding) return [];
-      
+
       // 获取所有有 embedding 的记录（v0.40.0: 含 ocr_text）
       const result = this.db.exec(`SELECT id, content, summary, ocr_text, embedding FROM records WHERE embedding IS NOT NULL`);
       if (result.length === 0 || result[0].values.length === 0) return [];
-      
+
       // 计算余弦相似度并排序
       const records = result[0].values.map(row => {
         const id = row[0];
@@ -736,16 +736,16 @@ class Database {
         const ocrText = row[3];
         // embedding 是 base64 编码的 Blob
         const embedding = row[4] ? this._decodeEmbedding(row[4]) : null;
-        
+
         if (!embedding) return null;
-        
+
         const similarity = this._cosineSimilarity(queryEmbedding, embedding);
         return { id, content, summary, ocrText, similarity };
       }).filter(r => r !== null);
-      
+
       // 按相似度排序
       records.sort((a, b) => b.similarity - a.similarity);
-      
+
       // 返回 top N
       return records.slice(0, limit).map(r => this.getRecord(r.id)).filter(r => r !== null);
     } catch (err) {
@@ -757,34 +757,34 @@ class Database {
   // 解码 embedding（支持 Array 和 Blob）
   _decodeEmbedding(embeddingData) {
     if (!embeddingData) return null;
-    
+
     // 如果是 Array（sql.js 返回）
     if (Array.isArray(embeddingData)) {
       return embeddingData;
     }
-    
+
     // 如果是 Buffer/Blob
     if (embeddingData instanceof Uint8Array || Buffer.isBuffer(embeddingData)) {
       return Array.from(embeddingData);
     }
-    
+
     return null;
   }
 
   // 计算余弦相似度
   _cosineSimilarity(a, b) {
     if (!a || !b || a.length !== b.length) return 0;
-    
+
     let dotProduct = 0;
     let normA = 0;
     let normB = 0;
-    
+
     for (let i = 0; i < a.length; i++) {
       dotProduct += a[i] * b[i];
       normA += a[i] * a[i];
       normB += b[i] * b[i];
     }
-    
+
     if (normA === 0 || normB === 0) return 0;
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
@@ -866,10 +866,10 @@ class Database {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       [trashRecord.type, trashRecord.content, trashRecord.summary, trashRecord.source, trashRecord.source_app,
-        trashRecord.source_title, trashRecord.source_url, trashRecord.favorite, trashRecord.tags,
-        trashRecord.ai_summary, trashRecord.embedding, trashRecord.language, trashRecord.locked,
-        trashRecord.encrypted, trashRecord.synced, trashRecord.ocr_text, trashRecord.merged_from,
-        trashRecord.is_merged, trashRecord.sensitive_types]
+      trashRecord.source_title, trashRecord.source_url, trashRecord.favorite, trashRecord.tags,
+      trashRecord.ai_summary, trashRecord.embedding, trashRecord.language, trashRecord.locked,
+      trashRecord.encrypted, trashRecord.synced, trashRecord.ocr_text, trashRecord.merged_from,
+      trashRecord.is_merged, trashRecord.sensitive_types]
     );
     this.db.run(`DELETE FROM trash WHERE id = ?`, [trashId]);
     this._save();
@@ -1112,7 +1112,7 @@ class Database {
   createGroup(name, color = '#3b82f6', icon = '📁') {
     // 获取最大排序值
     const maxOrder = this.db.exec(`SELECT MAX(sort_order) FROM groups`)[0]?.values[0][0] || 0;
-    
+
     this.db.run(
       `INSERT INTO groups (name, color, icon, sort_order) VALUES (?, ?, ?, ?)`,
       [name, color, icon, maxOrder + 1]
@@ -1135,15 +1135,15 @@ class Database {
   updateGroup(id, { name, color, icon, collapsed, sort_order }) {
     const updates = [];
     const params = [];
-    
+
     if (name !== undefined) { updates.push('name = ?'); params.push(name); }
     if (color !== undefined) { updates.push('color = ?'); params.push(color); }
     if (icon !== undefined) { updates.push('icon = ?'); params.push(icon); }
     if (collapsed !== undefined) { updates.push('collapsed = ?'); params.push(collapsed ? 1 : 0); }
     if (sort_order !== undefined) { updates.push('sort_order = ?'); params.push(sort_order); }
-    
+
     if (updates.length === 0) return this.getGroup(id);
-    
+
     params.push(id);
     this.db.run(`UPDATE groups SET ${updates.join(', ')} WHERE id = ?`, params);
     this._save();
@@ -1293,7 +1293,7 @@ class Database {
           tags.forEach(tag => {
             tagRecords[tag] = (tagRecords[tag] || 0) + 1;
           });
-        } catch (e) {}
+        } catch (e) { }
       });
     }
 
@@ -1542,7 +1542,7 @@ class Database {
   // v0.26.0: 获取运行时健康监控数据
   getRuntimeStats() {
     const stats = this.getStats();
-    
+
     // 获取数据库文件大小
     let dbSize = 0;
     try {
@@ -1588,7 +1588,7 @@ class Database {
   getSyncMetadata() {
     const stats = this.getStats();
     const settings = this.getSettings();
-    
+
     // 获取上次同步时间
     let lastSyncTime = null;
     try {
@@ -1598,7 +1598,7 @@ class Database {
       if (syncInfo.length > 0 && syncInfo[0].values.length > 0) {
         lastSyncTime = syncInfo[0].values[0][0];
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // 获取同步配置
     let syncConfig = null;
@@ -1689,7 +1689,7 @@ class Database {
    * 导出数据用于同步（支持加密）
    * @param {Object} options - 导出选项
    */
-  exportForSync({ 
+  exportForSync({
     records = null,     // 指定记录，不指定则导出所有
     includeSettings = true,
     encrypt = false,
@@ -1720,7 +1720,7 @@ class Database {
       const iv = crypto.randomBytes(16);
       const key = crypto.scryptSync(encryptionKey, 'salt', 32);
       const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-      
+
       let encrypted = cipher.update(JSON.stringify(exportData), 'utf8', 'hex');
       encrypted += cipher.final('hex');
       const authTag = cipher.getAuthTag().toString('hex');
@@ -1745,7 +1745,7 @@ class Database {
    * @param {string} encryptionKey - 解密密钥（如果数据加密）
    * @param {Object} options - 导入选项
    */
-  importFromSync(syncData, encryptionKey = null, { 
+  importFromSync(syncData, encryptionKey = null, {
     conflictMode = 'newer',  // newer: 保留较新的, local: 保留本地, remote: 保留远程
     skipExisting = true,
   } = {}) {
@@ -1869,7 +1869,7 @@ class Database {
           byType[type] = count;
         });
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // 获取最早和最新的待同步记录时间
     let oldestPending = null;
@@ -1882,7 +1882,7 @@ class Database {
         oldestPending = timeResult[0].values[0][0];
         newestPending = timeResult[0].values[0][1];
       }
-    } catch (e) {}
+    } catch (e) { }
 
     return {
       total,
@@ -1894,7 +1894,6 @@ class Database {
       newestPending,
     };
   }
-}
 
   // 获取通知与声音设置
   getNotificationSettings() {
@@ -1918,7 +1917,7 @@ class Database {
           else if (key === 'notify_show_preview') settings.showPreview = value === 'true';
           else if (key === 'notify_min_length') settings.minContentLength = parseInt(value) || 0;
           else if (key === 'notify_excluded_apps') {
-            try { settings.excludedApps = JSON.parse(value); } catch(e) {}
+            try { settings.excludedApps = JSON.parse(value); } catch (e) { }
           }
         }
       }
@@ -1949,14 +1948,12 @@ class Database {
       return false;
     }
   }
-}
-
 
   // v0.31.0: 自动过期清理
   getAutoExpirySettings() {
     try {
       const get = (key, def) => {
-        const row = this.db.exec(\SELECT value FROM settings WHERE key = ''\);
+        const row = this.db.exec(`SELECT value FROM settings WHERE key = '${key}'`);
         return row.length > 0 && row[0].values.length > 0 ? row[0].values[0][0] : def;
       };
       return {
@@ -1978,7 +1975,7 @@ class Database {
         ['expiry_keep_favorites', settings.keepFavorites ? 'true' : 'false'],
       ];
       for (const [key, value] of updates) {
-        this.db.run(\INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)\, [key, value]);
+        this.db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, [key, value]);
       }
       return true;
     } catch (e) {
@@ -1994,9 +1991,9 @@ class Database {
       const cutoffDate = new Date(Date.now() - settings.days * 86400000).toISOString();
       let query;
       if (settings.keepFavorites) {
-        query = \DELETE FROM clipboard_history WHERE created_at < '' AND favorite = 0\;
+        query = `DELETE FROM records WHERE created_at < '${cutoffDate}' AND favorite = 0`;
       } else {
-        query = \DELETE FROM clipboard_history WHERE created_at < ''\;
+        query = `DELETE FROM records WHERE created_at < '${cutoffDate}'`;
       }
       this.db.run(query);
       const result = this.db.exec('SELECT changes() as count');
@@ -2013,17 +2010,18 @@ class Database {
       if (!settings.enabled || settings.days <= 0) return { total: 0, expired: 0, protected: 0 };
       const cutoffDate = new Date(Date.now() - settings.days * 86400000).toISOString();
       const getTotal = () => {
-        const r = this.db.exec(\SELECT COUNT(*) FROM clipboard_history WHERE created_at < ''\);
+        const r = this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at < '${cutoffDate}'`);
         return r.length > 0 && r[0].values.length > 0 ? r[0].values[0][0] : 0;
       };
       const getExpired = () => {
         const q = settings.keepFavorites
-          ? \SELECT COUNT(*) FROM clipboard_history WHERE created_at < '' AND favorite = 0          : \SELECT COUNT(*) FROM clipboard_history WHERE created_at < ''\;
+          ? `SELECT COUNT(*) FROM records WHERE created_at < '${cutoffDate}' AND favorite = 0`
+          : `SELECT COUNT(*) FROM records WHERE created_at < '${cutoffDate}'`;
         const r = this.db.exec(q);
         return r.length > 0 && r[0].values.length > 0 ? r[0].values[0][0] : 0;
       };
       const getProtected = () => {
-        const r = this.db.exec(\SELECT COUNT(*) FROM clipboard_history WHERE created_at < '' AND favorite = 1\);
+        const r = this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at < '${cutoffDate}' AND favorite = 1`);
         return r.length > 0 && r[0].values.length > 0 ? r[0].values[0][0] : 0;
       };
       return { total: getTotal(), expired: getExpired(), protected: getProtected() };
@@ -2032,45 +2030,45 @@ class Database {
       return { total: 0, expired: 0, protected: 0 };
     }
   }
-\nmodule.exports = Database;
 
-// ==================== v0.54.0: AI 设置管理 ====================
-Database.prototype.getAISettings = function() {
-  try {
-    const result = this.db.exec(`SELECT key, value FROM ai_settings`);
-    if (result.length === 0) return {};
-    const settings = {};
-    result[0].values.forEach(([key, value]) => {
-      try {
-        settings[key] = JSON.parse(value);
-      } catch {
-        settings[key] = value;
-      }
-    });
-    return settings;
-  } catch (e) {
-    return {};
-  }
-};
-
-Database.prototype.saveAISettings = function(settings) {
-  try {
-    for (const [key, value] of Object.entries(settings)) {
-      this.db.run(
-        `INSERT OR REPLACE INTO ai_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`,
-        [key, JSON.stringify(value)]
-      );
+  // ==================== v0.54.0: AI 设置管理 ====================
+  getAISettings() {
+    try {
+      const result = this.db.exec(`SELECT key, value FROM ai_settings`);
+      if (result.length === 0) return {};
+      const settings = {};
+      result[0].values.forEach(([key, value]) => {
+        try {
+          settings[key] = JSON.parse(value);
+        } catch {
+          settings[key] = value;
+        }
+      });
+      return settings;
+    } catch (e) {
+      return {};
     }
-    this._save();
-    // 同时更新 AI 模块配置
-    const ai = require('./ai');
-    ai.setConfig(settings);
-    return true;
-  } catch (e) {
-    console.error('保存 AI 设置失败:', e);
-    return false;
   }
-};
+
+  saveAISettings(settings) {
+    try {
+      for (const [key, value] of Object.entries(settings)) {
+        this.db.run(
+          `INSERT OR REPLACE INTO ai_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`,
+          [key, JSON.stringify(value)]
+        );
+      }
+      this._save();
+      // 同时更新 AI 模块配置
+      const ai = require('./ai');
+      ai.setConfig(settings);
+      return true;
+    } catch (e) {
+      console.error('保存 AI 设置失败:', e);
+      return false;
+    }
+  }
+
   // ==================== v0.34.0: 导入导出 ====================
   exportAllRecords() {
     const records = this.db.exec(`
@@ -2162,251 +2160,250 @@ Database.prototype.saveAISettings = function(settings) {
     return { imported, skipped };
   }
 
-}
+  // ==================== v0.55.0: MinHash 模糊去重 ====================
+  // MinHash 实现（纯 JS，无需外部依赖）
 
-
-
-// ==================== v0.55.0: MinHash 模糊去重 ====================
-// MinHash 实现（纯 JS，无需外部依赖）
-
-// 全局 MinHash 签名宽度
-const MH_NUM_HASHES = 128;
-
-// 生成单个 hash 值（murmurhash3 32-bit 风格）
-function _murmurHash3_32(key, seed) {
-  let h1 = seed;
-  const c1 = 0xcc9e2d51;
-  const c2 = 0x1b873593;
-  const chars = Array.from(key);
-  const len = chars.length;
-  const nblocks = Math.floor(len / 4);
-
-  for (let i = 0; i < nblocks; i++) {
-    let k1 = (chars[i*4] & 0xff) |
-            ((chars[i*4+1] & 0xff) << 8) |
-            ((chars[i*4+2] & 0xff) << 16) |
-            ((chars[i*4+3] & 0xff) << 24);
-    k1 = Math.imul(k1, c1);
-    k1 = (k1 << 15) | (k1 >>> 17);
-    k1 = Math.imul(k1, c2);
-    h1 ^= k1;
-    h1 = (h1 << 13) | (h1 >>> 19);
-    h1 = Math.imul(h1, 5) + 0xe6546b64;
+  // 全局 MinHash 签名宽度
+  _getMHNumHashes() {
+    return 128;
   }
 
-  let k1 = 0;
-  const tail = nblocks * 4;
-  switch (len & 3) {
-    case 3: k1 ^= (chars[tail+2] & 0xff) << 16;
-    case 2: k1 ^= (chars[tail+1] & 0xff) << 8;
-    case 1: k1 ^= (chars[tail] & 0xff);
+  // 生成单个 hash 值（murmurhash3 32-bit 风格）
+  _murmurHash3_32(key, seed) {
+    let h1 = seed;
+    const c1 = 0xcc9e2d51;
+    const c2 = 0x1b873593;
+    const chars = Array.from(key);
+    const len = chars.length;
+    const nblocks = Math.floor(len / 4);
+
+    for (let i = 0; i < nblocks; i++) {
+      let k1 = (chars[i * 4] & 0xff) |
+        ((chars[i * 4 + 1] & 0xff) << 8) |
+        ((chars[i * 4 + 2] & 0xff) << 16) |
+        ((chars[i * 4 + 3] & 0xff) << 24);
       k1 = Math.imul(k1, c1);
       k1 = (k1 << 15) | (k1 >>> 17);
       k1 = Math.imul(k1, c2);
       h1 ^= k1;
-  }
-
-  h1 ^= len;
-  h1 ^= h1 >>> 16;
-  h1 = Math.imul(h1, 0x85ebca6b);
-  h1 ^= h1 >>> 13;
-  h1 = Math.imul(h1, 0xc2b2ae35);
-  h1 ^= h1 >>> 16;
-  return h1 >>> 0;
-}
-
-// 字符串的 3-gram 集合
-function _getNGrams(text, n = 3) {
-  const grams = new Set();
-  for (let i = 0; i <= text.length - n; i++) {
-    grams.add(text.substring(i, i + n));
-  }
-  return grams;
-}
-
-// 计算一条文本的 MinHash 签名（MH_NUM_HASHES 维）
-function _minhash(text) {
-  const tokens = _getNGrams(text.toLowerCase());
-  if (tokens.size === 0) return null;
-  const sig = new Int32Array(MH_NUM_HASHES);
-  sig.fill(0x7fffffff);
-  let pairIdx = 0;
-  for (let i = 0; i < MH_NUM_HASHES; i++) {
-    for (const tok of tokens) {
-      const h = _murmurHash3_32(tok + '#' + i, i + 1) >>> 0;
-      if (h < sig[i]) sig[i] = h;
+      h1 = (h1 << 13) | (h1 >>> 19);
+      h1 = Math.imul(h1, 5) + 0xe6546b64;
     }
-    pairIdx++;
+
+    let k1 = 0;
+    const tail = nblocks * 4;
+    switch (len & 3) {
+      case 3: k1 ^= (chars[tail + 2] & 0xff) << 16;
+      case 2: k1 ^= (chars[tail + 1] & 0xff) << 8;
+      case 1: k1 ^= (chars[tail] & 0xff);
+        k1 = Math.imul(k1, c1);
+        k1 = (k1 << 15) | (k1 >>> 17);
+        k1 = Math.imul(k1, c2);
+        h1 ^= k1;
+    }
+
+    h1 ^= len;
+    h1 ^= h1 >>> 16;
+    h1 = Math.imul(h1, 0x85ebca6b);
+    h1 ^= h1 >>> 13;
+    h1 = Math.imul(h1, 0xc2b2ae35);
+    h1 ^= h1 >>> 16;
+    return h1 >>> 0;
   }
-  return sig;
-}
 
-// Jaccard 相似度（基于 MinHash 签名）
-function _minhashJaccard(sig1, sig2) {
-  if (!sig1 || !sig2 || sig1.length !== sig2.length) return 0;
-  let match = 0;
-  for (let i = 0; i < sig1.length; i++) {
-    if (sig1[i] === sig2[i]) match++;
+  // 字符串的 3-gram 集合
+  _getNGrams(text, n = 3) {
+    const grams = new Set();
+    for (let i = 0; i <= text.length - n; i++) {
+      grams.add(text.substring(i, i + n));
+    }
+    return grams;
   }
-  return match / sig1.length;
-}
 
-// 批量扫描并返回疑似模糊重复的配对
-// 返回 [{idA, idB, contentA, contentB, jaccard}]
-Database.prototype._findFuzzyDuplicates = function(threshold = 0.75, limit = 200) {
-  const rows = this.db.exec(
-    'SELECT id, content, type FROM records WHERE encrypted = 0 AND type IN (\"text\",\"code\") ORDER BY created_at DESC LIMIT ?',
-    [limit]
-  );
-  if (!rows[0] || rows[0].values.length === 0) return [];
+  // 计算一条文本的 MinHash 签名（MH_NUM_HASHES 维）
+  _minhash(text) {
+    const MH_NUM_HASHES = this._getMHNumHashes();
+    const tokens = this._getNGrams(text.toLowerCase());
+    if (tokens.size === 0) return null;
+    const sig = new Int32Array(MH_NUM_HASHES);
+    sig.fill(0x7fffffff);
+    let pairIdx = 0;
+    for (let i = 0; i < MH_NUM_HASHES; i++) {
+      for (const tok of tokens) {
+        const h = this._murmurHash3_32(tok + '#' + i, i + 1) >>> 0;
+        if (h < sig[i]) sig[i] = h;
+      }
+      pairIdx++;
+    }
+    return sig;
+  }
 
-  const ids = rows[0].values.map(v => v[0]);
-  const contents = rows[0].values.map(v => v[1]);
-  const types = rows[0].values.map(v => v[2]);
+  // Jaccard 相似度（基于 MinHash 签名）
+  _minhashJaccard(sig1, sig2) {
+    if (!sig1 || !sig2 || sig1.length !== sig2.length) return 0;
+    let match = 0;
+    for (let i = 0; i < sig1.length; i++) {
+      if (sig1[i] === sig2[i]) match++;
+    }
+    return match / sig1.length;
+  }
 
-  const sigs = contents.map(c => _minhash(c));
-  const pairs = [];
+  // 批量扫描并返回疑似模糊重复的配对
+  // 返回 [{idA, idB, contentA, contentB, jaccard}]
+  _findFuzzyDuplicates(threshold = 0.75, limit = 200) {
+    const rows = this.db.exec(
+      'SELECT id, content, type FROM records WHERE encrypted = 0 AND type IN (\"text\",\"code\") ORDER BY created_at DESC LIMIT ?',
+      [limit]
+    );
+    if (!rows[0] || rows[0].values.length === 0) return [];
 
-  outer:
-  for (let i = 0; i < sigs.length; i++) {
-    if (!sigs[i]) continue;
-    for (let j = i + 1; j < sigs.length; j++) {
-      if (!sigs[j]) continue;
-      const sim = _minhashJaccard(sigs[i], sigs[j]);
-      if (sim >= threshold) {
-        pairs.push({
-          idA: ids[i], idB: ids[j],
-          contentA: contents[i].substring(0, 150),
-          contentB: contents[j].substring(0, 150),
-          jaccard: Math.round(sim * 100),
-        });
-        if (pairs.length >= 50) break outer;
+    const ids = rows[0].values.map(v => v[0]);
+    const contents = rows[0].values.map(v => v[1]);
+    const types = rows[0].values.map(v => v[2]);
+
+    const sigs = contents.map(c => this._minhash(c));
+    const pairs = [];
+
+    outer:
+    for (let i = 0; i < sigs.length; i++) {
+      if (!sigs[i]) continue;
+      for (let j = i + 1; j < sigs.length; j++) {
+        if (!sigs[j]) continue;
+        const sim = this._minhashJaccard(sigs[i], sigs[j]);
+        if (sim >= threshold) {
+          pairs.push({
+            idA: ids[i], idB: ids[j],
+            contentA: contents[i].substring(0, 150),
+            contentB: contents[j].substring(0, 150),
+            jaccard: Math.round(sim * 100),
+          });
+          if (pairs.length >= 50) break outer;
+        }
       }
     }
-  }
-  return pairs;
-};
-
-// 清理模糊重复项（保留最新，删除旧的）
-// threshold: Jaccard 相似度阈值
-Database.prototype.cleanupFuzzyDuplicates = function(threshold = 0.85) {
-  const dups = this._findFuzzyDuplicates(threshold);
-  let deletedCount = 0;
-  const toDelete = new Set();
-
-  for (const dup of dups) {
-    // idA 是更新的（列表按时间倒序，i < j，所以 idB 是更旧的）
-    toDelete.add(dup.idB);
+    return pairs;
   }
 
-  for (const id of toDelete) {
-    this.db.run(
-      'DELETE FROM records WHERE id = ? AND favorite = 0 AND locked = 0',
-      [id]
-    );
-    deletedCount++;
-  }
+  // 清理模糊重复项（保留最新，删除旧的）
+  // threshold: Jaccard 相似度阈值
+  cleanupFuzzyDuplicates(threshold = 0.85) {
+    const dups = this._findFuzzyDuplicates(threshold);
+    let deletedCount = 0;
+    const toDelete = new Set();
 
-  if (deletedCount > 0) this._save();
-  return { deleted: deletedCount, found: dups.length };
-};
-
-// 获取模糊去重统计
-Database.prototype.getFuzzyStats = function() {
-  const all = this.db.exec(
-    'SELECT COUNT(*) FROM records WHERE encrypted = 0 AND type IN (\"text\",\"code\")'
-  )[0]?.values[0][0] || 0;
-  const dups = this._findFuzzyDuplicates(0.75);
-  return {
-    total: all,
-    fuzzyPairsFound: dups.length,
-    samples: dups.slice(0, 3),
-  };
-};
-
-// 改进版 findSimilar：多策略（编辑距离 + token 级别相似度）
-Database.prototype.findSimilar = function(content, threshold = 0.8, limit = 5) {
-  if (!content || content.length < 10) return [];
-
-  const result = this.db.exec(
-    SELECT id, content, created_at, favorite, type
-    FROM records
-    WHERE encrypted = 0 AND type = 'text'
-    ORDER BY created_at DESC
-    LIMIT 200
-  );
-
-  if (result.length === 0 || result[0].values.length === 0) return [];
-
-  const textLower = content.toLowerCase();
-  const contentTokens = new Set(textLower.split(/\s+/).filter(t => t.length > 2));
-
-  const similar = [];
-  for (const row of result[0].values) {
-    const [id, recordContent, createdAt, favorite, type] = row;
-
-    // 策略 1：编辑距离相似度（排除完全相同）
-    const levSim = this._similarity(content, recordContent);
-    if (levSim >= threshold && levSim < 0.9999) {
-      similar.push({
-        id,
-        content: recordContent.substring(0, 200),
-        similarity: Math.round(levSim * 100),
-        strategy: 'edit',
-        created_at: createdAt,
-        favorite: favorite === 1,
-        type,
-      });
-      continue;
+    for (const dup of dups) {
+      // idA 是更新的（列表按时间倒序，i < j，所以 idB 是更旧的）
+      toDelete.add(dup.idB);
     }
 
-    // 策略 2：Token 级重叠（适合长文本有轻微差异的情况）
-    const recTokens = new Set(recordContent.toLowerCase().split(/\s+/).filter(t => t.length > 2));
-    let overlap = 0;
-    for (const tok of contentTokens) {
-      if (recTokens.has(tok)) overlap++;
+    for (const id of toDelete) {
+      this.db.run(
+        'DELETE FROM records WHERE id = ? AND favorite = 0 AND locked = 0',
+        [id]
+      );
+      deletedCount++;
     }
-    const union = contentTokens.size + recTokens.size - overlap;
-    const tokenSim = union > 0 ? overlap / union : 0;
 
-    if (tokenSim >= threshold && tokenSim < 0.9999) {
-      similar.push({
-        id,
-        content: recordContent.substring(0, 200),
-        similarity: Math.round(tokenSim * 100),
-        strategy: 'token',
-        created_at: createdAt,
-        favorite: favorite === 1,
-        type,
-      });
-    }
+    if (deletedCount > 0) this._save();
+    return { deleted: deletedCount, found: dups.length };
   }
 
-  return similar.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
-};
+  // 获取模糊去重统计
+  getFuzzyStats() {
+    const all = this.db.exec(
+      'SELECT COUNT(*) FROM records WHERE encrypted = 0 AND type IN (\"text\",\"code\")'
+    )[0]?.values[0][0] || 0;
+    const dups = this._findFuzzyDuplicates(0.75);
+    return {
+      total: all,
+      fuzzyPairsFound: dups.length,
+      samples: dups.slice(0, 3),
+    };
+  }
 
-// ==================== v0.61.0: 统计与可视化 ====================
+  // 改进版 findSimilar：多策略（编辑距离 + token 级别相似度）
+  findSimilar(content, threshold = 0.8, limit = 5) {
+    if (!content || content.length < 10) return [];
 
-Database.prototype.getStatsByType = function() {
-  try {
     const result = this.db.exec(`
+      SELECT id, content, created_at, favorite, type
+      FROM records
+      WHERE encrypted = 0 AND type = 'text'
+      ORDER BY created_at DESC
+      LIMIT 200
+    `);
+
+    if (result.length === 0 || result[0].values.length === 0) return [];
+
+    const textLower = content.toLowerCase();
+    const contentTokens = new Set(textLower.split(/\s+/).filter(t => t.length > 2));
+
+    const similar = [];
+    for (const row of result[0].values) {
+      const [id, recordContent, createdAt, favorite, type] = row;
+
+      // 策略 1：编辑距离相似度（排除完全相同）
+      const levSim = this._similarity(content, recordContent);
+      if (levSim >= threshold && levSim < 0.9999) {
+        similar.push({
+          id,
+          content: recordContent.substring(0, 200),
+          similarity: Math.round(levSim * 100),
+          strategy: 'edit',
+          created_at: createdAt,
+          favorite: favorite === 1,
+          type,
+        });
+        continue;
+      }
+
+      // 策略 2：Token 级重叠（适合长文本有轻微差异的情况）
+      const recTokens = new Set(recordContent.toLowerCase().split(/\s+/).filter(t => t.length > 2));
+      let overlap = 0;
+      for (const tok of contentTokens) {
+        if (recTokens.has(tok)) overlap++;
+      }
+      const union = contentTokens.size + recTokens.size - overlap;
+      const tokenSim = union > 0 ? overlap / union : 0;
+
+      if (tokenSim >= threshold && tokenSim < 0.9999) {
+        similar.push({
+          id,
+          content: recordContent.substring(0, 200),
+          similarity: Math.round(tokenSim * 100),
+          strategy: 'token',
+          created_at: createdAt,
+          favorite: favorite === 1,
+          type,
+        });
+      }
+    }
+
+    return similar.sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+  }
+
+  // ==================== v0.61.0: 统计与可视化 ====================
+
+  getStatsByType() {
+    try {
+      const result = this.db.exec(`
       SELECT type, COUNT(*) as count
       FROM records
       GROUP BY type
       ORDER BY count DESC
     `);
-    if (!result.length || !result[0].values.length) return [];
-    return result[0].values.map(row => ({ type: row[0], count: row[1] }));
-  } catch (e) {
-    console.error('getStatsByType error:', e);
-    return [];
+      if (!result.length || !result[0].values.length) return [];
+      return result[0].values.map(row => ({ type: row[0], count: row[1] }));
+    } catch (e) {
+      console.error('getStatsByType error:', e);
+      return [];
+    }
   }
-};
 
-Database.prototype.getStatsByApp = function(limit) {
-  limit = limit || 10;
-  try {
-    const result = this.db.exec(`
+  getStatsByApp(limit) {
+    limit = limit || 10;
+    try {
+      const result = this.db.exec(`
       SELECT source_app, COUNT(*) as count
       FROM records
       WHERE source_app IS NOT NULL AND source_app != ''
@@ -2414,18 +2411,18 @@ Database.prototype.getStatsByApp = function(limit) {
       ORDER BY count DESC
       LIMIT ${limit}
     `);
-    if (!result.length || !result[0].values.length) return [];
-    return result[0].values.map(row => ({ source_app: row[0], count: row[1] }));
-  } catch (e) {
-    console.error('getStatsByApp error:', e);
-    return [];
+      if (!result.length || !result[0].values.length) return [];
+      return result[0].values.map(row => ({ source_app: row[0], count: row[1] }));
+    } catch (e) {
+      console.error('getStatsByApp error:', e);
+      return [];
+    }
   }
-};
 
-Database.prototype.getDailyStats = function(days) {
-  days = days || 30;
-  try {
-    const result = this.db.exec(`
+  getDailyStats(days) {
+    days = days || 30;
+    try {
+      const result = this.db.exec(`
       SELECT
         DATE(created_at) as date,
         COUNT(*) as count,
@@ -2438,24 +2435,24 @@ Database.prototype.getDailyStats = function(days) {
       GROUP BY DATE(created_at)
       ORDER BY date ASC
     `);
-    if (!result.length || !result[0].values.length) return [];
-    return result[0].values.map(row => ({
-      date: row[0],
-      count: row[1],
-      text_count: row[2],
-      code_count: row[3],
-      file_count: row[4],
-      image_count: row[5]
-    }));
-  } catch (e) {
-    console.error('getDailyStats error:', e);
-    return [];
+      if (!result.length || !result[0].values.length) return [];
+      return result[0].values.map(row => ({
+        date: row[0],
+        count: row[1],
+        text_count: row[2],
+        code_count: row[3],
+        file_count: row[4],
+        image_count: row[5]
+      }));
+    } catch (e) {
+      console.error('getDailyStats error:', e);
+      return [];
+    }
   }
-};
 
-Database.prototype.getHourlyStats = function() {
-  try {
-    const result = this.db.exec(`
+  getHourlyStats() {
+    try {
+      const result = this.db.exec(`
       SELECT
         CAST(strftime('%H', created_at) AS INTEGER) as hour,
         COUNT(*) as count
@@ -2464,22 +2461,22 @@ Database.prototype.getHourlyStats = function() {
       GROUP BY hour
       ORDER BY hour
     `);
-    const hourly = Array(24).fill(0);
-    if (result.length > 0 && result[0].values.length > 0) {
-      result[0].values.forEach(row => { hourly[row[0]] = row[1]; });
+      const hourly = Array(24).fill(0);
+      if (result.length > 0 && result[0].values.length > 0) {
+        result[0].values.forEach(row => { hourly[row[0]] = row[1]; });
+      }
+      return hourly;
+    } catch (e) {
+      console.error('getHourlyStats error:', e);
+      return Array(24).fill(0);
     }
-    return hourly;
-  } catch (e) {
-    console.error('getHourlyStats error:', e);
-    return Array(24).fill(0);
   }
-};
 
-// v0.62.0: Calendar heatmap data
-Database.prototype.getCalendarData = function(days) {
-  days = days || 365;
-  try {
-    const result = this.db.exec(`
+  // v0.62.0: Calendar heatmap data
+  getCalendarData(days) {
+    days = days || 365;
+    try {
+      const result = this.db.exec(`
       SELECT 
         DATE(created_at) as date,
         COUNT(*) as count
@@ -2488,20 +2485,20 @@ Database.prototype.getCalendarData = function(days) {
       GROUP BY DATE(created_at)
       ORDER BY date ASC
     `);
-    const dataMap = {};
-    if (result.length && result[0].values.length) {
-      result[0].values.forEach(row => { dataMap[row[0]] = row[1]; });
+      const dataMap = {};
+      if (result.length && result[0].values.length) {
+        result[0].values.forEach(row => { dataMap[row[0]] = row[1]; });
+      }
+      return { days: days, dataMap: dataMap };
+    } catch (e) {
+      console.error('getCalendarData error:', e);
+      return { days: days, dataMap: {} };
     }
-    return { days: days, dataMap: dataMap };
-  } catch (e) {
-    console.error('getCalendarData error:', e);
-    return { days: days, dataMap: {} };
   }
-};
 
-Database.prototype.getWeeklyTrend = function() {
-  try {
-    const result = this.db.exec(`
+  getWeeklyTrend() {
+    try {
+      const result = this.db.exec(`
       SELECT
         strftime('%w', created_at) as weekday,
         COUNT(*) as count
@@ -2510,14 +2507,15 @@ Database.prototype.getWeeklyTrend = function() {
       GROUP BY weekday
       ORDER BY weekday
     `);
-    const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-    if (!result.length || !result[0].values.length) return [];
-    return result[0].values.map(row => ({
-      day: dayNames[parseInt(row[0])],
-      count: row[1]
-    }));
-  } catch (e) {
-    console.error('getWeeklyTrend error:', e);
-    return [];
+      const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      if (!result.length || !result[0].values.length) return [];
+      return result[0].values.map(row => ({
+        day: dayNames[parseInt(row[0])],
+        count: row[1]
+      }));
+    } catch (e) {
+      console.error('getWeeklyTrend error:', e);
+      return [];
+    }
   }
-};
+}

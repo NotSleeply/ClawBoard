@@ -47,8 +47,8 @@ class AutoCategorize {
 
       let matched = false;
       const target = rule.field === 'content' ? content :
-                    rule.field === 'source' ? (sourceApp || '') :
-                    (content || '');
+        rule.field === 'source' ? (sourceApp || '') :
+          (content || '');
 
       if (rule.matchType === 'contains') {
         matched = target.toLowerCase().includes(rule.pattern.toLowerCase());

@@ -14,7 +14,7 @@ class RuleEngine {
     this.rules = [];
     this.executionLog = [];
     this.maxLogSize = 100;
-    
+
     // 内置规则模板
     this.builtInTemplates = [
       {
@@ -81,7 +81,7 @@ class RuleEngine {
         action: { type: 'encrypt' }
       }
     ];
-    
+
     this._loadRules();
   }
 
@@ -91,7 +91,7 @@ class RuleEngine {
   _loadRules() {
     try {
       if (!this.db) return;
-      
+
       const result = this.db.db.exec('SELECT * FROM rules ORDER BY priority DESC');
       if (result.length > 0 && result[0].values) {
         this.rules = result[0].values.map(row => ({
@@ -107,7 +107,7 @@ class RuleEngine {
           executionCount: row[9] || 0
         }));
       }
-      
+
       // 首次运行时初始化内置模板
       if (this.rules.length === 0) {
         this._initBuiltInRules();
@@ -145,7 +145,7 @@ class RuleEngine {
         execution_count INTEGER DEFAULT 0
       )
     `);
-    
+
     db.run('CREATE INDEX IF NOT EXISTS idx_rules_priority ON rules(priority DESC)');
     db.run('CREATE INDEX IF NOT EXISTS idx_rules_enabled ON rules(enabled)');
   }
@@ -168,7 +168,7 @@ class RuleEngine {
         JSON.stringify(rule.action)
       ]);
       stmt.run();
-      
+
       const id = this.db.db.exec('SELECT last_insert_rowid()')[0].values[0][0];
       this._loadRules();
       return { success: true, id };
@@ -185,20 +185,20 @@ class RuleEngine {
     try {
       const fields = [];
       const values = [];
-      
+
       ['name', 'description', 'enabled', 'priority', 'condition', 'action'].forEach(field => {
         if (updates[field] !== undefined) {
           fields.push(`${field} = ?`);
           values.push(
-            field === 'condition' || field === 'action' 
-              ? JSON.stringify(updates[field]) 
+            field === 'condition' || field === 'action'
+              ? JSON.stringify(updates[field])
               : updates[field]
           );
         }
       });
-      
+
       if (fields.length === 0) return { success: false, error: 'No fields to update' };
-      
+
       values.push(id);
       this.db.db.run(`UPDATE rules SET ${fields.join(', ')} WHERE id = ?`, ...values);
       this._loadRules();
@@ -280,7 +280,7 @@ class RuleEngine {
           });
           result.modified = true;
         }
-        
+
         // 更新执行计数
         this._updateExecutionStats(rule.id);
       }
@@ -401,7 +401,7 @@ class RuleEngine {
       /<\w+>.*<\/\w+>/,
       /\{\s*\n\s*"\w+":/
     ];
-    
+
     return codePatterns.some(p => p.test(content));
   }
 
@@ -416,7 +416,7 @@ class RuleEngine {
       /password\s*[:=]\s*["']?\w+/i,
       /-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----/
     ];
-    
+
     return sensitivePatterns.some(p => p.test(content));
   }
 
@@ -445,7 +445,7 @@ class RuleEngine {
       appliedRules: result.appliedRules,
       recordId: result.record.id
     });
-    
+
     // 限制日志大小
     if (this.executionLog.length > this.maxLogSize) {
       this.executionLog = this.executionLog.slice(0, this.maxLogSize);
@@ -475,17 +475,17 @@ class RuleEngine {
       if (!Array.isArray(imported)) {
         return { success: false, error: 'Invalid format' };
       }
-      
+
       // 清空现有规则
       this.db.db.run('DELETE FROM rules');
-      
+
       // 导入新规则
       let importedCount = 0;
       for (const rule of imported) {
         const result = this.addRule(rule);
         if (result.success) importedCount++;
       }
-      
+
       return { success: true, imported: importedCount };
     } catch (e) {
       return { success: false, error: e.message };

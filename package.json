@@ -32,7 +32,8 @@
     "electron-updater": "^6.1.7",
     "lz-string": "^1.5.0",
     "qrcode-generator": "^2.0.4",
-    "sql.js": "^1.10.0"
+    "sql.js": "^1.10.0",
+    "tesseract.js": "^7.0.0"
   },
   "build": {
     "appId": "com.notsleeply.clawboard",
@@ -62,11 +63,17 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "category": "public.app-category.productivity",
@@ -96,11 +103,15 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.png",

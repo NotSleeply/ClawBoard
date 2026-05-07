@@ -30,7 +30,7 @@ class SyncService extends EventEmitter {
   async init(deviceName) {
     this.deviceName = deviceName || `Device-${this.deviceId.slice(0, 8)}`;
     this.log.info(`同步服务初始化 - 设备: ${this.deviceName} (${this.deviceId})`);
-    
+
     // 加载已配对设备
     await this._loadPairedDevices();
     return true;
@@ -48,13 +48,13 @@ class SyncService extends EventEmitter {
     this.syncEnabled = true;
 
     this.log.info('同步功能已启用');
-    
+
     // 连接到中继服务器
     await this._connectRelay();
-    
+
     // 处理离线队列
     await this._processOfflineQueue();
-    
+
     return true;
   }
 
@@ -62,12 +62,12 @@ class SyncService extends EventEmitter {
   disableSync() {
     this.syncEnabled = false;
     this.encryptionKey = null;
-    
+
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
-    
+
     this.log.info('同步功能已禁用');
     return true;
   }
@@ -87,7 +87,7 @@ class SyncService extends EventEmitter {
 
     // 加密配对数据
     const encrypted = this._encryptData(JSON.stringify(pairingData));
-    
+
     return {
       qrData: JSON.stringify({
         v: 1,
@@ -125,10 +125,10 @@ class SyncService extends EventEmitter {
       });
 
       await this._savePairedDevices();
-      
+
       this.log.info(`设备配对成功: ${deviceInfo.deviceName}`);
       this.emit('devicePaired', deviceInfo);
-      
+
       return deviceInfo;
     } catch (err) {
       this.log.error('设备配对失败:', err);
@@ -163,7 +163,7 @@ class SyncService extends EventEmitter {
 
     // 发送到所有配对设备
     const targets = Array.from(this.pairedDevices.keys());
-    
+
     if (this.ws && this.ws.readyState === 1) {
       this.ws.send(JSON.stringify({
         action: 'broadcast',
@@ -187,14 +187,14 @@ class SyncService extends EventEmitter {
 
         this.ws.on('open', () => {
           this.log.info('已连接到中继服务器');
-          
+
           // 发送设备注册信息
           this.ws.send(JSON.stringify({
             action: 'register',
             deviceId: this.deviceId,
             deviceName: this.deviceName
           }));
-          
+
           resolve(true);
         });
 
@@ -205,11 +205,11 @@ class SyncService extends EventEmitter {
         this.ws.on('close', () => {
           this.log.warn('中继服务器连接断开');
           this.ws = null;
-          
+
           // 5秒后重连
           setTimeout(() => {
             if (this.syncEnabled) {
-              this._connectRelay().catch(() => {});
+              this._connectRelay().catch(() => { });
             }
           }, 5000);
         });
@@ -229,11 +229,11 @@ class SyncService extends EventEmitter {
   _handleMessage(data) {
     try {
       const message = JSON.parse(data);
-      
+
       if (message.action === 'sync') {
         const decrypted = this._decryptData(message.payload);
         const syncData = JSON.parse(decrypted);
-        
+
         if (syncData.deviceId !== this.deviceId) {
           this.emit('recordReceived', syncData.record);
           this.log.info(`收到来自 ${syncData.deviceId} 的同步记录`);
@@ -248,12 +248,12 @@ class SyncService extends EventEmitter {
   _encryptData(text) {
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    
+
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    
+
     const authTag = cipher.getAuthTag();
-    
+
     return {
       iv: iv.toString('hex'),
       data: encrypted,
@@ -265,26 +265,26 @@ class SyncService extends EventEmitter {
   _decryptData(encryptedObj) {
     const iv = Buffer.from(encryptedObj.iv, 'hex');
     const authTag = Buffer.from(encryptedObj.tag, 'hex');
-    
+
     const decipher = crypto.createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
     decipher.setAuthTag(authTag);
-    
+
     let decrypted = decipher.update(encryptedObj.data, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     return decrypted;
   }
 
   // 处理离线队列
   async _processOfflineQueue() {
     if (this.offlineQueue.length === 0) return;
-    
+
     this.log.info(`处理 ${this.offlineQueue.length} 条离线队列记录`);
-    
+
     for (const record of this.offlineQueue) {
       await this.syncRecord(record);
     }
-    
+
     this.offlineQueue = [];
   }
 

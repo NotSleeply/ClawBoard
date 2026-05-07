@@ -64,7 +64,7 @@ function getDefaultPrompts() {
 }
 
 function updateConfig(updates) {
- Object.assign(config, updates);
+  Object.assign(config, updates);
   return { ...config };
 }
 

@@ -36,10 +36,10 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   findSimilar: (content) => ipcRenderer.invoke('find-similar', content),
   findDuplicates: () => ipcRenderer.invoke('find-duplicates'),
   cleanupDuplicates: () => ipcRenderer.invoke('cleanup-duplicates'),
-  
+
   // 搜索相关
   search: (query) => ipcRenderer.invoke('search', query),
-  
+
   // AI 相关
   aiSummary: (text) => ipcRenderer.invoke('ai-summary', text),
   // v0.54.0: AI 设置
@@ -53,20 +53,20 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   updateAIPrompt: (data) => ipcRenderer.invoke('update-ai-prompt', data),
   resetAIDefaults: () => ipcRenderer.invoke('reset-ai-defaults'),
   getAIDefaults: () => ipcRenderer.invoke('get-ai-defaults'),
-  
+
   // 设置相关
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   updateShortcut: (shortcut) => ipcRenderer.invoke('update-shortcut', shortcut),
   saveShortcuts: (shortcuts) => ipcRenderer.invoke('save-settings', { shortcuts }),
-  
+
   // 加密相关
   setEncryptionPassword: (password) => ipcRenderer.invoke('set-encryption-password', password),
   clearEncryptionKey: () => ipcRenderer.invoke('clear-encryption-key'),
   encryptRecord: (id) => ipcRenderer.invoke('encrypt-record', id),
   decryptRecord: (id) => ipcRenderer.invoke('decrypt-record', id),
   removeEncryption: (id) => ipcRenderer.invoke('remove-encryption', id),
-  
+
   // v0.17.0: OCR 相关
   ocrRecognize: (imagePath) => ipcRenderer.invoke('ocr-recognize', imagePath),
   getOCRText: (id) => ipcRenderer.invoke('get-ocr-text', id),
@@ -74,10 +74,10 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   getOcrLanguages: () => ipcRenderer.invoke('get-ocr-languages'),
   setOcrLanguage: (langCodes) => ipcRenderer.invoke('set-ocr-language', langCodes),
   getCurrentOcrLanguage: () => ipcRenderer.invoke('get-current-ocr-language'),
-  
+
   // v0.23.0: 保存记录（用于合并功能）
   saveRecord: (record) => ipcRenderer.invoke('save-record', record),
-  
+
   // v0.24.0: 分组管理
   getAllGroups: () => ipcRenderer.invoke('get-all-groups'),
   createGroup: (name, color, icon) => ipcRenderer.invoke('create-group', { name, color, icon }),
@@ -92,7 +92,7 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   getStatsForExport: () => ipcRenderer.invoke('get-stats-for-export'),
   exportRecords: (format, options) => ipcRenderer.invoke('export-records', { format, options }),
   saveExportFile: (content, filename) => ipcRenderer.invoke('save-export-file', { content, filename }),
-  
+
   // v0.26.0: 运行时健康监控
   getRuntimeStats: () => ipcRenderer.invoke('get-runtime-stats'),
   // v0.44.0: 系统健康状态（包含数据库大小）
@@ -103,7 +103,7 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   updatePinnedRecord: (id, updates) => ipcRenderer.invoke('update-pinned-record', id, updates),
   batchUpdatePinned: (ids, options) => ipcRenderer.invoke('batch-update-pinned', ids, options),
   getPinnedStats: () => ipcRenderer.invoke('get-pinned-stats'),
-  
+
   // 事件监听
   onNewRecord: (callback) => {
     ipcRenderer.on('new-record', (event, record) => callback(record));
@@ -111,7 +111,7 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   onFocusSearch: (callback) => {
     ipcRenderer.on('focus-search', () => callback());
   },
-  
+
   // v0.28.0: 云端同步
   getSyncMetadata: () => ipcRenderer.invoke('get-sync-metadata'),
   saveSyncConfig: (config) => ipcRenderer.invoke('save-sync-config', config),

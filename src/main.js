@@ -125,21 +125,21 @@ function createCycleWindow() {
     cycleWindow.focus();
     return cycleWindow;
   }
-  
+
   // Get mouse position to show near cursor
   const { screen } = require('electron');
   const cursorPos = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursorPos);
   const bounds = display.workArea;
   const scaleFactor = display.scaleFactor;
-  
+
   // v0.42.0: Account for DPI scaling in multi-monitor setups
   // cursorPos is in logical pixels; on high-DPI secondary monitors,
   // the workArea coordinates may differ from raw cursor coordinates.
   // We use logical coordinates consistently.
   let x = cursorPos.x + 10;
   let y = cursorPos.y - 100;
-  
+
   // Keep within the target display's work area
   const w = 420, h = 380;
   if (x + w > bounds.x + bounds.width) x = bounds.x + bounds.width - w - 10;
@@ -174,7 +174,7 @@ function createCycleWindow() {
   cycleWindow.on('closed', () => {
     cycleWindow = null;
   });
-  
+
   // Close cycle window when it loses focus
   cycleWindow.on('blur', () => {
     // Paste the selected item when window loses focus
@@ -280,7 +280,7 @@ function createWindow() {
 
 function createTray() {
   const iconPath = path.join(__dirname, '../assets/tray-icon.png');
-  
+
   // 如果没有图标文件，创建一个简单的默认图标
   let trayIcon;
   try {
@@ -293,7 +293,7 @@ function createTray() {
   }
 
   tray = new Tray(trayIcon);
-  
+
   const contextMenu = Menu.buildFromTemplate([
     {
       label: '📋 打开 ClawBoard',
@@ -730,7 +730,7 @@ function setupIPC() {
 
   // v0.62.0: Calendar heatmap
   ipcMain.handle('get-calendar-data', async (_, days) => {
-    try { return db.getCalendarData(days || 365); } 
+    try { return db.getCalendarData(days || 365); }
     catch (e) { log.error('get-calendar-data error:', e); return { days: 365, dataMap: {} }; }
   });
 
@@ -1029,7 +1029,7 @@ ipcMain.handle('export-data', async (event, { format = 'json' }) => {
   try {
     const records = db.getRecords({ limit: 10000 });
     const { dialog } = require('electron');
-    
+
     const result = await dialog.showSaveDialog(mainWindow, {
       defaultPath: `clawboard-backup-${Date.now()}.${format}`,
       filters: [
@@ -1037,22 +1037,22 @@ ipcMain.handle('export-data', async (event, { format = 'json' }) => {
         { name: 'CSV', extensions: ['csv'] },
       ]
     });
-    
+
     if (result.canceled) return { success: false, message: '已取消' };
-    
+
     const fs = require('fs');
     let content;
-    
+
     if (format === 'json') {
       content = JSON.stringify(records, null, 2);
     } else if (format === 'csv') {
       const headers = 'id,type,content,summary,source,favorite,language,created_at\n';
-      const rows = records.map(r => 
+      const rows = records.map(r =>
         `${r.id},"${r.type}","${(r.content || '').replace(/"/g, '""')}","${(r.summary || '').replace(/"/g, '""')}","${r.source}",${r.favorite || 0},"${r.language || ''}","${r.created_at}"`
       ).join('\n');
       content = headers + rows;
     }
-    
+
     fs.writeFileSync(result.filePath, content, 'utf-8');
     return { success: true, message: `已导出 ${records.length} 条记录` };
   } catch (err) {
@@ -1067,7 +1067,7 @@ ipcMain.handle('import-data', async (event, filePath) => {
     const fs = require('fs');
     const content = fs.readFileSync(filePath, 'utf-8');
     const records = JSON.parse(content);
-    
+
     let count = 0;
     for (const record of records) {
       if (record.content) {
@@ -1082,7 +1082,7 @@ ipcMain.handle('import-data', async (event, filePath) => {
         count++;
       }
     }
-    
+
     return { success: true, message: `已导入 ${count} 条记录` };
   } catch (err) {
     log.error('import-data error:', err);
@@ -1490,7 +1490,7 @@ ipcMain.handle('test-webdav-connection', async (_, config) => {
   try {
     const { protocol, host, port, path, username, password } = config;
     const url = `${protocol}://${host}:${port}${path}`;
-    
+
     // 简单的连接测试 - 使用 fetch
     const response = await fetch(url, {
       method: 'PROPFIND',
@@ -1499,7 +1499,7 @@ ipcMain.handle('test-webdav-connection', async (_, config) => {
         'Authorization': 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
       },
     });
-    
+
     return { success: response.ok, status: response.status };
   } catch (err) {
     log.error('test-webdav-connection error:', err);
@@ -1511,10 +1511,10 @@ ipcMain.handle('sync-to-webdav', async (_, config) => {
   try {
     const { protocol, host, port, path, username, password, encrypt, encryptionKey } = config;
     const url = `${protocol}://${host}:${port}${path}/clawboard-sync.json`;
-    
+
     // 导出数据
     const exportData = db.exportForSync({ encrypt, encryptionKey });
-    
+
     // 上传到 WebDAV
     const auth = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64');
     const response = await fetch(url, {
@@ -1525,21 +1525,21 @@ ipcMain.handle('sync-to-webdav', async (_, config) => {
       },
       body: JSON.stringify(exportData),
     });
-    
+
     if (response.ok) {
       // 更新同步时间
       db.updateLastSyncTime();
-      
+
       // 标记所有记录为已同步
       const records = db.getSyncableRecords({ limit: 10000 });
       const ids = records.map(r => r.id);
       if (ids.length > 0) {
         db.markAsSynced(ids);
       }
-      
+
       return { success: true, recordCount: ids.length };
     }
-    
+
     return { success: false, status: response.status };
   } catch (err) {
     log.error('sync-to-webdav error:', err);
@@ -1551,7 +1551,7 @@ ipcMain.handle('sync-from-webdav', async (_, config) => {
   try {
     const { protocol, host, port, path, username, password, encryptionKey } = config;
     const url = `${protocol}://${host}:${port}${path}/clawboard-sync.json`;
-    
+
     // 从 WebDAV 下载
     const auth = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64');
     const response = await fetch(url, {
@@ -1560,22 +1560,22 @@ ipcMain.handle('sync-from-webdav', async (_, config) => {
         'Authorization': auth,
       },
     });
-    
+
     if (!response.ok) {
       if (response.status === 404) {
         return { success: false, error: '远程没有找到同步文件' };
       }
       return { success: false, status: response.status };
     }
-    
+
     const syncData = await response.json();
-    
+
     // 导入数据
     const result = db.importFromSync(syncData, encryptionKey);
-    
+
     // 更新同步时间
     db.updateLastSyncTime();
-    
+
     return { success: true, ...result };
   } catch (err) {
     log.error('sync-from-webdav error:', err);
@@ -1825,7 +1825,7 @@ function playNotificationSound() {
         // Linux: try canberra first, fallback to paplay
         exec(cmd, (err) => {
           if (err) {
-            exec('paplay /usr/share/sounds/freedesktop/stereo/message.oga', () => {});
+            exec('paplay /usr/share/sounds/freedesktop/stereo/message.oga', () => { });
           }
         });
       }
@@ -1868,7 +1868,7 @@ function startAutoExpiryTimer() {
 
 function showClipboardNotification(record) {
   if (!notificationSettings.enabled) return;
-  
+
   try {
     // 检查是否为大文本
     const contentLength = record.content ? record.content.length : 0;
@@ -1883,16 +1883,16 @@ function showClipboardNotification(record) {
         type: record.type,
         timestamp: Date.now()
       });
-      
+
       // 设置或重置合并定时器
       if (notificationTimer) {
         clearTimeout(notificationTimer);
       }
-      
+
       notificationTimer = setTimeout(() => {
         flushNotificationQueue();
       }, notificationSettings.mergeWindow);
-      
+
       return; // 等待合并刷新
     }
 
@@ -1906,25 +1906,25 @@ function showClipboardNotification(record) {
 // v0.64.0: 刷新通知队列（合并显示）
 function flushNotificationQueue() {
   if (notificationQueue.length === 0) return;
-  
+
   const count = notificationQueue.length;
   const latestRecord = notificationQueue[count - 1].record;
-  
+
   // 统计各类型数量
   const typeCounts = {};
   for (const item of notificationQueue) {
     typeCounts[item.type] = (typeCounts[item.type] || 0) + 1;
   }
-  
+
   let title, body;
-  
+
   if (count === 1) {
     // 单条通知：正常显示
     showSingleNotification(latestRecord);
   } else {
     // 多条合并通知
     title = `📋 已捕获 ${count} 条内容`;
-    
+
     // 构建类型摘要
     const typeLabels = {
       text: '文字',
@@ -1937,7 +1937,7 @@ function flushNotificationQueue() {
       parts.push(`${typeLabels[type] || type}×${cnt}`);
     }
     body = `包含: ${parts.join(', ')}`;
-    
+
     const notification = new Notification({
       title,
       body,
@@ -1945,23 +1945,23 @@ function flushNotificationQueue() {
       silent: !notificationSettings.soundEnabled,
       timeoutType: 'default'
     });
-    
+
     notification.on('click', () => {
       if (mainWindow) {
         mainWindow.show();
         mainWindow.focus();
       }
     });
-    
+
     notification.show();
-    
+
     if (notificationSettings.soundEnabled) {
       playNotificationSound();
     }
-    
+
     log.info(`已显示合并通知: ${count} 条`);
   }
-  
+
   // 清空队列
   notificationQueue = [];
   notificationTimer = null;
@@ -1970,15 +1970,15 @@ function flushNotificationQueue() {
 // v0.64.0: 显示单条通知
 function showSingleNotification(record) {
   const contentLength = record.content ? record.content.length : 0;
-  
+
   // 准备通知内容
   let title = '📋 已捕获剪贴板';
   let body = '';
-  
+
   switch (record.type) {
     case 'text':
       title = '📝 已捕获文字';
-      body = notificationSettings.showPreview 
+      body = notificationSettings.showPreview
         ? (record.content || '').substring(0, 100) + (contentLength > 100 ? '...' : '')
         : `文字内容 (${contentLength} 字符)`;
       break;
@@ -2059,7 +2059,7 @@ function registerGlobalShortcut(settings) {
 
   // 获取快捷键（默认 Ctrl+Shift+V）
   const shortcut = settings?.globalShortcut || 'CommandOrControl+Shift+V';
-  
+
   const ret = globalShortcut.register(shortcut, () => {
     if (mainWindow) {
       if (mainWindow.isVisible()) {
@@ -2138,10 +2138,10 @@ ipcMain.handle('update-shortcut', async (event, shortcut) => {
     const settings = db.getSettings();
     settings.globalShortcut = shortcut;
     db.saveSettings(settings);
-    
+
     // 重新注册快捷键
     registerGlobalShortcut(settings);
-    
+
     return { success: true };
   } catch (err) {
     log.error('update-shortcut error:', err);
@@ -2186,13 +2186,13 @@ ipcMain.handle('show-clipboard-notification', async (_, { type, preview, source 
   try {
     const notifySettings = db.getNotificationSettings();
     if (!notifySettings.enabled) return { success: false, reason: 'disabled' };
-    
+
     const contentLength = (preview || '').length;
     if (contentLength < notifySettings.minContentLength) return { success: false, reason: 'too_short' };
-    
+
     // 发送桌面通知
     const { Notification } = require('electron');
-    
+
     let body = '';
     if (notifySettings.showPreview) {
       const truncated = contentLength > 100 ? preview.substring(0, 100) + '...' : preview;
@@ -2201,14 +2201,14 @@ ipcMain.handle('show-clipboard-notification', async (_, { type, preview, source 
       const typeLabels = { text: '文本', code: '代码', image: '图片', file: '文件', url: '链接' };
       body = typeLabels[type] || '新内容';
     }
-    
+
     const notification = new Notification({
       title: '📋 ClawBoard 已捕获',
       body,
       silent: !notifySettings.soundEnabled,
       timeoutType: 'default',
     });
-    
+
     notification.show();
     return { success: true };
   } catch (err) {
@@ -2411,14 +2411,14 @@ ipcMain.handle('batch-auto-encrypt', async () => {
     if (!db.encryptionKey) {
       return { success: false, message: '未设置加密密码' };
     }
-    
+
     const records = db.getRecords({ limit: 10000 });
     let encryptedCount = 0;
     let skippedCount = 0;
-    
+
     for (const record of records) {
       if (record.encrypted) { skippedCount++; continue; }
-      
+
       const result = ignoreRules.shouldIgnore(record.content, {});
       if (result.autoEncrypt) {
         const success = db.encryptRecord(record.id);
@@ -2432,7 +2432,7 @@ ipcMain.handle('batch-auto-encrypt', async () => {
         }
       }
     }
-    
+
     db._save();
     log.info(`批量自动加密完成: ${encryptedCount} 条已加密, ${skippedCount} 条跳过`);
     return { success: true, encryptedCount, skippedCount };
@@ -2610,7 +2610,7 @@ ipcMain.handle('export-with-filters', async (_, { format, range, type, favorite 
   try {
     const crypto = require('crypto');
     let records = db.getRecords({ limit: 10000 });
-    
+
     // 应用时间范围筛选
     const now = new Date();
     if (range === 'today') {
@@ -2623,22 +2623,22 @@ ipcMain.handle('export-with-filters', async (_, { format, range, type, favorite 
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       records = records.filter(r => new Date(r.created_at) >= monthAgo);
     }
-    
+
     // 应用类型筛选
     if (type && type !== 'all') {
       records = records.filter(r => r.type === type);
     }
-    
+
     // 应用收藏筛选
     if (favorite) {
       records = records.filter(r => r.favorite);
     }
-    
+
     if (format === 'json') {
       return JSON.stringify(records, null, 2);
     } else if (format === 'csv') {
       const headers = 'ID,类型,内容,创建时间,收藏,标签\n';
-      const rows = records.map(r => `${r.id},"${r.type}","${(r.content || '').replace(/"/g, '""').substring(0,500)}","${r.created_at}",${r.favorite},"${r.tags}"`).join('\n');
+      const rows = records.map(r => `${r.id},"${r.type}","${(r.content || '').replace(/"/g, '""').substring(0, 500)}","${r.created_at}",${r.favorite},"${r.tags}"`).join('\n');
       return headers + rows;
     } else if (format === 'markdown') {
       return records.map(r => {
@@ -2658,7 +2658,7 @@ ipcMain.handle('get-export-count', async (_, { range, type, favorite }) => {
   try {
     let records = db.getRecords({ limit: 10000 });
     const now = new Date();
-    
+
     if (range === 'today') {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       records = records.filter(r => new Date(r.created_at) >= today);
@@ -2669,15 +2669,15 @@ ipcMain.handle('get-export-count', async (_, { range, type, favorite }) => {
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       records = records.filter(r => new Date(r.created_at) >= monthAgo);
     }
-    
+
     if (type && type !== 'all') {
       records = records.filter(r => r.type === type);
     }
-    
+
     if (favorite) {
       records = records.filter(r => r.favorite);
     }
-    
+
     return records.length;
   } catch (err) {
     log.error('get-export-count error:', err);
@@ -2691,26 +2691,26 @@ ipcMain.handle('import-records-enhanced', async (_, { records, duplicateMode }) 
     const crypto = require('crypto');
     const contentHashes = new Set();
     const existingRecords = db.getRecords({ limit: 10000 });
-    
+
     existingRecords.forEach(r => {
       if (r.content) {
         const hash = crypto.createHash('md5').update(r.content).digest('hex');
         contentHashes.add(hash);
       }
     });
-    
+
     let imported = 0, skipped = 0;
-    
+
     for (const record of records) {
       if (!record.content) continue;
-      
+
       const hash = crypto.createHash('md5').update(record.content).digest('hex');
-      
+
       if (contentHashes.has(hash) && duplicateMode === 'skip') {
         skipped++;
         continue;
       }
-      
+
       db.addRecord({
         type: record.type || 'text',
         content: record.content,
@@ -2719,11 +2719,11 @@ ipcMain.handle('import-records-enhanced', async (_, { records, duplicateMode }) 
         tags: record.tags || '[]',
         favorite: record.favorite ? 1 : 0
       });
-      
+
       contentHashes.add(hash);
       imported++;
     }
-    
+
     return { success: true, imported, skipped };
   } catch (err) {
     log.error('import-records-enhanced error:', err);
@@ -2800,7 +2800,7 @@ ipcMain.handle('open-in-terminal', async (_, filePath) => {
   try {
     const fs = require('fs');
     let targetDir = filePath;
-    
+
     // 如果是文件，取其所在目录
     if (fs.existsSync(filePath)) {
       const stat = fs.statSync(filePath);
@@ -2810,7 +2810,7 @@ ipcMain.handle('open-in-terminal', async (_, filePath) => {
     } else {
       return { success: false, error: '路径不存在' };
     }
-    
+
     // Windows: 使用系统默认终端
     const { exec } = require('child_process');
     if (process.platform === 'win32') {
@@ -3138,7 +3138,7 @@ ipcMain.handle('get-storage-stats', async () => {
     let compressedCount = 0;
     try {
       compressedCount = db.db.exec('SELECT COUNT(*) as count FROM records WHERE compressed = 1')[0]?.values[0][0] || 0;
-    } catch (e) {}
+    } catch (e) { }
     return {
       dbSize,
       dbSizeMB: Math.round(dbSize / 1024 / 1024 * 10) / 10,
