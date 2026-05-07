@@ -3,27 +3,31 @@
  * v0.17.0 新增功能
  */
 
-const { createWorker } = require('tesseract.js');
-const path = require('path');
+const { createWorker } = require("tesseract.js");
+const path = require("path");
+const fs = require("fs");
 
 class OCRService {
-  constructor() {
+  constructor(options = {}) {
+    const { langPath = null, cachePath = null } = options;
     this.worker = null;
     this.isReady = false;
-    this.language = 'chi_sim+eng'; // 简体中文 + 英文
+    this.language = "chi_sim+eng"; // 简体中文 + 英文
+    this.langPath = langPath;
+    this.cachePath = cachePath;
     // v0.53.0: 支持的语言列表
     this.availableLanguages = [
-      { code: 'chi_sim', name: '简体中文', installed: true },
-      { code: 'chi_tra', name: '繁体中文', installed: false },
-      { code: 'eng', name: '英文', installed: true },
-      { code: 'jpn', name: '日语', installed: false },
-      { code: 'kor', name: '韩语', installed: false },
-      { code: 'fra', name: '法语', installed: false },
-      { code: 'deu', name: '德语', installed: false },
-      { code: 'spa', name: '西班牙语', installed: false },
-      { code: 'rus', name: '俄语', installed: false },
+      { code: "chi_sim", name: "简体中文", installed: true },
+      { code: "chi_tra", name: "繁体中文", installed: false },
+      { code: "eng", name: "英文", installed: true },
+      { code: "jpn", name: "日语", installed: false },
+      { code: "kor", name: "韩语", installed: false },
+      { code: "fra", name: "法语", installed: false },
+      { code: "deu", name: "德语", installed: false },
+      { code: "spa", name: "西班牙语", installed: false },
+      { code: "rus", name: "俄语", installed: false },
     ];
-    this.currentLanguages = ['chi_sim', 'eng']; // 当前启用的语言
+    this.currentLanguages = ["chi_sim", "eng"]; // 当前启用的语言
   }
 
   // v0.53.0: 获取可用语言列表
@@ -34,7 +38,7 @@ class OCRService {
   // v0.53.0: 设置 OCR 语言
   async setLanguage(langCodes) {
     if (!Array.isArray(langCodes) || langCodes.length === 0) {
-      return { success: false, error: '无效的语言代码' }; // 返回错误而非抛出
+      return { success: false, error: "无效的语言代码" }; // 返回错误而非抛出
     }
 
     // 终止旧的 worker
@@ -45,14 +49,14 @@ class OCRService {
     }
 
     this.currentLanguages = langCodes;
-    const langStr = langCodes.join('+');
+    const langStr = langCodes.join("+");
     this.language = langStr;
 
     try {
       await this.init();
       return { success: true, language: langStr }; // 返回成功对象
     } catch (err) {
-      console.error('OCR 语言切换失败:', err);
+      console.error("OCR 语言切换失败:", err);
       return { success: false, error: err.message }; // 返回错误对象
     }
   }
@@ -62,17 +66,48 @@ class OCRService {
     return this.currentLanguages;
   }
 
+  _ensureCacheDir() {
+    if (!this.cachePath) return;
+    if (!fs.existsSync(this.cachePath)) {
+      fs.mkdirSync(this.cachePath, { recursive: true });
+    }
+  }
+
+  _resolveLocalLangPath() {
+    if (!this.langPath) return null;
+    const langCodes = this.language.split("+").filter(Boolean);
+    if (langCodes.length === 0) return null;
+    const missing = langCodes.some(
+      (code) => !fs.existsSync(path.join(this.langPath, `${code}.traineddata`)),
+    );
+    return missing ? null : this.langPath;
+  }
+
+  _getWorkerOptions() {
+    const options = {};
+    const resolvedLangPath = this._resolveLocalLangPath();
+    if (resolvedLangPath) {
+      options.langPath = resolvedLangPath;
+    }
+    if (this.cachePath) {
+      options.cachePath = this.cachePath;
+    }
+    return options;
+  }
+
   // 初始化 OCR Worker
   async init() {
     if (this.isReady) return true;
 
     try {
-      this.worker = await createWorker(this.language);
+      this._ensureCacheDir();
+      const workerOptions = this._getWorkerOptions();
+      this.worker = await createWorker(this.language, 1, workerOptions);
       this.isReady = true;
-      console.log('OCR 服务初始化成功');
+      console.log("OCR 服务初始化成功");
       return true;
     } catch (err) {
-      console.error('OCR 初始化失败:', err);
+      console.error("OCR 初始化失败:", err);
       return false;
     }
   }
@@ -82,7 +117,7 @@ class OCRService {
     if (!this.isReady) {
       const initialized = await this.init();
       if (!initialized) {
-        return { success: false, text: '', error: 'OCR 服务未就绪' };
+        return { success: false, text: "", error: "OCR 服务未就绪" };
       }
     }
 
@@ -94,11 +129,11 @@ class OCRService {
         success: true,
         text: text,
         confidence: result.data.confidence,
-        words: result.data.words.length
+        words: result.data.words.length,
       };
     } catch (err) {
-      console.error('OCR 识别失败:', err);
-      return { success: false, text: '', error: err.message };
+      console.error("OCR 识别失败:", err);
+      return { success: false, text: "", error: err.message };
     }
   }
 
@@ -119,7 +154,7 @@ class OCRService {
   // 检查是否支持 OCR
   static isSupported() {
     try {
-      require('tesseract.js');
+      require("tesseract.js");
       return true;
     } catch {
       return false;

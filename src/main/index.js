@@ -3,33 +3,46 @@
  * 负责窗口管理、系统托盘、IPC 通信
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, clipboard, nativeImage, shell, dialog, globalShortcut, Notification } = require('electron');
-const path = require('path');
-const log = require('electron-log');
-const { autoUpdater } = require('electron-updater');
+const {
+  app,
+  BrowserWindow,
+  Tray,
+  Menu,
+  ipcMain,
+  clipboard,
+  nativeImage,
+  shell,
+  dialog,
+  globalShortcut,
+  Notification,
+} = require("electron");
+const path = require("path");
+const log = require("electron-log");
+const { autoUpdater } = require("electron-updater");
 
 // 配置日志
-log.transports.file.level = 'info';
-log.transports.file.resolvePathFn = () => path.join(app.getPath('userData'), 'logs', 'clawboard.log');
-log.info('ClawBoard 启动...');
+log.transports.file.level = "info";
+log.transports.file.resolvePathFn = () =>
+  path.join(app.getPath("userData"), "logs", "clawboard.log");
+log.info("ClawBoard 启动...");
 
 // 核心模块
-const ClipboardWatcher = require('../core/clipboard/ClipboardWatcher');
-const Database = require('../core/database/Database');
-const AI = require('../core/ai/AIService');
+const ClipboardWatcher = require("../core/clipboard/ClipboardWatcher");
+const Database = require("../core/database/Database");
+const AI = require("../core/ai/AIService");
 
 // 功能模块
-const OCRService = require('../features/ocr/OCRService'); // v0.17.0 OCR服务
-const Insights = require('../features/insights/InsightsService'); // v0.69.0 智能洞察
-const RuleEngine = require('../features/rules/RuleEngine'); // v0.73.0 规则引擎
+const OCRService = require("../features/ocr/OCRService"); // v0.17.0 OCR服务
+const Insights = require("../features/insights/InsightsService"); // v0.69.0 智能洞察
+const RuleEngine = require("../features/rules/RuleEngine"); // v0.73.0 规则引擎
 
 // 工具模块
-const Platform = require('../utils/platform'); // v0.60.0 跨平台抽象
-const SmartPaste = require('../utils/smart-paste'); // v0.31.0 智能粘贴
-const IgnoreRules = require('../utils/ignore-rules'); // v0.31.0 忽略规则
-const HotkeyTemplates = require('../utils/hotkey-templates'); // v0.32.0 快捷键模板
-const TextTransform = require('../utils/text-transform'); // v0.33.0 格式转换
-const AutoCategorize = require('../utils/auto-categorize'); // v0.65.0 自动分类
+const Platform = require("../utils/platform"); // v0.60.0 跨平台抽象
+const SmartPaste = require("../utils/smart-paste"); // v0.31.0 智能粘贴
+const IgnoreRules = require("../utils/ignore-rules"); // v0.31.0 忽略规则
+const HotkeyTemplates = require("../utils/hotkey-templates"); // v0.32.0 快捷键模板
+const TextTransform = require("../utils/text-transform"); // v0.33.0 格式转换
+const AutoCategorize = require("../utils/auto-categorize"); // v0.65.0 自动分类
 
 let mainWindow = null;
 let cycleWindow = null; // v0.39.0: Cycle mode window
@@ -51,27 +64,37 @@ let monitoringPaused = false; // v0.66.0: 监控控制状态
 let shortcutsConfig = {
   cyclePaste: Platform.getDefaultCyclePasteShortcut(),
   quickPaste: Platform.getDefaultQuickPasteShortcut(),
-  toggleMonitoring: Platform.isMac ? 'Option+Ctrl+P' : 'Alt+Ctrl+P'
+  toggleMonitoring: Platform.isMac ? "Option+Ctrl+P" : "Alt+Ctrl+P",
 };
 
 function loadShortcutsConfig() {
   try {
-    const configPath = require('path').join(app.getPath('userData'), 'shortcuts.json');
-    if (require('fs').existsSync(configPath)) {
-      const saved = JSON.parse(require('fs').readFileSync(configPath, 'utf8'));
+    const configPath = require("path").join(
+      app.getPath("userData"),
+      "shortcuts.json",
+    );
+    if (require("fs").existsSync(configPath)) {
+      const saved = JSON.parse(require("fs").readFileSync(configPath, "utf8"));
       Object.assign(shortcutsConfig, saved);
     }
   } catch (e) {
-    log.error('loadShortcutsConfig error:', e);
+    log.error("loadShortcutsConfig error:", e);
   }
 }
 
 function saveShortcutsConfig() {
   try {
-    const configPath = require('path').join(app.getPath('userData'), 'shortcuts.json');
-    require('fs').writeFileSync(configPath, JSON.stringify(shortcutsConfig, null, 2), 'utf8');
+    const configPath = require("path").join(
+      app.getPath("userData"),
+      "shortcuts.json",
+    );
+    require("fs").writeFileSync(
+      configPath,
+      JSON.stringify(shortcutsConfig, null, 2),
+      "utf8",
+    );
   } catch (e) {
-    log.error('saveShortcutsConfig error:', e);
+    log.error("saveShortcutsConfig error:", e);
   }
 }
 
@@ -86,7 +109,7 @@ let notificationSettings = {
   // v0.64.0: 通知合并
   mergeEnabled: true,
   mergeWindow: 5000, // 合并时间窗口（毫秒）
-  position: 'bottom-right' // 通知位置
+  position: "bottom-right", // 通知位置
 };
 
 // v0.64.0: 通知合并队列
@@ -99,7 +122,7 @@ if (!gotTheLock) {
   app.quit();
 }
 
-app.on('second-instance', () => {
+app.on("second-instance", () => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
@@ -112,11 +135,12 @@ function createCycleWindow() {
   if (cycleWindow && !cycleWindow.isDestroyed()) {
     // v0.42.0: Reposition cycle window near current cursor on repeated trigger
     try {
-      const { screen: scr } = require('electron');
+      const { screen: scr } = require("electron");
       const pos = scr.getCursorScreenPoint();
       const disp = scr.getDisplayNearestPoint(pos);
       const b = disp.workArea;
-      const w = 420, h = 380;
+      const w = 420,
+        h = 380;
       let nx = pos.x + 10;
       let ny = pos.y - 100;
       if (nx + w > b.x + b.width) nx = b.x + b.width - w - 10;
@@ -124,14 +148,16 @@ function createCycleWindow() {
       if (ny < b.y) ny = b.y + 10;
       if (nx < b.x) nx = b.x + 10;
       cycleWindow.setBounds({ x: nx, y: ny, width: w, height: h });
-    } catch (_) { /* ignore reposition errors */ }
+    } catch (_) {
+      /* ignore reposition errors */
+    }
     cycleWindow.show();
     cycleWindow.focus();
     return cycleWindow;
   }
 
   // Get mouse position to show near cursor
-  const { screen } = require('electron');
+  const { screen } = require("electron");
   const cursorPos = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursorPos);
   const bounds = display.workArea;
@@ -145,7 +171,8 @@ function createCycleWindow() {
   let y = cursorPos.y - 100;
 
   // Keep within the target display's work area
-  const w = 420, h = 380;
+  const w = 420,
+    h = 380;
   if (x + w > bounds.x + bounds.width) x = bounds.x + bounds.width - w - 10;
   if (y + h > bounds.y + bounds.height) y = bounds.y + bounds.height - h - 10;
   if (y < bounds.y) y = bounds.y + 10;
@@ -164,26 +191,26 @@ function createCycleWindow() {
     show: false,
     focusable: true,
     webPreferences: {
-      preload: path.join(__dirname, '../preload.js'),
+      preload: path.join(__dirname, "../preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
     },
   });
 
-  cycleWindow.loadFile(path.join(__dirname, '../renderer', 'cycle-panel.html'));
-  cycleWindow.once('ready-to-show', () => {
+  cycleWindow.loadFile(path.join(__dirname, "../renderer", "cycle-panel.html"));
+  cycleWindow.once("ready-to-show", () => {
     cycleWindow.show();
   });
-  cycleWindow.on('closed', () => {
+  cycleWindow.on("closed", () => {
     cycleWindow = null;
   });
 
   // Close cycle window when it loses focus
-  cycleWindow.on('blur', () => {
+  cycleWindow.on("blur", () => {
     // Paste the selected item when window loses focus
     if (cycleWindow && !cycleWindow.isDestroyed()) {
-      cycleWindow.webContents.send('cycle-paste-now');
+      cycleWindow.webContents.send("cycle-paste-now");
       setTimeout(() => {
         if (cycleWindow && !cycleWindow.isDestroyed()) {
           cycleWindow.close();
@@ -202,11 +229,12 @@ function createQuickPasteWindow() {
     quickPasteWindow = null;
   }
 
-  const { screen } = require('electron');
+  const { screen } = require("electron");
   const cursorPos = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursorPos);
   const b = display.workArea;
-  const w = 380, h = 400;
+  const w = 380,
+    h = 400;
   let x = cursorPos.x + 10;
   let y = cursorPos.y + 10;
   if (x + w > b.x + b.width) x = b.x + b.width - w - 10;
@@ -215,32 +243,47 @@ function createQuickPasteWindow() {
   if (y < b.y) y = b.y + 10;
 
   quickPasteWindow = new BrowserWindow({
-    width: w, height: h, x, y,
-    frame: false, transparent: true, resizable: false,
-    skipTaskbar: true, alwaysOnTop: true, show: false,
+    width: w,
+    height: h,
+    x,
+    y,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    show: false,
     webPreferences: {
-      preload: path.join(__dirname, '../preload.js'),
+      preload: path.join(__dirname, "../preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
     },
   });
 
-  quickPasteWindow.loadFile(path.join(__dirname, 'windows/quick-paste.html'));
+  quickPasteWindow.loadFile(path.join(__dirname, "windows/quick-paste.html"));
 
   // Send recent records after load
-  quickPasteWindow.webContents.on('did-finish-load', () => {
+  quickPasteWindow.webContents.on("did-finish-load", () => {
     const recent = db.searchRecords({ limit: 30 });
-    quickPasteWindow.webContents.send('quick-paste-data', recent.map(r => ({
-      id: r.id, type: r.type, content: r.content ? r.content.substring(0, 200) : ''
-    })));
+    quickPasteWindow.webContents.send(
+      "quick-paste-data",
+      recent.map((r) => ({
+        id: r.id,
+        type: r.type,
+        content: r.content ? r.content.substring(0, 200) : "",
+      })),
+    );
   });
 
-  quickPasteWindow.once('ready-to-show', () => quickPasteWindow.show());
-  quickPasteWindow.on('blur', () => {
-    if (quickPasteWindow && !quickPasteWindow.isDestroyed()) quickPasteWindow.close();
+  quickPasteWindow.once("ready-to-show", () => quickPasteWindow.show());
+  quickPasteWindow.on("blur", () => {
+    if (quickPasteWindow && !quickPasteWindow.isDestroyed())
+      quickPasteWindow.close();
   });
-  quickPasteWindow.on('closed', () => { quickPasteWindow = null; });
+  quickPasteWindow.on("closed", () => {
+    quickPasteWindow = null;
+  });
 
   return quickPasteWindow;
 }
@@ -253,37 +296,37 @@ function createWindow() {
     minHeight: 400,
     frame: true,
     show: false,
-    backgroundColor: '#0F172A',
+    backgroundColor: "#0F172A",
     webPreferences: {
-      preload: path.join(__dirname, '../preload.js'),
+      preload: path.join(__dirname, "../preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
     },
-    icon: path.join(__dirname, '../assets/icon.png'),
+    icon: path.join(__dirname, "../assets/icon.png"),
   });
 
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
 
-  mainWindow.once('ready-to-show', () => {
+  mainWindow.once("ready-to-show", () => {
     mainWindow.show();
-    log.info('主窗口已显示');
+    log.info("主窗口已显示");
   });
 
-  mainWindow.on('close', (e) => {
+  mainWindow.on("close", (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
       mainWindow.hide();
     }
   });
 
-  mainWindow.on('closed', () => {
+  mainWindow.on("closed", () => {
     mainWindow = null;
   });
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '../assets/tray-icon.png');
+  const iconPath = path.join(__dirname, "../assets/tray-icon.png");
 
   // 如果没有图标文件，创建一个简单的默认图标
   let trayIcon;
@@ -300,26 +343,26 @@ function createTray() {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: '📋 打开 ClawBoard',
+      label: "📋 打开 ClawBoard",
       click: () => {
         if (mainWindow) {
           mainWindow.show();
           mainWindow.focus();
         }
-      }
+      },
     },
     {
-      label: '🔍 搜索剪贴板',
+      label: "🔍 搜索剪贴板",
       click: () => {
         if (mainWindow) {
           mainWindow.show();
-          mainWindow.webContents.send('focus-search');
+          mainWindow.webContents.send("focus-search");
         }
-      }
+      },
     },
-    { type: 'separator' },
+    { type: "separator" },
     {
-      label: '⏸️ 暂停监控',
+      label: "⏸️ 暂停监控",
       click: async () => {
         const result = { paused: !monitoringPaused };
         if (monitoringPaused) {
@@ -330,71 +373,77 @@ function createTray() {
           monitoringPaused = true;
         }
         if (tray) {
-          tray.displayBalloon({ title: 'ClawBoard', content: monitoringPaused ? '监控已暂停' : '监控已恢复', icon: nativeImage.createFromPath(path.join(__dirname, '../assets/tray-icon.png')) });
+          tray.displayBalloon({
+            title: "ClawBoard",
+            content: monitoringPaused ? "监控已暂停" : "监控已恢复",
+            icon: nativeImage.createFromPath(
+              path.join(__dirname, "../assets/tray-icon.png"),
+            ),
+          });
         }
-      }
+      },
     },
-    { type: 'separator' },
+    { type: "separator" },
     {
-      label: '📊 统计信息',
+      label: "📊 统计信息",
       click: () => {
         if (db) {
           const stats = db.getStats();
           dialog.showMessageBox({
-            type: 'info',
-            title: '📊 ClawBoard 统计',
-            message: `总记录数: ${stats.total}\n文字记录: ${stats.text}\n图片记录: ${stats.image}\n文件路径: ${stats.file}\n收藏数: ${stats.favorite}`
+            type: "info",
+            title: "📊 ClawBoard 统计",
+            message: `总记录数: ${stats.total}\n文字记录: ${stats.text}\n图片记录: ${stats.image}\n文件路径: ${stats.file}\n收藏数: ${stats.favorite}`,
           });
         }
-      }
+      },
     },
     {
-      label: '📁 数据目录',
+      label: "📁 数据目录",
       click: () => {
-        shell.openPath(app.getPath('userData'));
-      }
+        shell.openPath(app.getPath("userData"));
+      },
     },
     {
-      label: '📌 窗口置顶',
-      type: 'checkbox',
+      label: "📌 窗口置顶",
+      type: "checkbox",
       checked: false,
       click: (menuItem) => {
         if (mainWindow) {
           mainWindow.setAlwaysOnTop(menuItem.checked);
         }
-      }
+      },
     },
-    { type: 'separator' },
+    { type: "separator" },
     {
-      label: '🔄 检查更新',
+      label: "🔄 检查更新",
       click: () => {
         checkForUpdates();
-      }
+      },
     },
     {
-      label: '❓ 关于',
+      label: "❓ 关于",
       click: () => {
         dialog.showMessageBox({
-          type: 'info',
-          title: '🦞 ClawBoard',
-          message: `ClawBoard v${app.getVersion()}\n\nAI驱动的本地剪贴板管理器\n\n© 2024 NotSleeply`
+          type: "info",
+          title: "🦞 ClawBoard",
+          message: `ClawBoard v${app.getVersion()}\n\nAI驱动的本地剪贴板管理器\n\n© 2024 NotSleeply`,
         });
-      }
+      },
     },
-    { type: 'separator' },
+    { type: "separator" },
     {
-      label: '❌ 退出',
+      label: "❌ 退出",
       click: () => {
         app.isQuitting = true;
         app.quit();
-      }
+      },
     },
   ]);
 
-  tray.setToolTip('🦞 ClawBoard - 剪贴板管理器');
+  tray.setToolTip("🦞 ClawBoard - 剪贴板管理器");
   tray.setContextMenu(contextMenu);
 
-  tray.on('double-click', () => {
+  tray.on("double-click", () => {
     if (mainWindow) {
       mainWindow.show();
       mainWindow.focus();
@@ -404,345 +453,411 @@ function createTray() {
 
 function setupIPC() {
   // 获取所有记录
-  ipcMain.handle('get-records', async (event, { type, limit, offset, search, favorite }) => {
-    try {
-      return db.getRecords({ type, limit, offset, search, favorite });
-    } catch (err) {
-      log.error('get-records error:', err);
-      return [];
-    }
-  });
+  ipcMain.handle(
+    "get-records",
+    async (event, { type, limit, offset, search, favorite }) => {
+      try {
+        return db.getRecords({ type, limit, offset, search, favorite });
+      } catch (err) {
+        log.error("get-records error:", err);
+        return [];
+      }
+    },
+  );
 
   // 获取单条记录
-  ipcMain.handle('get-record', async (event, id) => {
+  ipcMain.handle("get-record", async (event, id) => {
     try {
       return db.getRecord(id);
     } catch (err) {
-      log.error('get-record error:', err);
+      log.error("get-record error:", err);
       return null;
     }
   });
 
   // 切换收藏状态
-  ipcMain.handle('toggle-favorite', async (event, id) => {
+  ipcMain.handle("toggle-favorite", async (event, id) => {
     try {
       return db.toggleFavorite(id);
     } catch (err) {
-      log.error('toggle-favorite error:', err);
+      log.error("toggle-favorite error:", err);
       return false;
     }
   });
 
   // 更新备注
-  ipcMain.handle('update-note', async (event, { id, note }) => {
+  ipcMain.handle("update-note", async (event, { id, note }) => {
     try {
       return db.updateNote(id, note);
     } catch (err) {
-      log.error('update-note error:', err);
+      log.error("update-note error:", err);
       return false;
     }
   });
 
   // v0.38.0: 更新条目内容（内容编辑器）
-  ipcMain.handle('update-item-content', async (event, { id, content }) => {
+  ipcMain.handle("update-item-content", async (event, { id, content }) => {
     try {
       return db.updateItemContent(id, content);
     } catch (err) {
-      log.error('update-item-content error:', err);
+      log.error("update-item-content error:", err);
       return null;
     }
   });
 
   // v0.72.0: 删除记录（支持软删除/永久删除）
-  ipcMain.handle('delete-record', async (event, id, permanent = false) => {
+  ipcMain.handle("delete-record", async (event, id, permanent = false) => {
     try {
       return db.deleteRecord(id, permanent);
     } catch (err) {
-      log.error('delete-record error:', err);
+      log.error("delete-record error:", err);
       return false;
     }
   });
 
   // v0.72.0: 获取回收站列表
-  ipcMain.handle('get-trash-records', async (_, limit = 50, offset = 0) => {
-    try { return db.getTrashRecords(limit, offset); } catch (err) { log.error('get-trash-records error:', err); return []; }
+  ipcMain.handle("get-trash-records", async (_, limit = 50, offset = 0) => {
+    try {
+      return db.getTrashRecords(limit, offset);
+    } catch (err) {
+      log.error("get-trash-records error:", err);
+      return [];
+    }
   });
 
   // v0.72.0: 获取回收站统计
-  ipcMain.handle('get-trash-stats', async () => {
-    try { return db.getTrashStats(); } catch (err) { log.error('get-trash-stats error:', err); return { total: 0 }; }
+  ipcMain.handle("get-trash-stats", async () => {
+    try {
+      return db.getTrashStats();
+    } catch (err) {
+      log.error("get-trash-stats error:", err);
+      return { total: 0 };
+    }
   });
 
   // v0.72.0: 恢复回收站记录
-  ipcMain.handle('restore-from-trash', async (_, trashId) => {
-    try { return db.restoreFromTrash(trashId); } catch (err) { log.error('restore-from-trash error:', err); return false; }
+  ipcMain.handle("restore-from-trash", async (_, trashId) => {
+    try {
+      return db.restoreFromTrash(trashId);
+    } catch (err) {
+      log.error("restore-from-trash error:", err);
+      return false;
+    }
   });
 
   // v0.72.0: 永久删除回收站记录
-  ipcMain.handle('delete-trash-record', async (_, trashId) => {
-    try { return db.deleteTrashRecord(trashId); } catch (err) { log.error('delete-trash-record error:', err); return false; }
+  ipcMain.handle("delete-trash-record", async (_, trashId) => {
+    try {
+      return db.deleteTrashRecord(trashId);
+    } catch (err) {
+      log.error("delete-trash-record error:", err);
+      return false;
+    }
   });
 
   // v0.72.0: 清空回收站
-  ipcMain.handle('empty-trash', async () => {
-    try { return db.emptyTrash(); } catch (err) { log.error('empty-trash error:', err); return false; }
+  ipcMain.handle("empty-trash", async () => {
+    try {
+      return db.emptyTrash();
+    } catch (err) {
+      log.error("empty-trash error:", err);
+      return false;
+    }
   });
 
   // 清空历史
-  ipcMain.handle('clear-history', async () => {
+  ipcMain.handle("clear-history", async () => {
     try {
       return db.clearHistory();
     } catch (err) {
-      log.error('clear-history error:', err);
+      log.error("clear-history error:", err);
       return false;
     }
   });
 
   // v0.66.0: 监控控制 — 暂停/恢复
-  ipcMain.handle('toggle-monitoring', async () => {
+  ipcMain.handle("toggle-monitoring", async () => {
     try {
       if (monitoringPaused) {
         clipboardWatcher.start();
         monitoringPaused = false;
-        if (tray) tray.setImage(path.join(__dirname, '../assets/tray-icon.png'));
+        if (tray)
+          tray.setImage(path.join(__dirname, "../assets/tray-icon.png"));
         return { success: true, paused: false };
       } else {
         clipboardWatcher.stop();
         monitoringPaused = true;
-        if (tray) tray.setImage(path.join(__dirname, '../assets/tray-icon.png'));
+        if (tray)
+          tray.setImage(path.join(__dirname, "../assets/tray-icon.png"));
         return { success: true, paused: true };
       }
     } catch (e) {
-      log.error('toggle-monitoring error:', e);
+      log.error("toggle-monitoring error:", e);
       return { success: false, error: e.message };
     }
   });
 
-  ipcMain.handle('get-monitoring-status', async () => {
+  ipcMain.handle("get-monitoring-status", async () => {
     return { paused: monitoringPaused };
   });
 
   // v0.66.0: 条件清空历史
-  ipcMain.handle('clear-records-filtered', async (_, { range, type, favorite }) => {
-    try {
-      let query = 'DELETE FROM records WHERE 1=1';
-      const params = [];
+  ipcMain.handle(
+    "clear-records-filtered",
+    async (_, { range, type, favorite }) => {
+      try {
+        let query = "DELETE FROM records WHERE 1=1";
+        const params = [];
 
-      const now = new Date();
-      if (range === 'today') {
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        query += ' AND created_at >= ?';
-        params.push(today.toISOString());
-      } else if (range === 'week') {
-        const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-        query += ' AND created_at >= ?';
-        params.push(weekAgo.toISOString());
-      } else if (range === 'month') {
-        const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
-        query += ' AND created_at >= ?';
-        params.push(monthAgo.toISOString());
+        const now = new Date();
+        if (range === "today") {
+          const today = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+          );
+          query += " AND created_at >= ?";
+          params.push(today.toISOString());
+        } else if (range === "week") {
+          const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+          query += " AND created_at >= ?";
+          params.push(weekAgo.toISOString());
+        } else if (range === "month") {
+          const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+          query += " AND created_at >= ?";
+          params.push(monthAgo.toISOString());
+        }
+
+        if (type !== "all") {
+          query += " AND type = ?";
+          params.push(type);
+        }
+
+        if (favorite) {
+          query += " AND favorite = 1";
+        }
+
+        const stmt = db.db.prepare(query);
+        const result = stmt.run(...params);
+
+        return { success: true, deleted: result.changes };
+      } catch (e) {
+        log.error("clear-records-filtered error:", e);
+        return { success: false, error: e.message };
       }
-
-      if (type !== 'all') {
-        query += ' AND type = ?';
-        params.push(type);
-      }
-
-      if (favorite) {
-        query += ' AND favorite = 1';
-      }
-
-      const stmt = db.db.prepare(query);
-      const result = stmt.run(...params);
-
-      return { success: true, deleted: result.changes };
-    } catch (e) {
-      log.error('clear-records-filtered error:', e);
-      return { success: false, error: e.message };
-    }
-  });
+    },
+  );
 
   // 复制到剪贴板
-  ipcMain.handle('copy-to-clipboard', async (event, text) => {
+  ipcMain.handle("copy-to-clipboard", async (event, text) => {
     try {
       clipboard.writeText(text);
       return true;
     } catch (err) {
-      log.error('copy-to-clipboard error:', err);
+      log.error("copy-to-clipboard error:", err);
       return false;
     }
   });
 
   // 获取统计
-  ipcMain.handle('get-stats', async () => {
+  ipcMain.handle("get-stats", async () => {
     try {
       return db.getStats();
     } catch (err) {
-      log.error('get-stats error:', err);
+      log.error("get-stats error:", err);
       return { total: 0, text: 0, image: 0, file: 0, favorite: 0 };
     }
   });
 
   // 获取详细统计
-  ipcMain.handle('get-detailed-stats', async () => {
+  ipcMain.handle("get-detailed-stats", async () => {
     try {
       return db.getDetailedStats();
     } catch (err) {
-      log.error('get-detailed-stats error:', err);
+      log.error("get-detailed-stats error:", err);
       return null;
     }
   });
 
   // v0.61.0: 统计与可视化
-  ipcMain.handle('get-stats-by-type', async () => {
-    try { return db.getStatsByType(); } catch (e) { log.error('get-stats-by-type error:', e); return []; }
+  ipcMain.handle("get-stats-by-type", async () => {
+    try {
+      return db.getStatsByType();
+    } catch (e) {
+      log.error("get-stats-by-type error:", e);
+      return [];
+    }
   });
 
-  ipcMain.handle('get-stats-by-app', async (_, limit) => {
-    try { return db.getStatsByApp(limit || 10); } catch (e) { log.error('get-stats-by-app error:', e); return []; }
+  ipcMain.handle("get-stats-by-app", async (_, limit) => {
+    try {
+      return db.getStatsByApp(limit || 10);
+    } catch (e) {
+      log.error("get-stats-by-app error:", e);
+      return [];
+    }
   });
 
-  ipcMain.handle('get-daily-stats', async (_, days) => {
-    try { return db.getDailyStats(days || 30); } catch (e) { log.error('get-daily-stats error:', e); return []; }
+  ipcMain.handle("get-daily-stats", async (_, days) => {
+    try {
+      return db.getDailyStats(days || 30);
+    } catch (e) {
+      log.error("get-daily-stats error:", e);
+      return [];
+    }
   });
 
-  ipcMain.handle('get-hourly-stats', async () => {
-    try { return db.getHourlyStats(); } catch (e) { log.error('get-hourly-stats error:', e); return Array(24).fill(0); }
+  ipcMain.handle("get-hourly-stats", async () => {
+    try {
+      return db.getHourlyStats();
+    } catch (e) {
+      log.error("get-hourly-stats error:", e);
+      return Array(24).fill(0);
+    }
   });
 
-  ipcMain.handle('get-weekly-trend', async () => {
-    try { return db.getWeeklyTrend(); } catch (e) { log.error('get-weekly-trend error:', e); return []; }
+  ipcMain.handle("get-weekly-trend", async () => {
+    try {
+      return db.getWeeklyTrend();
+    } catch (e) {
+      log.error("get-weekly-trend error:", e);
+      return [];
+    }
   });
 
   // v0.69.0: 智能洞察
-  ipcMain.handle('get-insights', async () => {
+  ipcMain.handle("get-insights", async () => {
     try {
       if (!insightsEngine) return [];
       return insightsEngine.generateInsights();
     } catch (e) {
-      log.error('get-insights error:', e);
+      log.error("get-insights error:", e);
       return [];
     }
   });
 
   // ==================== v0.73.0: 规则引擎 ====================
-  ipcMain.handle('get-rules', async () => {
+  ipcMain.handle("get-rules", async () => {
     try {
       if (!ruleEngine) ruleEngine = new RuleEngine(db);
       return ruleEngine.getRules();
     } catch (e) {
-      log.error('get-rules error:', e);
+      log.error("get-rules error:", e);
       return [];
     }
   });
 
-  ipcMain.handle('add-rule', async (_, rule) => {
+  ipcMain.handle("add-rule", async (_, rule) => {
     try {
       if (!ruleEngine) ruleEngine = new RuleEngine(db);
       return ruleEngine.addRule(rule);
     } catch (e) {
-      log.error('add-rule error:', e);
+      log.error("add-rule error:", e);
       return { success: false, error: e.message };
     }
   });
 
-  ipcMain.handle('update-rule', async (_, { id, ...updates }) => {
+  ipcMain.handle("update-rule", async (_, { id, ...updates }) => {
     try {
       if (!ruleEngine) ruleEngine = new RuleEngine(db);
       return ruleEngine.updateRule(id, updates);
     } catch (e) {
-      log.error('update-rule error:', e);
+      log.error("update-rule error:", e);
       return { success: false, error: e.message };
     }
   });
 
-  ipcMain.handle('delete-rule', async (_, id) => {
+  ipcMain.handle("delete-rule", async (_, id) => {
     try {
       if (!ruleEngine) ruleEngine = new RuleEngine(db);
       return ruleEngine.deleteRule(id);
     } catch (e) {
-      log.error('delete-rule error:', e);
+      log.error("delete-rule error:", e);
       return { success: false, error: e.message };
     }
   });
 
-  ipcMain.handle('reset-rules', async () => {
+  ipcMain.handle("reset-rules", async () => {
     try {
       if (!ruleEngine) ruleEngine = new RuleEngine(db);
       return ruleEngine.resetToDefaults();
     } catch (e) {
-      log.error('reset-rules error:', e);
+      log.error("reset-rules error:", e);
       return { success: false, error: e.message };
     }
   });
 
-  ipcMain.handle('get-rule-templates', async () => {
+  ipcMain.handle("get-rule-templates", async () => {
     try {
       if (!ruleEngine) ruleEngine = new RuleEngine(db);
       return ruleEngine.getBuiltInTemplates();
     } catch (e) {
-      log.error('get-rule-templates error:', e);
+      log.error("get-rule-templates error:", e);
       return [];
     }
   });
 
-  ipcMain.handle('export-rules', async () => {
+  ipcMain.handle("export-rules", async () => {
     try {
       if (!ruleEngine) ruleEngine = new RuleEngine(db);
       return ruleEngine.exportRules();
     } catch (e) {
-      log.error('export-rules error:', e);
-      return '[]';
+      log.error("export-rules error:", e);
+      return "[]";
     }
   });
 
-  ipcMain.handle('import-rules', async (_, jsonStr) => {
+  ipcMain.handle("import-rules", async (_, jsonStr) => {
     try {
       if (!ruleEngine) ruleEngine = new RuleEngine(db);
       return ruleEngine.importRules(jsonStr);
     } catch (e) {
-      log.error('import-rules error:', e);
+      log.error("import-rules error:", e);
       return { success: false, error: e.message };
     }
   });
 
-  ipcMain.handle('get-rule-execution-log', async (_, limit) => {
+  ipcMain.handle("get-rule-execution-log", async (_, limit) => {
     try {
       if (!ruleEngine) ruleEngine = new RuleEngine(db);
       return ruleEngine.getExecutionLog(limit || 20);
     } catch (e) {
-      log.error('get-rule-execution-log error:', e);
+      log.error("get-rule-execution-log error:", e);
       return [];
     }
   });
 
-  ipcMain.handle('test-rule', async (_, { content, type, sourceApp }) => {
+  ipcMain.handle("test-rule", async (_, { content, type, sourceApp }) => {
     try {
       if (!ruleEngine) ruleEngine = new RuleEngine(db);
       const result = ruleEngine.process({
         content,
-        type: type || 'text',
-        sourceApp: sourceApp || '',
-        tags: '[]'
+        type: type || "text",
+        sourceApp: sourceApp || "",
+        tags: "[]",
       });
       return { success: true, result };
     } catch (e) {
-      log.error('test-rule error:', e);
+      log.error("test-rule error:", e);
       return { success: false, error: e.message };
     }
   });
 
   // v0.62.0: Calendar heatmap
-  ipcMain.handle('get-calendar-data', async (_, days) => {
-    try { return db.getCalendarData(days || 365); }
-    catch (e) { log.error('get-calendar-data error:', e); return { days: 365, dataMap: {} }; }
+  ipcMain.handle("get-calendar-data", async (_, days) => {
+    try {
+      return db.getCalendarData(days || 365);
+    } catch (e) {
+      log.error("get-calendar-data error:", e);
+      return { days: 365, dataMap: {} };
+    }
   });
 
   // 获取系统健康状态 (v0.26.0)
-  ipcMain.handle('get-system-health', async () => {
+  ipcMain.handle("get-system-health", async () => {
     try {
       const memUsage = process.memoryUsage();
-      const dbPath = path.join(app.getPath('userData'), 'clawboard.db');
+      const dbPath = path.join(app.getPath("userData"), "clawboard.db");
       let dbSize = 0;
       if (fs.existsSync(dbPath)) {
         dbSize = fs.statSync(dbPath).size;
@@ -752,12 +867,12 @@ function setupIPC() {
         memoryTotal: Math.round(memUsage.heapTotal / 1024 / 1024), // MB
         rss: Math.round(memUsage.rss / 1024 / 1024), // MB
         dbSize: dbSize,
-        dbSizeMB: Math.round(dbSize / 1024 / 1024 * 10) / 10,
+        dbSizeMB: Math.round((dbSize / 1024 / 1024) * 10) / 10,
         uptime: Math.round(process.uptime()), // seconds
-        uptimeFormatted: formatUptime(process.uptime())
+        uptimeFormatted: formatUptime(process.uptime()),
       };
     } catch (err) {
-      log.error('get-system-health error:', err);
+      log.error("get-system-health error:", err);
       return null;
     }
   });
@@ -770,189 +885,214 @@ function setupIPC() {
   }
 
   // 获取来源应用列表
-  ipcMain.handle('get-source-apps', async () => {
+  ipcMain.handle("get-source-apps", async () => {
     try {
       return db.getSourceApps();
     } catch (err) {
-      log.error('get-source-apps error:', err);
+      log.error("get-source-apps error:", err);
       return [];
     }
   });
 
   // 标签相关
-  ipcMain.handle('get-all-tags', async () => {
+  ipcMain.handle("get-all-tags", async () => {
     try {
       return db.getAllTags();
     } catch (err) {
-      log.error('get-all-tags error:', err);
+      log.error("get-all-tags error:", err);
       return [];
     }
   });
 
-  ipcMain.handle('add-tag', async (event, { recordId, tag }) => {
+  ipcMain.handle("add-tag", async (event, { recordId, tag }) => {
     try {
       return db.addTag(recordId, tag);
     } catch (err) {
-      log.error('add-tag error:', err);
+      log.error("add-tag error:", err);
       return false;
     }
   });
 
-  ipcMain.handle('remove-tag', async (event, { recordId, tag }) => {
+  ipcMain.handle("remove-tag", async (event, { recordId, tag }) => {
     try {
       return db.removeTag(recordId, tag);
     } catch (err) {
-      log.error('remove-tag error:', err);
+      log.error("remove-tag error:", err);
       return false;
     }
   });
 
-  ipcMain.handle('delete-tag', async (event, tag) => {
+  ipcMain.handle("delete-tag", async (event, tag) => {
     try {
       return db.deleteTag(tag);
     } catch (err) {
-      log.error('delete-tag error:', err);
+      log.error("delete-tag error:", err);
       return 0;
     }
   });
 
   // 智能去重相关
-  ipcMain.handle('find-similar', async (event, content) => {
+  ipcMain.handle("find-similar", async (event, content) => {
     try {
       return db.findSimilar(content);
     } catch (err) {
-      log.error('find-similar error:', err);
+      log.error("find-similar error:", err);
       return [];
     }
   });
 
-  ipcMain.handle('find-duplicates', async () => {
+  ipcMain.handle("find-duplicates", async () => {
     try {
       return db.findDuplicates();
     } catch (err) {
-      log.error('find-duplicates error:', err);
+      log.error("find-duplicates error:", err);
       return [];
     }
   });
 
-  ipcMain.handle('cleanup-duplicates', async () => {
+  ipcMain.handle("cleanup-duplicates", async () => {
     try {
       return db.cleanupDuplicates();
     } catch (err) {
-      log.error('cleanup-duplicates error:', err);
+      log.error("cleanup-duplicates error:", err);
       return 0;
     }
   });
 
   // 更新当前来源应用（由剪贴板监控调用）
-  ipcMain.handle('set-current-source', async (event, { app, title, url }) => {
+  ipcMain.handle("set-current-source", async (event, { app, title, url }) => {
     try {
       // 存储当前前台窗口信息
       clipboardWatcher.setCurrentSource({ app, title, url });
       return { success: true };
     } catch (err) {
-      log.error('set-current-source error:', err);
+      log.error("set-current-source error:", err);
       return { success: false };
     }
   });
 
   // AI 摘要（占位）
-  ipcMain.handle('ai-summary', async (event, text) => {
+  ipcMain.handle("ai-summary", async (event, text) => {
     try {
-      const AI = require('./ai');
+      const AI = require("./ai");
       return await AI.summarize(text);
     } catch (err) {
-      log.error('ai-summary error:', err);
+      log.error("ai-summary error:", err);
       return null;
     }
   });
 
   // v0.54.0: AI 设置相关 IPC
-  ipcMain.handle('ai-get-models', async () => {
+  ipcMain.handle("ai-get-models", async () => {
     try {
-      const AI = require('./ai');
+      const AI = require("./ai");
       return await AI.listModels();
     } catch (err) {
-      log.error('ai-get-models error:', err);
+      log.error("ai-get-models error:", err);
       return [];
     }
   });
 
-  ipcMain.handle('ai-get-settings', async () => {
+  ipcMain.handle("ai-get-settings", async () => {
     try {
       return db.getAISettings();
     } catch (err) {
-      log.error('ai-get-settings error:', err);
+      log.error("ai-get-settings error:", err);
       return {};
     }
   });
 
-  ipcMain.handle('ai-save-settings', async (event, settings) => {
+  ipcMain.handle("ai-save-settings", async (event, settings) => {
     try {
       return db.saveAISettings(settings);
     } catch (err) {
-      log.error('ai-save-settings error:', err);
+      log.error("ai-save-settings error:", err);
       return false;
     }
   });
 
   // v0.58.0: AI 配置管理
-  ipcMain.handle('get-ai-config', async () => {
-    try { return AI.getConfig(); } catch (e) { return {}; }
+  ipcMain.handle("get-ai-config", async () => {
+    try {
+      return AI.getConfig();
+    } catch (e) {
+      return {};
+    }
   });
 
-  ipcMain.handle('update-ai-config', async (_, updates) => {
-    try { return AI.updateConfig(updates); } catch (e) { log.error('update-ai-config error:', e); return null; }
+  ipcMain.handle("update-ai-config", async (_, updates) => {
+    try {
+      return AI.updateConfig(updates);
+    } catch (e) {
+      log.error("update-ai-config error:", e);
+      return null;
+    }
   });
 
-  ipcMain.handle('get-ai-prompts', async () => {
-    try { return AI.getPrompts(); } catch (e) { return {}; }
+  ipcMain.handle("get-ai-prompts", async () => {
+    try {
+      return AI.getPrompts();
+    } catch (e) {
+      return {};
+    }
   });
 
-  ipcMain.handle('update-ai-prompt', async (_, { key, template }) => {
-    try { return AI.updatePrompt(key, template); } catch (e) { return false; }
+  ipcMain.handle("update-ai-prompt", async (_, { key, template }) => {
+    try {
+      return AI.updatePrompt(key, template);
+    } catch (e) {
+      return false;
+    }
   });
 
-  ipcMain.handle('reset-ai-defaults', async () => {
-    try { return AI.resetToDefaults(); } catch (e) { return false; }
+  ipcMain.handle("reset-ai-defaults", async () => {
+    try {
+      return AI.resetToDefaults();
+    } catch (e) {
+      return false;
+    }
   });
 
-  ipcMain.handle('get-ai-defaults', async () => {
-    try { return { config: AI.getDefaultConfig(), prompts: AI.getDefaultPrompts() }; } catch (e) { return null; }
+  ipcMain.handle("get-ai-defaults", async () => {
+    try {
+      return { config: AI.getDefaultConfig(), prompts: AI.getDefaultPrompts() };
+    } catch (e) {
+      return null;
+    }
   });
 
   // 获取设置
-  ipcMain.handle('get-settings', async () => {
+  ipcMain.handle("get-settings", async () => {
     try {
       return db.getSettings();
     } catch (err) {
-      log.error('get-settings error:', err);
+      log.error("get-settings error:", err);
       return {};
     }
   });
 
   // 保存设置
-  ipcMain.handle('save-settings', async (event, settings) => {
+  ipcMain.handle("save-settings", async (event, settings) => {
     try {
       // 处理开机自启动
       if (settings.autoStart !== undefined) {
         app.setLoginItemSettings({
           openAtLogin: settings.autoStart,
-          path: app.getPath('exe')
+          path: app.getPath("exe"),
         });
       }
       // v0.29.0: 更新通知设置
       updateNotificationSettings(settings);
       return db.saveSettings(settings);
     } catch (err) {
-      log.error('save-settings error:', err);
+      log.error("save-settings error:", err);
       return false;
     }
   });
 
   // v0.29.0: 通知设置相关 IPC
   // v0.64.0: 扩展通知合并配置
-  ipcMain.handle('get-notification-settings', async () => {
+  ipcMain.handle("get-notification-settings", async () => {
     try {
       return {
         enabled: notificationSettings.enabled,
@@ -963,15 +1103,15 @@ function setupIPC() {
         // v0.64.0
         mergeEnabled: notificationSettings.mergeEnabled,
         mergeWindow: notificationSettings.mergeWindow,
-        position: notificationSettings.position
+        position: notificationSettings.position,
       };
     } catch (err) {
-      log.error('get-notification-settings error:', err);
+      log.error("get-notification-settings error:", err);
       return null;
     }
   });
 
-  ipcMain.handle('update-notification-settings', async (event, settings) => {
+  ipcMain.handle("update-notification-settings", async (event, settings) => {
     try {
       updateNotificationSettings(settings);
       // 同时保存到数据库
@@ -987,28 +1127,28 @@ function setupIPC() {
       dbSettings.notificationPosition = settings.position;
       return db.saveSettings(dbSettings);
     } catch (err) {
-      log.error('update-notification-settings error:', err);
+      log.error("update-notification-settings error:", err);
       return false;
     }
   });
 
   // v0.29.0: 测试通知
-  ipcMain.handle('test-notification', async () => {
+  ipcMain.handle("test-notification", async () => {
     try {
       showClipboardNotification({
-        type: 'text',
-        content: '这是一条测试通知 📋 ClawBoard 通知功能已启用！',
-        id: 'test'
+        type: "text",
+        content: "这是一条测试通知 📋 ClawBoard 通知功能已启用！",
+        id: "test",
       });
       return { success: true };
     } catch (err) {
-      log.error('test-notification error:', err);
+      log.error("test-notification error:", err);
       return { success: false, error: err.message };
     }
   });
 
   // 搜索（支持关键词 + 语义搜索）
-  ipcMain.handle('search', async (event, { query, useSemantic = true }) => {
+  ipcMain.handle("search", async (event, { query, useSemantic = true }) => {
     try {
       // 如果启用语义搜索且 Ollama 可用
       if (useSemantic && AI) {
@@ -1020,68 +1160,72 @@ function setupIPC() {
       // 回退到关键词搜索
       return db.search(query);
     } catch (err) {
-      log.error('search error:', err);
+      log.error("search error:", err);
       return [];
     }
   });
 
-  log.info('IPC 处理器已注册');
+  log.info("IPC 处理器已注册");
 }
 
 // 导出数据
-ipcMain.handle('export-data', async (event, { format = 'json' }) => {
+ipcMain.handle("export-data", async (event, { format = "json" }) => {
   try {
     const records = db.getRecords({ limit: 10000 });
-    const { dialog } = require('electron');
+    const { dialog } = require("electron");
 
     const result = await dialog.showSaveDialog(mainWindow, {
       defaultPath: `clawboard-backup-${Date.now()}.${format}`,
       filters: [
-        { name: 'JSON', extensions: ['json'] },
-        { name: 'CSV', extensions: ['csv'] },
-      ]
+        { name: "JSON", extensions: ["json"] },
+        { name: "CSV", extensions: ["csv"] },
+      ],
     });
 
-    if (result.canceled) return { success: false, message: '已取消' };
+    if (result.canceled) return { success: false, message: "已取消" };
 
-    const fs = require('fs');
+    const fs = require("fs");
     let content;
 
-    if (format === 'json') {
+    if (format === "json") {
       content = JSON.stringify(records, null, 2);
-    } else if (format === 'csv') {
-      const headers = 'id,type,content,summary,source,favorite,language,created_at\n';
-      const rows = records.map(r =>
-        `${r.id},"${r.type}","${(r.content || '').replace(/"/g, '""')}","${(r.summary || '').replace(/"/g, '""')}","${r.source}",${r.favorite || 0},"${r.language || ''}","${r.created_at}"`
-      ).join('\n');
+    } else if (format === "csv") {
+      const headers =
+        "id,type,content,summary,source,favorite,language,created_at\n";
+      const rows = records
+        .map(
+          (r) =>
+            `${r.id},"${r.type}","${(r.content || "").replace(/"/g, '""')}","${(r.summary || "").replace(/"/g, '""')}","${r.source}",${r.favorite || 0},"${r.language || ""}","${r.created_at}"`,
+        )
+        .join("\n");
       content = headers + rows;
     }
 
-    fs.writeFileSync(result.filePath, content, 'utf-8');
+    fs.writeFileSync(result.filePath, content, "utf-8");
     return { success: true, message: `已导出 ${records.length} 条记录` };
   } catch (err) {
-    log.error('export-data error:', err);
+    log.error("export-data error:", err);
     return { success: false, message: err.message };
   }
 });
 
 // 导入数据
-ipcMain.handle('import-data', async (event, filePath) => {
+ipcMain.handle("import-data", async (event, filePath) => {
   try {
-    const fs = require('fs');
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const fs = require("fs");
+    const content = fs.readFileSync(filePath, "utf-8");
     const records = JSON.parse(content);
 
     let count = 0;
     for (const record of records) {
       if (record.content) {
         db.addRecord({
-          type: record.type || 'text',
+          type: record.type || "text",
           content: record.content,
           summary: record.summary,
-          source: 'import',
+          source: "import",
           favorite: record.favorite || 0,
-          language: record.language
+          language: record.language,
         });
         count++;
       }
@@ -1089,50 +1233,53 @@ ipcMain.handle('import-data', async (event, filePath) => {
 
     return { success: true, message: `已导入 ${count} 条记录` };
   } catch (err) {
-    log.error('import-data error:', err);
+    log.error("import-data error:", err);
     return { success: false, message: err.message };
   }
 });
 
 // 模板管理
-ipcMain.handle('get-templates', async () => {
+ipcMain.handle("get-templates", async () => {
   try {
     return db.getTemplates();
   } catch (err) {
-    log.error('get-templates error:', err);
+    log.error("get-templates error:", err);
     return [];
   }
 });
 
-ipcMain.handle('add-template', async (event, { name, content, category }) => {
+ipcMain.handle("add-template", async (event, { name, content, category }) => {
   try {
     return db.addTemplate(name, content, category);
   } catch (err) {
-    log.error('add-template error:', err);
+    log.error("add-template error:", err);
     return null;
   }
 });
 
-ipcMain.handle('update-template', async (event, { id, name, content, category }) => {
-  try {
-    return db.updateTemplate(id, name, content, category);
-  } catch (err) {
-    log.error('update-template error:', err);
-    return null;
-  }
-});
+ipcMain.handle(
+  "update-template",
+  async (event, { id, name, content, category }) => {
+    try {
+      return db.updateTemplate(id, name, content, category);
+    } catch (err) {
+      log.error("update-template error:", err);
+      return null;
+    }
+  },
+);
 
-ipcMain.handle('delete-template', async (event, id) => {
+ipcMain.handle("delete-template", async (event, id) => {
   try {
     return db.deleteTemplate(id);
   } catch (err) {
-    log.error('delete-template error:', err);
+    log.error("delete-template error:", err);
     return false;
   }
 });
 
 // 窗口置顶
-ipcMain.handle('set-always-on-top', async (event, flag) => {
+ipcMain.handle("set-always-on-top", async (event, flag) => {
   try {
     if (mainWindow) {
       mainWindow.setAlwaysOnTop(flag);
@@ -1140,71 +1287,75 @@ ipcMain.handle('set-always-on-top', async (event, flag) => {
     }
     return false;
   } catch (err) {
-    log.error('set-always-on-top error:', err);
+    log.error("set-always-on-top error:", err);
     return false;
   }
 });
 
 // v0.17.0: OCR 相关 IPC
 // 手动触发 OCR 识别
-ipcMain.handle('ocr-recognize', async (event, imagePath) => {
+ipcMain.handle("ocr-recognize", async (event, imagePath) => {
   try {
     if (!ocrService) {
-      return { success: false, error: 'OCR 服务未初始化' };
+      return { success: false, error: "OCR 服务未初始化" };
     }
     return await ocrService.recognize(imagePath);
   } catch (err) {
-    log.error('ocr-recognize error:', err);
+    log.error("ocr-recognize error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 获取 OCR 文本
-ipcMain.handle('get-ocr-text', async (event, id) => {
+ipcMain.handle("get-ocr-text", async (event, id) => {
   try {
     const record = db.getRecord(id);
     return record ? record.ocr_text : null;
   } catch (err) {
-    log.error('get-ocr-text error:', err);
+    log.error("get-ocr-text error:", err);
     return null;
   }
 });
 
 // v0.53.0: OCR 语言管理
-ipcMain.handle('get-ocr-languages', async () => {
+ipcMain.handle("get-ocr-languages", async () => {
   try {
     return ocrService.getAvailableLanguages();
   } catch (err) {
-    log.error('get-ocr-languages error:', err);
+    log.error("get-ocr-languages error:", err);
     return []; // 返回空数组而非 null
   }
 });
 
-ipcMain.handle('set-ocr-language', async (_, langCodes) => {
+ipcMain.handle("set-ocr-language", async (_, langCodes) => {
   try {
     const result = await ocrService.setLanguage(langCodes);
     return result; // { success: true/false, ... }
   } catch (err) {
-    log.error('set-ocr-language error:', err);
+    log.error("set-ocr-language error:", err);
     return { success: false, error: err.message }; // 返回错误对象
   }
 });
 
-ipcMain.handle('get-current-ocr-language', async () => {
+ipcMain.handle("get-current-ocr-language", async () => {
   try {
     return { success: true, languages: ocrService.getCurrentLanguage() }; // 返回成功对象
   } catch (err) {
-    log.error('get-current-ocr-language error:', err);
-    return { success: false, error: err.message, languages: ['chi_sim', 'eng'] }; // 返回错误对象和默认值
+    log.error("get-current-ocr-language error:", err);
+    return {
+      success: false,
+      error: err.message,
+      languages: ["chi_sim", "eng"],
+    }; // 返回错误对象和默认值
   }
 });
 
 // 切换锁定状态
-ipcMain.handle('toggle-lock', async (event, id) => {
+ipcMain.handle("toggle-lock", async (event, id) => {
   try {
     return db.toggleLock(id);
   } catch (err) {
-    log.error('toggle-lock error:', err);
+    log.error("toggle-lock error:", err);
     return false;
   }
 });
@@ -1212,320 +1363,337 @@ ipcMain.handle('toggle-lock', async (event, id) => {
 // ==================== 加密相关 ====================
 
 // 设置加密密码（解密所有加密记录）
-ipcMain.handle('set-encryption-password', async (event, password) => {
+ipcMain.handle("set-encryption-password", async (event, password) => {
   try {
     db.setEncryptionKey(password);
     return { success: true };
   } catch (err) {
-    log.error('set-encryption-password error:', err);
+    log.error("set-encryption-password error:", err);
     return { success: false, message: err.message };
   }
 });
 
 // 清除加密密钥
-ipcMain.handle('clear-encryption-key', async () => {
+ipcMain.handle("clear-encryption-key", async () => {
   try {
     db.clearEncryptionKey();
     return { success: true };
   } catch (err) {
-    log.error('clear-encryption-key error:', err);
+    log.error("clear-encryption-key error:", err);
     return false;
   }
 });
 
 // 加密记录
-ipcMain.handle('encrypt-record', async (event, id) => {
+ipcMain.handle("encrypt-record", async (event, id) => {
   try {
     return db.encryptRecord(id);
   } catch (err) {
-    log.error('encrypt-record error:', err);
+    log.error("encrypt-record error:", err);
     return false;
   }
 });
 
 // 解密记录（临时查看）
-ipcMain.handle('decrypt-record', async (event, id) => {
+ipcMain.handle("decrypt-record", async (event, id) => {
   try {
     return db.decryptRecord(id);
   } catch (err) {
-    log.error('decrypt-record error:', err);
+    log.error("decrypt-record error:", err);
     return null;
   }
 });
 
 // 取消加密
-ipcMain.handle('remove-encryption', async (event, id) => {
+ipcMain.handle("remove-encryption", async (event, id) => {
   try {
     return db.removeEncryption(id);
   } catch (err) {
-    log.error('remove-encryption error:', err);
+    log.error("remove-encryption error:", err);
     return false;
   }
 });
 
 // v0.23.0: 保存记录（用于合并功能）
-ipcMain.handle('save-record', async (event, record) => {
+ipcMain.handle("save-record", async (event, record) => {
   try {
     const result = db.addRecord(record);
     return { success: true, record: result };
   } catch (err) {
-    log.error('save-record error:', err);
+    log.error("save-record error:", err);
     return { success: false, message: err.message };
   }
 });
 
 // ==================== 分组管理 ====================
 // 获取所有分组
-ipcMain.handle('get-all-groups', async () => {
+ipcMain.handle("get-all-groups", async () => {
   try {
     return db.getAllGroups();
   } catch (err) {
-    log.error('get-all-groups error:', err);
+    log.error("get-all-groups error:", err);
     return [];
   }
 });
 
 // 创建分组
-ipcMain.handle('create-group', async (event, { name, color, icon }) => {
+ipcMain.handle("create-group", async (event, { name, color, icon }) => {
   try {
     return db.createGroup(name, color, icon);
   } catch (err) {
-    log.error('create-group error:', err);
+    log.error("create-group error:", err);
     return null;
   }
 });
 
 // 更新分组
-ipcMain.handle('update-group', async (event, { id, ...updates }) => {
+ipcMain.handle("update-group", async (event, { id, ...updates }) => {
   try {
     return db.updateGroup(id, updates);
   } catch (err) {
-    log.error('update-group error:', err);
+    log.error("update-group error:", err);
     return null;
   }
 });
 
 // 删除分组
-ipcMain.handle('delete-group', async (event, id) => {
+ipcMain.handle("delete-group", async (event, id) => {
   try {
     return db.deleteGroup(id);
   } catch (err) {
-    log.error('delete-group error:', err);
+    log.error("delete-group error:", err);
     return false;
   }
 });
 
 // 切换分组折叠状态
-ipcMain.handle('toggle-group-collapsed', async (event, id) => {
+ipcMain.handle("toggle-group-collapsed", async (event, id) => {
   try {
     return db.toggleGroupCollapsed(id);
   } catch (err) {
-    log.error('toggle-group-collapsed error:', err);
+    log.error("toggle-group-collapsed error:", err);
     return false;
   }
 });
 
 // 移动记录到分组
-ipcMain.handle('move-record-to-group', async (event, { recordId, groupId }) => {
+ipcMain.handle("move-record-to-group", async (event, { recordId, groupId }) => {
   try {
     return db.moveRecordToGroup(recordId, groupId);
   } catch (err) {
-    log.error('move-record-to-group error:', err);
+    log.error("move-record-to-group error:", err);
     return false;
   }
 });
 
 // 更新记录排序
-ipcMain.handle('update-record-sort-order', async (event, { recordId, newOrder, newGroupId }) => {
-  try {
-    return db.updateRecordSortOrder(recordId, newOrder, newGroupId);
-  } catch (err) {
-    log.error('update-record-sort-order error:', err);
-    return false;
-  }
-});
+ipcMain.handle(
+  "update-record-sort-order",
+  async (event, { recordId, newOrder, newGroupId }) => {
+    try {
+      return db.updateRecordSortOrder(recordId, newOrder, newGroupId);
+    } catch (err) {
+      log.error("update-record-sort-order error:", err);
+      return false;
+    }
+  },
+);
 
 // 批量更新排序
-ipcMain.handle('batch-update-sort-order', async (event, updates) => {
+ipcMain.handle("batch-update-sort-order", async (event, updates) => {
   try {
     return db.batchUpdateSortOrder(updates);
   } catch (err) {
-    log.error('batch-update-sort-order error:', err);
+    log.error("batch-update-sort-order error:", err);
     return false;
   }
 });
 
 // v0.25.0: 统计导出
-ipcMain.handle('get-stats-for-export', async () => {
+ipcMain.handle("get-stats-for-export", async () => {
   try {
     return db.getDetailedStatsForExport();
   } catch (err) {
-    log.error('get-stats-for-export error:', err);
+    log.error("get-stats-for-export error:", err);
     return null;
   }
 });
 
 // v0.25.0: 导出记录
-ipcMain.handle('export-records', async (event, { format, options }) => {
+ipcMain.handle("export-records", async (event, { format, options }) => {
   try {
     return db.exportRecords(format, options);
   } catch (err) {
-    log.error('export-records error:', err);
+    log.error("export-records error:", err);
     return null;
   }
 });
 
 // v0.25.0: 保存导出文件
-ipcMain.handle('save-export-file', async (event, { content, filename }) => {
+ipcMain.handle("save-export-file", async (event, { content, filename }) => {
   try {
-    const { dialog } = require('electron');
-    const fs = require('fs');
+    const { dialog } = require("electron");
+    const fs = require("fs");
     const result = await dialog.showSaveDialog({
       defaultPath: filename,
       filters: [
-        { name: 'JSON', extensions: ['json'] },
-        { name: 'CSV', extensions: ['csv'] },
-        { name: '所有文件', extensions: ['*'] }
-      ]
+        { name: "JSON", extensions: ["json"] },
+        { name: "CSV", extensions: ["csv"] },
+        { name: "所有文件", extensions: ["*"] },
+      ],
     });
     if (result.canceled) return { success: false, canceled: true };
-    fs.writeFileSync(result.filePath, content, 'utf8');
+    fs.writeFileSync(result.filePath, content, "utf8");
     return { success: true, path: result.filePath };
   } catch (err) {
-    log.error('save-export-file error:', err);
+    log.error("save-export-file error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // v0.26.0: 获取运行时健康监控数据
-ipcMain.handle('get-runtime-stats', async () => {
+ipcMain.handle("get-runtime-stats", async () => {
   try {
     return db.getRuntimeStats();
   } catch (err) {
-    log.error('get-runtime-stats error:', err);
+    log.error("get-runtime-stats error:", err);
     return null;
   }
 });
 
 // v0.27.0: 置顶记录管理
-ipcMain.handle('get-pinned-records', async (_, options) => {
+ipcMain.handle("get-pinned-records", async (_, options) => {
   try {
     return db.getPinnedRecords(options || {});
   } catch (err) {
-    log.error('get-pinned-records error:', err);
+    log.error("get-pinned-records error:", err);
     return [];
   }
 });
 
-ipcMain.handle('update-pinned-record', async (_, id, updates) => {
+ipcMain.handle("update-pinned-record", async (_, id, updates) => {
   try {
     return db.updatePinnedRecord(id, updates);
   } catch (err) {
-    log.error('update-pinned-record error:', err);
+    log.error("update-pinned-record error:", err);
     return null;
   }
 });
 
-ipcMain.handle('batch-update-pinned', async (_, ids, options) => {
+ipcMain.handle("batch-update-pinned", async (_, ids, options) => {
   try {
     return db.batchUpdatePinned(ids, options);
   } catch (err) {
-    log.error('batch-update-pinned error:', err);
+    log.error("batch-update-pinned error:", err);
     return { updated: 0, deleted: 0 };
   }
 });
 
-ipcMain.handle('get-pinned-stats', async () => {
+ipcMain.handle("get-pinned-stats", async () => {
   try {
     return db.getPinnedStats();
   } catch (err) {
-    log.error('get-pinned-stats error:', err);
+    log.error("get-pinned-stats error:", err);
     return null;
   }
 });
 
 // v0.28.0: 云端同步功能
-ipcMain.handle('get-sync-metadata', async () => {
+ipcMain.handle("get-sync-metadata", async () => {
   try {
     return db.getSyncMetadata();
   } catch (err) {
-    log.error('get-sync-metadata error:', err);
+    log.error("get-sync-metadata error:", err);
     return null;
   }
 });
 
-ipcMain.handle('save-sync-config', async (_, config) => {
+ipcMain.handle("save-sync-config", async (_, config) => {
   try {
     return db.saveSyncConfig(config);
   } catch (err) {
-    log.error('save-sync-config error:', err);
+    log.error("save-sync-config error:", err);
     return false;
   }
 });
 
-ipcMain.handle('get-sync-stats', async () => {
+ipcMain.handle("get-sync-stats", async () => {
   try {
     return db.getSyncStats();
   } catch (err) {
-    log.error('get-sync-stats error:', err);
+    log.error("get-sync-stats error:", err);
     return null;
   }
 });
 
-ipcMain.handle('export-for-sync', async (_, options) => {
+ipcMain.handle("export-for-sync", async (_, options) => {
   try {
     return db.exportForSync(options);
   } catch (err) {
-    log.error('export-for-sync error:', err);
+    log.error("export-for-sync error:", err);
     return null;
   }
 });
 
-ipcMain.handle('import-from-sync', async (_, syncData, encryptionKey, options) => {
-  try {
-    return db.importFromSync(syncData, encryptionKey, options);
-  } catch (err) {
-    log.error('import-from-sync error:', err);
-    return { error: err.message };
-  }
-});
+ipcMain.handle(
+  "import-from-sync",
+  async (_, syncData, encryptionKey, options) => {
+    try {
+      return db.importFromSync(syncData, encryptionKey, options);
+    } catch (err) {
+      log.error("import-from-sync error:", err);
+      return { error: err.message };
+    }
+  },
+);
 
-ipcMain.handle('test-webdav-connection', async (_, config) => {
+ipcMain.handle("test-webdav-connection", async (_, config) => {
   try {
     const { protocol, host, port, path, username, password } = config;
     const url = `${protocol}://${host}:${port}${path}`;
 
     // 简单的连接测试 - 使用 fetch
     const response = await fetch(url, {
-      method: 'PROPFIND',
+      method: "PROPFIND",
       headers: {
-        'Depth': '0',
-        'Authorization': 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
+        Depth: "0",
+        Authorization:
+          "Basic " + Buffer.from(`${username}:${password}`).toString("base64"),
       },
     });
 
     return { success: response.ok, status: response.status };
   } catch (err) {
-    log.error('test-webdav-connection error:', err);
+    log.error("test-webdav-connection error:", err);
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle('sync-to-webdav', async (_, config) => {
+ipcMain.handle("sync-to-webdav", async (_, config) => {
   try {
-    const { protocol, host, port, path, username, password, encrypt, encryptionKey } = config;
+    const {
+      protocol,
+      host,
+      port,
+      path,
+      username,
+      password,
+      encrypt,
+      encryptionKey,
+    } = config;
     const url = `${protocol}://${host}:${port}${path}/clawboard-sync.json`;
 
     // 导出数据
     const exportData = db.exportForSync({ encrypt, encryptionKey });
 
     // 上传到 WebDAV
-    const auth = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64');
+    const auth =
+      "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
     const response = await fetch(url, {
-      method: 'PUT',
+      method: "PUT",
       headers: {
-        'Authorization': auth,
-        'Content-Type': 'application/json',
+        Authorization: auth,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(exportData),
     });
@@ -1536,7 +1704,7 @@ ipcMain.handle('sync-to-webdav', async (_, config) => {
 
       // 标记所有记录为已同步
       const records = db.getSyncableRecords({ limit: 10000 });
-      const ids = records.map(r => r.id);
+      const ids = records.map((r) => r.id);
       if (ids.length > 0) {
         db.markAsSynced(ids);
       }
@@ -1546,28 +1714,30 @@ ipcMain.handle('sync-to-webdav', async (_, config) => {
 
     return { success: false, status: response.status };
   } catch (err) {
-    log.error('sync-to-webdav error:', err);
+    log.error("sync-to-webdav error:", err);
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle('sync-from-webdav', async (_, config) => {
+ipcMain.handle("sync-from-webdav", async (_, config) => {
   try {
-    const { protocol, host, port, path, username, password, encryptionKey } = config;
+    const { protocol, host, port, path, username, password, encryptionKey } =
+      config;
     const url = `${protocol}://${host}:${port}${path}/clawboard-sync.json`;
 
     // 从 WebDAV 下载
-    const auth = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64');
+    const auth =
+      "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
     const response = await fetch(url, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Authorization': auth,
+        Authorization: auth,
       },
     });
 
     if (!response.ok) {
       if (response.status === 404) {
-        return { success: false, error: '远程没有找到同步文件' };
+        return { success: false, error: "远程没有找到同步文件" };
       }
       return { success: false, status: response.status };
     }
@@ -1582,26 +1752,31 @@ ipcMain.handle('sync-from-webdav', async (_, config) => {
 
     return { success: true, ...result };
   } catch (err) {
-    log.error('sync-from-webdav error:', err);
+    log.error("sync-from-webdav error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 应用启动
 app.whenReady().then(async () => {
-  log.info('应用准备就绪');
+  log.info("应用准备就绪");
 
   // 初始化数据库（异步）
-  db = new Database(app.getPath('userData'));
+  db = new Database(app.getPath("userData"));
   await db._init();
 
   // v0.17.0: 初始化 OCR 服务
-  ocrService = new OCRService();
-  await ocrService.init().then(success => {
+  const ocrLangPath = path.join(app.getAppPath(), "assets", "tessdata");
+  const ocrCachePath = path.join(app.getPath("userData"), "tessdata");
+  ocrService = new OCRService({
+    langPath: ocrLangPath,
+    cachePath: ocrCachePath,
+  });
+  await ocrService.init().then((success) => {
     if (success) {
-      log.info('OCR 服务初始化成功');
+      log.info("OCR 服务初始化成功");
     } else {
-      log.warn('OCR 服务初始化失败，图片文字识别功能不可用');
+      log.warn("OCR 服务初始化失败，图片文字识别功能不可用");
     }
   });
 
@@ -1624,22 +1799,26 @@ app.whenReady().then(async () => {
     log.info(`[HotkeyTemplates] 触发: ${accelerator} → ${label}`);
     // 通知渲染进程快捷键已触发
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('hotkey-triggered', { accelerator, content, label });
+      mainWindow.webContents.send("hotkey-triggered", {
+        accelerator,
+        content,
+        label,
+      });
     }
   });
-  log.info('[HotkeyTemplates] 快捷键模板系统已初始化');
+  log.info("[HotkeyTemplates] 快捷键模板系统已初始化");
 
   // v0.65.0: 初始化自动分类引擎
   autoCat = new AutoCategorize();
-  log.info('[AutoCategorize] 自动分类引擎已初始化');
+  log.info("[AutoCategorize] 自动分类引擎已初始化");
 
   // v0.69.0: 初始化智能洞察引擎
   insightsEngine = new Insights(db);
-  log.info('[Insights] 智能洞察引擎已初始化');
+  log.info("[Insights] 智能洞察引擎已初始化");
 
   // v0.73.0: 初始化规则引擎
   ruleEngine = new RuleEngine(db);
-  log.info('[RuleEngine] 规则引擎已初始化');
+  log.info("[RuleEngine] 规则引擎已初始化");
 
   // 创建窗口和托盘
   createWindow();
@@ -1650,7 +1829,7 @@ app.whenReady().then(async () => {
   if (settings.autoStart) {
     app.setLoginItemSettings({
       openAtLogin: true,
-      path: app.getPath('exe')
+      path: app.getPath("exe"),
     });
   }
 
@@ -1672,7 +1851,7 @@ app.whenReady().then(async () => {
   // 注册全局快捷键 Ctrl+Shift+V
   registerGlobalShortcut();
 
-  app.on('activate', () => {
+  app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
@@ -1680,8 +1859,8 @@ app.whenReady().then(async () => {
 });
 
 // 退出前清理
-app.on('before-quit', () => {
-  log.info('应用即将退出');
+app.on("before-quit", () => {
+  log.info("应用即将退出");
   app.isQuitting = true;
   if (clipboardWatcher) {
     clipboardWatcher.stop();
@@ -1690,8 +1869,8 @@ app.on('before-quit', () => {
   globalShortcut.unregisterAll();
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
     app.quit();
   }
 });
@@ -1700,44 +1879,56 @@ app.on('window-all-closed', () => {
 
 // 配置 electron-updater 日志
 autoUpdater.logger = log;
-autoUpdater.logger.transports.file.level = 'info';
+autoUpdater.logger.transports.file.level = "info";
 
 // 自动更新事件处理
-autoUpdater.on('checking-for-update', () => {
-  log.info('[AutoUpdater] 正在检查更新...');
+autoUpdater.on("checking-for-update", () => {
+  log.info("[AutoUpdater] 正在检查更新...");
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-status', { status: 'checking' });
+    mainWindow.webContents.send("update-status", { status: "checking" });
   }
 });
 
-autoUpdater.on('update-available', (info) => {
-  log.info('[AutoUpdater] 发现新版本:', info.version);
+autoUpdater.on("update-available", (info) => {
+  log.info("[AutoUpdater] 发现新版本:", info.version);
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-status', { status: 'available', version: info.version });
+    mainWindow.webContents.send("update-status", {
+      status: "available",
+      version: info.version,
+    });
   }
   // 显示系统通知
   showUpdateNotification(`发现新版本 v${info.version}，正在下载...`);
 });
 
-autoUpdater.on('update-not-available', (info) => {
-  log.info('[AutoUpdater] 当前已是最新版本:', info.version);
+autoUpdater.on("update-not-available", (info) => {
+  log.info("[AutoUpdater] 当前已是最新版本:", info.version);
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-status', { status: 'not-available', version: info.version });
+    mainWindow.webContents.send("update-status", {
+      status: "not-available",
+      version: info.version,
+    });
   }
 });
 
-autoUpdater.on('download-progress', (progressObj) => {
+autoUpdater.on("download-progress", (progressObj) => {
   const percent = Math.round(progressObj.percent);
   log.info(`[AutoUpdater] 下载进度: ${percent}%`);
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-status', { status: 'downloading', percent });
+    mainWindow.webContents.send("update-status", {
+      status: "downloading",
+      percent,
+    });
   }
 });
 
-autoUpdater.on('update-downloaded', (info) => {
-  log.info('[AutoUpdater] 更新下载完成:', info.version);
+autoUpdater.on("update-downloaded", (info) => {
+  log.info("[AutoUpdater] 更新下载完成:", info.version);
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-status', { status: 'downloaded', version: info.version });
+    mainWindow.webContents.send("update-status", {
+      status: "downloaded",
+      version: info.version,
+    });
   }
   showUpdateNotification(`v${info.version} 下载完成，即将重启应用以完成更新`);
   // 自动安装并在重启后清理
@@ -1746,10 +1937,13 @@ autoUpdater.on('update-downloaded', (info) => {
   }, 3000);
 });
 
-autoUpdater.on('error', (err) => {
-  log.error('[AutoUpdater] 更新出错:', err.message);
+autoUpdater.on("error", (err) => {
+  log.error("[AutoUpdater] 更新出错:", err.message);
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-status', { status: 'error', message: err.message });
+    mainWindow.webContents.send("update-status", {
+      status: "error",
+      message: err.message,
+    });
   }
 });
 
@@ -1757,68 +1951,74 @@ function showUpdateNotification(message) {
   try {
     if (Notification.isSupported()) {
       const notification = new Notification({
-        title: '🦞 ClawBoard 更新',
+        title: "🦞 ClawBoard 更新",
         body: message,
-        icon: path.join(__dirname, '../assets/icon.png'),
+        icon: path.join(__dirname, "../assets/icon.png"),
         silent: false,
-        timeoutType: 'default'
+        timeoutType: "default",
       });
       notification.show();
     }
   } catch (err) {
-    log.warn('显示更新通知失败:', err.message);
+    log.warn("显示更新通知失败:", err.message);
   }
 }
 
 // 检查更新（启动时调用）
 function checkForUpdates() {
   // 仅在非开发模式下检查更新
-  if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev')) {
-    log.info('[AutoUpdater] 开发模式，跳过更新检查');
+  if (
+    process.env.NODE_ENV === "development" ||
+    process.argv.includes("--dev")
+  ) {
+    log.info("[AutoUpdater] 开发模式，跳过更新检查");
     return;
   }
   try {
     autoUpdater.checkForUpdatesAndNotify();
   } catch (err) {
-    log.error('[AutoUpdater] 检查更新失败:', err.message);
+    log.error("[AutoUpdater] 检查更新失败:", err.message);
   }
 }
 
 // 手动检查更新 IPC
-ipcMain.handle('check-for-updates', async () => {
+ipcMain.handle("check-for-updates", async () => {
   try {
-    if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev')) {
-      return { success: false, message: '开发模式下无法检查更新' };
+    if (
+      process.env.NODE_ENV === "development" ||
+      process.argv.includes("--dev")
+    ) {
+      return { success: false, message: "开发模式下无法检查更新" };
     }
     const result = await autoUpdater.checkForUpdates();
     if (result && result.updateInfo) {
       return { success: true, version: result.updateInfo.version };
     }
-    return { success: true, message: '已是最新版本' };
+    return { success: true, message: "已是最新版本" };
   } catch (err) {
-    log.error('[AutoUpdater] 手动检查更新失败:', err.message);
+    log.error("[AutoUpdater] 手动检查更新失败:", err.message);
     return { success: false, message: err.message };
   }
 });
 
 // 获取当前版本
-ipcMain.handle('get-app-version', async () => {
+ipcMain.handle("get-app-version", async () => {
   return app.getVersion();
 });
 
 // 全局异常处理
-process.on('uncaughtException', (err) => {
-  log.error('Uncaught Exception:', err);
+process.on("uncaughtException", (err) => {
+  log.error("Uncaught Exception:", err);
 });
 
-process.on('unhandledRejection', (reason) => {
-  log.error('Unhandled Rejection:', reason);
+process.on("unhandledRejection", (reason) => {
+  log.error("Unhandled Rejection:", reason);
 });
 
 // v0.29.0: 播放通知声音
 function playNotificationSound() {
   try {
-    const { exec } = require('child_process');
+    const { exec } = require("child_process");
     const cmd = Platform.getNotificationSoundCommand();
     if (cmd) {
       if (Platform.isWindows) {
@@ -1829,13 +2029,16 @@ function playNotificationSound() {
         // Linux: try canberra first, fallback to paplay
         exec(cmd, (err) => {
           if (err) {
-            exec('paplay /usr/share/sounds/freedesktop/stereo/message.oga', () => { });
+            exec(
+              "paplay /usr/share/sounds/freedesktop/stereo/message.oga",
+              () => {},
+            );
           }
         });
       }
     }
   } catch (err) {
-    log.warn('播放通知声音失败:', err.message);
+    log.warn("播放通知声音失败:", err.message);
   }
 }
 
@@ -1851,20 +2054,20 @@ function startAutoExpiryTimer() {
     try {
       const count = db.cleanExpiredItems();
       if (count > 0) {
-        log.info('自动过期清理: 删除了 ' + count + ' 条过期记录');
+        log.info("自动过期清理: 删除了 " + count + " 条过期记录");
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('expiry-cleanup', { count });
+          mainWindow.webContents.send("expiry-cleanup", { count });
         }
       }
       // v0.72.0: 自动清理过期回收站记录
       db.autoCleanTrash();
     } catch (err) {
-      log.error('自动过期清理失败:', err);
+      log.error("自动过期清理失败:", err);
     }
   }, 3600000);
   const count = db.cleanExpiredItems();
   if (count > 0) {
-    log.info('启动时自动过期清理: 删除了 ' + count + ' 条过期记录');
+    log.info("启动时自动过期清理: 删除了 " + count + " 条过期记录");
   }
   // v0.72.0: 启动时清理过期回收站记录
   db.autoCleanTrash();
@@ -1876,7 +2079,10 @@ function showClipboardNotification(record) {
   try {
     // 检查是否为大文本
     const contentLength = record.content ? record.content.length : 0;
-    if (notificationSettings.ignoreLargeText && contentLength > notificationSettings.largeTextThreshold) {
+    if (
+      notificationSettings.ignoreLargeText &&
+      contentLength > notificationSettings.largeTextThreshold
+    ) {
       return;
     }
 
@@ -1885,7 +2091,7 @@ function showClipboardNotification(record) {
       notificationQueue.push({
         record,
         type: record.type,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       // 设置或重置合并定时器
@@ -1903,7 +2109,7 @@ function showClipboardNotification(record) {
     // 直接显示单条通知（合并禁用时）
     showSingleNotification(record);
   } catch (err) {
-    log.warn('显示通知失败:', err.message);
+    log.warn("显示通知失败:", err.message);
   }
 }
 
@@ -1931,26 +2137,26 @@ function flushNotificationQueue() {
 
     // 构建类型摘要
     const typeLabels = {
-      text: '文字',
-      code: '代码',
-      image: '图片',
-      file: '文件'
+      text: "文字",
+      code: "代码",
+      image: "图片",
+      file: "文件",
     };
     const parts = [];
     for (const [type, cnt] of Object.entries(typeCounts)) {
       parts.push(`${typeLabels[type] || type}×${cnt}`);
     }
-    body = `包含: ${parts.join(', ')}`;
+    body = `包含: ${parts.join(", ")}`;
 
     const notification = new Notification({
       title,
       body,
-      icon: path.join(__dirname, '../assets/icon.png'),
+      icon: path.join(__dirname, "../assets/icon.png"),
       silent: !notificationSettings.soundEnabled,
-      timeoutType: 'default'
+      timeoutType: "default",
     });
 
-    notification.on('click', () => {
+    notification.on("click", () => {
       if (mainWindow) {
         mainWindow.show();
         mainWindow.focus();
@@ -1976,52 +2182,54 @@ function showSingleNotification(record) {
   const contentLength = record.content ? record.content.length : 0;
 
   // 准备通知内容
-  let title = '📋 已捕获剪贴板';
-  let body = '';
+  let title = "📋 已捕获剪贴板";
+  let body = "";
 
   switch (record.type) {
-    case 'text':
-      title = '📝 已捕获文字';
+    case "text":
+      title = "📝 已捕获文字";
       body = notificationSettings.showPreview
-        ? (record.content || '').substring(0, 100) + (contentLength > 100 ? '...' : '')
+        ? (record.content || "").substring(0, 100) +
+          (contentLength > 100 ? "..." : "")
         : `文字内容 (${contentLength} 字符)`;
       break;
-    case 'code':
-      title = '💻 已捕获代码';
+    case "code":
+      title = "💻 已捕获代码";
       body = notificationSettings.showPreview
-        ? (record.content || '').substring(0, 100) + (contentLength > 100 ? '...' : '')
+        ? (record.content || "").substring(0, 100) +
+          (contentLength > 100 ? "..." : "")
         : `代码片段 (${contentLength} 字符)`;
       break;
-    case 'image':
-      title = '🖼️ 已捕获图片';
-      body = '图片已保存到剪贴板历史';
+    case "image":
+      title = "🖼️ 已捕获图片";
+      body = "图片已保存到剪贴板历史";
       break;
-    case 'file':
-      title = '📁 已捕获文件';
+    case "file":
+      title = "📁 已捕获文件";
       body = notificationSettings.showPreview
-        ? (record.content || '').substring(0, 100)
-        : '文件路径已保存';
+        ? (record.content || "").substring(0, 100)
+        : "文件路径已保存";
       break;
     default:
       body = notificationSettings.showPreview
-        ? (record.content || '').substring(0, 100)
-        : '新内容已捕获';
+        ? (record.content || "").substring(0, 100)
+        : "新内容已捕获";
   }
 
   // 创建通知
   const notification = new Notification({
     title: title,
     body: body,
-    icon: path.join(__dirname, '../assets/icon.png'),
+    icon: path.join(__dirname, "../assets/icon.png"),
     silent: !notificationSettings.soundEnabled,
-    timeoutType: 'default'
+    timeoutType: "default",
   });
 
-  notification.on('click', () => {
+  notification.on("click", () => {
     if (mainWindow) {
       mainWindow.show();
       mainWindow.focus();
-      mainWindow.webContents.send('select-record', record.id);
+      mainWindow.webContents.send("select-record", record.id);
     }
   });
 
@@ -2031,7 +2239,7 @@ function showSingleNotification(record) {
     playNotificationSound();
   }
 
-  log.info('已显示剪贴板捕获通知:', record.type);
+  log.info("已显示剪贴板捕获通知:", record.type);
 }
 
 // v0.29.0: 更新通知设置
@@ -2046,9 +2254,9 @@ function updateNotificationSettings(settings) {
     // v0.64.0: 通知合并
     mergeEnabled: settings?.notificationMergeEnabled ?? true,
     mergeWindow: settings?.notificationMergeWindow ?? 5000,
-    position: settings?.notificationPosition ?? 'bottom-right'
+    position: settings?.notificationPosition ?? "bottom-right",
   };
-  log.info('通知设置已更新:', notificationSettings);
+  log.info("通知设置已更新:", notificationSettings);
 }
 
 // 注册全局快捷键
@@ -2062,7 +2270,7 @@ function registerGlobalShortcut(settings) {
   }
 
   // 获取快捷键（默认 Ctrl+Shift+V）
-  const shortcut = settings?.globalShortcut || 'CommandOrControl+Shift+V';
+  const shortcut = settings?.globalShortcut || "CommandOrControl+Shift+V";
 
   const ret = globalShortcut.register(shortcut, () => {
     if (mainWindow) {
@@ -2076,9 +2284,9 @@ function registerGlobalShortcut(settings) {
   });
 
   if (!ret) {
-    log.warn('全局快捷键注册失败: ' + shortcut);
+    log.warn("全局快捷键注册失败: " + shortcut);
   } else {
-    log.info('全局快捷键 ' + shortcut + ' 已注册');
+    log.info("全局快捷键 " + shortcut + " 已注册");
     currentShortcut = shortcut;
   }
 }
@@ -2089,26 +2297,26 @@ function registerCycleShortcut() {
   if (cycleShortcut) {
     globalShortcut.unregister(cycleShortcut);
   }
-  const shortcut = shortcutsConfig.cyclePaste || 'Alt+V';
+  const shortcut = shortcutsConfig.cyclePaste || "Alt+V";
   if (!shortcut) return; // 留空则禁用
   try {
     const ret = globalShortcut.register(shortcut, () => {
       if (cycleWindow && !cycleWindow.isDestroyed()) {
         // Already open: cycle to next item
-        cycleWindow.webContents.send('cycle-next');
+        cycleWindow.webContents.send("cycle-next");
       } else {
         // Open cycle window
         createCycleWindow();
       }
     });
     if (!ret) {
-      log.warn('循环模式快捷键注册失败: ' + shortcut);
+      log.warn("循环模式快捷键注册失败: " + shortcut);
     } else {
-      log.info('循环模式快捷键 ' + shortcut + ' 已注册');
+      log.info("循环模式快捷键 " + shortcut + " 已注册");
       cycleShortcut = shortcut;
     }
   } catch (e) {
-    log.warn('循环模式快捷键注册失败:', e);
+    log.warn("循环模式快捷键注册失败:", e);
   }
 }
 
@@ -2119,25 +2327,25 @@ function registerQuickPasteShortcut() {
   if (quickPasteShortcut) {
     globalShortcut.unregister(quickPasteShortcut);
   }
-  const shortcut = shortcutsConfig.quickPaste || 'Alt+Q';
+  const shortcut = shortcutsConfig.quickPaste || "Alt+Q";
   if (!shortcut) return; // 留空则禁用
   try {
     const ret = globalShortcut.register(shortcut, () => {
       createQuickPasteWindow();
     });
     if (!ret) {
-      log.warn('快速粘贴快捷键注册失败: ' + shortcut);
+      log.warn("快速粘贴快捷键注册失败: " + shortcut);
     } else {
-      log.info('快速粘贴快捷键 ' + shortcut + ' 已注册');
+      log.info("快速粘贴快捷键 " + shortcut + " 已注册");
       quickPasteShortcut = shortcut;
     }
   } catch (e) {
-    log.warn('快速粘贴快捷键注册失败:', e);
+    log.warn("快速粘贴快捷键注册失败:", e);
   }
 }
 
 // 更新全局快捷键
-ipcMain.handle('update-shortcut', async (event, shortcut) => {
+ipcMain.handle("update-shortcut", async (event, shortcut) => {
   try {
     const settings = db.getSettings();
     settings.globalShortcut = shortcut;
@@ -2148,7 +2356,7 @@ ipcMain.handle('update-shortcut', async (event, shortcut) => {
 
     return { success: true };
   } catch (err) {
-    log.error('update-shortcut error:', err);
+    log.error("update-shortcut error:", err);
     return { success: false, message: err.message };
   }
 });
@@ -2160,126 +2368,151 @@ function playNotificationSound() {
     // Electron Notification 使用系统默认音效，silent 参数控制是否静音
     return { success: true };
   } catch (e) {
-    log.error('播放提示音失败:', e);
+    log.error("播放提示音失败:", e);
   }
 }
 
 // 获取通知设置
-ipcMain.handle('get-notification-settings', async () => {
+ipcMain.handle("get-notification-settings", async () => {
   try {
     return db.getNotificationSettings();
   } catch (err) {
-    log.error('get-notification-settings error:', err);
-    return { enabled: false, soundEnabled: true, durationSeconds: 3, showPreview: true, minContentLength: 0, excludedApps: [] };
+    log.error("get-notification-settings error:", err);
+    return {
+      enabled: false,
+      soundEnabled: true,
+      durationSeconds: 3,
+      showPreview: true,
+      minContentLength: 0,
+      excludedApps: [],
+    };
   }
 });
 
 // 保存通知设置
-ipcMain.handle('save-notification-settings', async (_, settings) => {
+ipcMain.handle("save-notification-settings", async (_, settings) => {
   try {
     db.saveNotificationSettings(settings);
     return { success: true };
   } catch (err) {
-    log.error('save-notification-settings error:', err);
+    log.error("save-notification-settings error:", err);
     return { success: false, message: err.message };
   }
 });
 
 // 发送剪贴板捕获通知
-ipcMain.handle('show-clipboard-notification', async (_, { type, preview, source }) => {
-  try {
-    const notifySettings = db.getNotificationSettings();
-    if (!notifySettings.enabled) return { success: false, reason: 'disabled' };
+ipcMain.handle(
+  "show-clipboard-notification",
+  async (_, { type, preview, source }) => {
+    try {
+      const notifySettings = db.getNotificationSettings();
+      if (!notifySettings.enabled)
+        return { success: false, reason: "disabled" };
 
-    const contentLength = (preview || '').length;
-    if (contentLength < notifySettings.minContentLength) return { success: false, reason: 'too_short' };
+      const contentLength = (preview || "").length;
+      if (contentLength < notifySettings.minContentLength)
+        return { success: false, reason: "too_short" };
 
-    // 发送桌面通知
-    const { Notification } = require('electron');
+      // 发送桌面通知
+      const { Notification } = require("electron");
 
-    let body = '';
-    if (notifySettings.showPreview) {
-      const truncated = contentLength > 100 ? preview.substring(0, 100) + '...' : preview;
-      body = truncated;
-    } else {
-      const typeLabels = { text: '文本', code: '代码', image: '图片', file: '文件', url: '链接' };
-      body = typeLabels[type] || '新内容';
+      let body = "";
+      if (notifySettings.showPreview) {
+        const truncated =
+          contentLength > 100 ? preview.substring(0, 100) + "..." : preview;
+        body = truncated;
+      } else {
+        const typeLabels = {
+          text: "文本",
+          code: "代码",
+          image: "图片",
+          file: "文件",
+          url: "链接",
+        };
+        body = typeLabels[type] || "新内容";
+      }
+
+      const notification = new Notification({
+        title: "📋 ClawBoard 已捕获",
+        body,
+        silent: !notifySettings.soundEnabled,
+        timeoutType: "default",
+      });
+
+      notification.show();
+      return { success: true };
+    } catch (err) {
+      log.error("show-clipboard-notification error:", err);
+      return { success: false, message: err.message };
     }
-
-    const notification = new Notification({
-      title: '📋 ClawBoard 已捕获',
-      body,
-      silent: !notifySettings.soundEnabled,
-      timeoutType: 'default',
-    });
-
-    notification.show();
-    return { success: true };
-  } catch (err) {
-    log.error('show-clipboard-notification error:', err);
-    return { success: false, message: err.message };
-  }
-});
+  },
+);
 
 // ==================== v0.31.0: 智能粘贴功能 ====================
 
 // 获取可用的智能粘贴类型
-ipcMain.handle('get-smart-paste-types', async () => {
+ipcMain.handle("get-smart-paste-types", async () => {
   try {
     if (!smartPaste) {
       smartPaste = new SmartPaste();
     }
     return smartPaste.getAvailableTypes();
   } catch (err) {
-    log.error('get-smart-paste-types error:', err);
+    log.error("get-smart-paste-types error:", err);
     return [];
   }
 });
 
 // 执行智能粘贴转换
-ipcMain.handle('smart-paste-transform', async (_, { content, type, options }) => {
-  try {
-    if (!smartPaste) {
-      smartPaste = new SmartPaste();
+ipcMain.handle(
+  "smart-paste-transform",
+  async (_, { content, type, options }) => {
+    try {
+      if (!smartPaste) {
+        smartPaste = new SmartPaste();
+      }
+      const result = smartPaste.transform(content, type, options);
+      return { success: true, result };
+    } catch (err) {
+      log.error("smart-paste-transform error:", err);
+      return { success: false, error: err.message };
     }
-    const result = smartPaste.transform(content, type, options);
-    return { success: true, result };
-  } catch (err) {
-    log.error('smart-paste-transform error:', err);
-    return { success: false, error: err.message };
-  }
-});
+  },
+);
 
 // 智能粘贴到剪贴板
-ipcMain.handle('smart-paste-to-clipboard', async (_, { content, type, options }) => {
-  try {
-    if (!smartPaste) {
-      smartPaste = new SmartPaste();
+ipcMain.handle(
+  "smart-paste-to-clipboard",
+  async (_, { content, type, options }) => {
+    try {
+      if (!smartPaste) {
+        smartPaste = new SmartPaste();
+      }
+      const result = smartPaste.transform(content, type, options);
+      clipboard.writeText(result);
+      return { success: true, result };
+    } catch (err) {
+      log.error("smart-paste-to-clipboard error:", err);
+      return { success: false, error: err.message };
     }
-    const result = smartPaste.transform(content, type, options);
-    clipboard.writeText(result);
-    return { success: true, result };
-  } catch (err) {
-    log.error('smart-paste-to-clipboard error:', err);
-    return { success: false, error: err.message };
-  }
-});
+  },
+);
 
 // 获取忽略规则
-ipcMain.handle('get-ignore-rules', async () => {
+ipcMain.handle("get-ignore-rules", async () => {
   try {
     if (!ignoreRules) {
       ignoreRules = new IgnoreRules();
     }
     return ignoreRules.getRules();
   } catch (err) {
-    log.error('get-ignore-rules error:', err);
+    log.error("get-ignore-rules error:", err);
     return null;
   }
 });
 
 // 保存忽略规则
-ipcMain.handle('save-ignore-rules', async (_, rules) => {
+ipcMain.handle("save-ignore-rules", async (_, rules) => {
   try {
     if (!ignoreRules) {
       ignoreRules = new IgnoreRules();
@@ -2288,13 +2521,13 @@ ipcMain.handle('save-ignore-rules', async (_, rules) => {
     ignoreRules.rules = rules;
     return { success: true };
   } catch (err) {
-    log.error('save-ignore-rules error:', err);
+    log.error("save-ignore-rules error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 添加忽略应用
-ipcMain.handle('add-ignored-app', async (_, pattern) => {
+ipcMain.handle("add-ignored-app", async (_, pattern) => {
   try {
     if (!ignoreRules) {
       ignoreRules = new IgnoreRules();
@@ -2302,13 +2535,13 @@ ipcMain.handle('add-ignored-app', async (_, pattern) => {
     ignoreRules.addIgnoredApp(pattern);
     return { success: true };
   } catch (err) {
-    log.error('add-ignored-app error:', err);
+    log.error("add-ignored-app error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 移除忽略应用
-ipcMain.handle('remove-ignored-app', async (_, pattern) => {
+ipcMain.handle("remove-ignored-app", async (_, pattern) => {
   try {
     if (!ignoreRules) {
       ignoreRules = new IgnoreRules();
@@ -2316,41 +2549,41 @@ ipcMain.handle('remove-ignored-app', async (_, pattern) => {
     ignoreRules.removeIgnoredApp(pattern);
     return { success: true };
   } catch (err) {
-    log.error('remove-ignored-app error:', err);
+    log.error("remove-ignored-app error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 测试内容是否应该被忽略
-ipcMain.handle('test-ignore-rules', async (_, { content, metadata }) => {
+ipcMain.handle("test-ignore-rules", async (_, { content, metadata }) => {
   try {
     if (!ignoreRules) {
       ignoreRules = new IgnoreRules();
     }
     return ignoreRules.shouldIgnore(content, metadata);
   } catch (err) {
-    log.error('test-ignore-rules error:', err);
-    return { shouldIgnore: false, reason: '' };
+    log.error("test-ignore-rules error:", err);
+    return { shouldIgnore: false, reason: "" };
   }
 });
 
 // ==================== v0.45.0: 自动加密规则 ====================
 
 // 获取自动加密设置
-ipcMain.handle('get-auto-encrypt-settings', async () => {
+ipcMain.handle("get-auto-encrypt-settings", async () => {
   try {
     if (!ignoreRules) {
       ignoreRules = new IgnoreRules();
     }
     return ignoreRules.getAutoEncryptSettings();
   } catch (err) {
-    log.error('get-auto-encrypt-settings error:', err);
+    log.error("get-auto-encrypt-settings error:", err);
     return null;
   }
 });
 
 // 设置自动加密总开关
-ipcMain.handle('set-auto-encrypt-enabled', async (_, enabled) => {
+ipcMain.handle("set-auto-encrypt-enabled", async (_, enabled) => {
   try {
     if (!ignoreRules) {
       ignoreRules = new IgnoreRules();
@@ -2359,13 +2592,13 @@ ipcMain.handle('set-auto-encrypt-enabled', async (_, enabled) => {
     // 同步到设置面板的忽略规则
     return { success: true };
   } catch (err) {
-    log.error('set-auto-encrypt-enabled error:', err);
+    log.error("set-auto-encrypt-enabled error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 切换自动加密内置规则
-ipcMain.handle('toggle-auto-encrypt-rule', async (_, { type, enabled }) => {
+ipcMain.handle("toggle-auto-encrypt-rule", async (_, { type, enabled }) => {
   try {
     if (!ignoreRules) {
       ignoreRules = new IgnoreRules();
@@ -2373,13 +2606,13 @@ ipcMain.handle('toggle-auto-encrypt-rule', async (_, { type, enabled }) => {
     ignoreRules.toggleAutoEncryptRule(type, enabled);
     return { success: true };
   } catch (err) {
-    log.error('toggle-auto-encrypt-rule error:', err);
+    log.error("toggle-auto-encrypt-rule error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 添加自定义自动加密规则
-ipcMain.handle('add-custom-auto-encrypt-rule', async (_, { name, pattern }) => {
+ipcMain.handle("add-custom-auto-encrypt-rule", async (_, { name, pattern }) => {
   try {
     if (!ignoreRules) {
       ignoreRules = new IgnoreRules();
@@ -2387,13 +2620,13 @@ ipcMain.handle('add-custom-auto-encrypt-rule', async (_, { name, pattern }) => {
     ignoreRules.addCustomAutoEncryptRule(name, pattern);
     return { success: true };
   } catch (err) {
-    log.error('add-custom-auto-encrypt-rule error:', err);
+    log.error("add-custom-auto-encrypt-rule error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 移除自定义自动加密规则
-ipcMain.handle('remove-custom-auto-encrypt-rule', async (_, name) => {
+ipcMain.handle("remove-custom-auto-encrypt-rule", async (_, name) => {
   try {
     if (!ignoreRules) {
       ignoreRules = new IgnoreRules();
@@ -2401,19 +2634,19 @@ ipcMain.handle('remove-custom-auto-encrypt-rule', async (_, name) => {
     ignoreRules.removeCustomAutoEncryptRule(name);
     return { success: true };
   } catch (err) {
-    log.error('remove-custom-auto-encrypt-rule error:', err);
+    log.error("remove-custom-auto-encrypt-rule error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 批量自动加密已有记录（扫描所有未加密记录）
-ipcMain.handle('batch-auto-encrypt', async () => {
+ipcMain.handle("batch-auto-encrypt", async () => {
   try {
     if (!ignoreRules) {
       ignoreRules = new IgnoreRules();
     }
     if (!db.encryptionKey) {
-      return { success: false, message: '未设置加密密码' };
+      return { success: false, message: "未设置加密密码" };
     }
 
     const records = db.getRecords({ limit: 10000 });
@@ -2421,130 +2654,158 @@ ipcMain.handle('batch-auto-encrypt', async () => {
     let skippedCount = 0;
 
     for (const record of records) {
-      if (record.encrypted) { skippedCount++; continue; }
+      if (record.encrypted) {
+        skippedCount++;
+        continue;
+      }
 
       const result = ignoreRules.shouldIgnore(record.content, {});
       if (result.autoEncrypt) {
         const success = db.encryptRecord(record.id);
         if (success) {
           // 更新敏感类型标记
-          db.db.run(
-            `UPDATE records SET sensitive_types = ? WHERE id = ?`,
-            [result.types ? result.types.join(',') : '', record.id]
-          );
+          db.db.run(`UPDATE records SET sensitive_types = ? WHERE id = ?`, [
+            result.types ? result.types.join(",") : "",
+            record.id,
+          ]);
           encryptedCount++;
         }
       }
     }
 
     db._save();
-    log.info(`批量自动加密完成: ${encryptedCount} 条已加密, ${skippedCount} 条跳过`);
+    log.info(
+      `批量自动加密完成: ${encryptedCount} 条已加密, ${skippedCount} 条跳过`,
+    );
     return { success: true, encryptedCount, skippedCount };
   } catch (err) {
-    log.error('batch-auto-encrypt error:', err);
+    log.error("batch-auto-encrypt error:", err);
     return { success: false, message: err.message };
   }
 });
 
 // ==================== v0.31.0: 自动过期清理 ====================
 
-ipcMain.handle('get-auto-expiry-settings', async () => {
+ipcMain.handle("get-auto-expiry-settings", async () => {
   try {
     return db.getAutoExpirySettings();
   } catch (err) {
-    log.error('get-auto-expiry-settings error:', err);
+    log.error("get-auto-expiry-settings error:", err);
     return { enabled: false, days: 30, keepFavorites: true };
   }
 });
 
-ipcMain.handle('save-auto-expiry-settings', async (_, settings) => {
+ipcMain.handle("save-auto-expiry-settings", async (_, settings) => {
   try {
     db.saveAutoExpirySettings(settings);
     startAutoExpiryTimer();
     return { success: true };
   } catch (err) {
-    log.error('save-auto-expiry-settings error:', err);
+    log.error("save-auto-expiry-settings error:", err);
     return { success: false, message: err.message };
   }
 });
 
-ipcMain.handle('get-expiry-stats', async () => {
+ipcMain.handle("get-expiry-stats", async () => {
   try {
     return db.getExpiryStats();
   } catch (err) {
-    log.error('get-expiry-stats error:', err);
+    log.error("get-expiry-stats error:", err);
     return { total: 0, expired: 0, protected: 0 };
   }
 });
 
-ipcMain.handle('clean-expired-items', async () => {
+ipcMain.handle("clean-expired-items", async () => {
   try {
     const count = db.cleanExpiredItems();
     return { success: true, count };
   } catch (err) {
-    log.error('clean-expired-items error:', err);
+    log.error("clean-expired-items error:", err);
     return { success: false, count: 0, message: err.message };
   }
 });
 
 // ==================== v0.32.0: 快捷键模板系统 ====================
 
-ipcMain.handle('hotkey-get-all-slots', async () => {
+ipcMain.handle("hotkey-get-all-slots", async () => {
   try {
     if (!hotkeyTemplates) return [];
     return hotkeyTemplates.getAllSlots();
   } catch (err) {
-    log.error('hotkey-get-all-slots error:', err);
+    log.error("hotkey-get-all-slots error:", err);
     return [];
   }
 });
 
-ipcMain.handle('hotkey-bind', async (_, { slot, label, content, isTemplate }) => {
+ipcMain.handle(
+  "hotkey-bind",
+  async (_, { slot, label, content, isTemplate }) => {
+    try {
+      if (!hotkeyTemplates)
+        return { success: false, message: "快捷键模板系统未初始化" };
+      const result = hotkeyTemplates.bind(
+        slot,
+        label,
+        content,
+        isTemplate,
+        (accelerator, rendered, lbl) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("hotkey-triggered", {
+              accelerator,
+              content: rendered,
+              label: lbl,
+            });
+          }
+        },
+      );
+      return result;
+    } catch (err) {
+      log.error("hotkey-bind error:", err);
+      return { success: false, message: err.message };
+    }
+  },
+);
+
+ipcMain.handle("hotkey-bind-from-item", async (_, { slot, clipboardItem }) => {
   try {
-    if (!hotkeyTemplates) return { success: false, message: '快捷键模板系统未初始化' };
-    const result = hotkeyTemplates.bind(slot, label, content, isTemplate, (accelerator, rendered, lbl) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('hotkey-triggered', { accelerator, content: rendered, label: lbl });
-      }
-    });
+    if (!hotkeyTemplates)
+      return { success: false, message: "快捷键模板系统未初始化" };
+    const result = hotkeyTemplates.bindFromClipboardItem(
+      slot,
+      clipboardItem,
+      (accelerator, rendered, lbl) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("hotkey-triggered", {
+            accelerator,
+            content: rendered,
+            label: lbl,
+          });
+        }
+      },
+    );
     return result;
   } catch (err) {
-    log.error('hotkey-bind error:', err);
+    log.error("hotkey-bind-from-item error:", err);
     return { success: false, message: err.message };
   }
 });
 
-ipcMain.handle('hotkey-bind-from-item', async (_, { slot, clipboardItem }) => {
-  try {
-    if (!hotkeyTemplates) return { success: false, message: '快捷键模板系统未初始化' };
-    const result = hotkeyTemplates.bindFromClipboardItem(slot, clipboardItem, (accelerator, rendered, lbl) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('hotkey-triggered', { accelerator, content: rendered, label: lbl });
-      }
-    });
-    return result;
-  } catch (err) {
-    log.error('hotkey-bind-from-item error:', err);
-    return { success: false, message: err.message };
-  }
-});
-
-ipcMain.handle('hotkey-unbind', async (_, { slot }) => {
+ipcMain.handle("hotkey-unbind", async (_, { slot }) => {
   try {
     if (!hotkeyTemplates) return false;
     return hotkeyTemplates.unbindSlot(slot);
   } catch (err) {
-    log.error('hotkey-unbind error:', err);
+    log.error("hotkey-unbind error:", err);
     return false;
   }
 });
 
-ipcMain.handle('hotkey-render-template', async (_, { content }) => {
+ipcMain.handle("hotkey-render-template", async (_, { content }) => {
   try {
     if (!hotkeyTemplates) return content;
     return hotkeyTemplates.renderTemplate(content);
   } catch (err) {
-    log.error('hotkey-render-template error:', err);
+    log.error("hotkey-render-template error:", err);
     return content;
   }
 });
@@ -2553,224 +2814,247 @@ ipcMain.handle('hotkey-render-template', async (_, { content }) => {
 
 const textTransformer = new TextTransform();
 
-ipcMain.handle('list-transforms', async () => {
+ipcMain.handle("list-transforms", async () => {
   return textTransformer.listTransforms();
 });
 
-ipcMain.handle('apply-transform', async (_, { transformId, text }) => {
+ipcMain.handle("apply-transform", async (_, { transformId, text }) => {
   try {
     const result = textTransformer.apply(transformId, text);
     return { success: true, ...result };
   } catch (err) {
-    log.error('apply-transform error:', err);
+    log.error("apply-transform error:", err);
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle('apply-transform-copy', async (_, { transformId, text }) => {
+ipcMain.handle("apply-transform-copy", async (_, { transformId, text }) => {
   try {
     const result = textTransformer.apply(transformId, text);
     clipboard.writeText(result.result);
     return { success: true, label: result.label, result: result.result };
   } catch (err) {
-    log.error('apply-transform-copy error:', err);
+    log.error("apply-transform-copy error:", err);
     return { success: false, error: err.message };
   }
 });
 // ==================== v0.34.0: 导入导出 ====================
 
-ipcMain.handle('export-records-json', async () => {
+ipcMain.handle("export-records-json", async () => {
   try {
     const records = db.exportAllRecords();
     return { success: true, data: records };
   } catch (err) {
-    log.error('export-records-json error:', err);
+    log.error("export-records-json error:", err);
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle('export-records-csv', async () => {
+ipcMain.handle("export-records-csv", async () => {
   try {
     const csv = db.exportAllRecordsCSV();
     return { success: true, data: csv };
   } catch (err) {
-    log.error('export-records-csv error:', err);
+    log.error("export-records-csv error:", err);
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle('import-records', async (_, { records, mode }) => {
+ipcMain.handle("import-records", async (_, { records, mode }) => {
   try {
     const result = db.importRecords(records, mode);
     return { success: true, ...result };
   } catch (err) {
-    log.error('import-records error:', err);
+    log.error("import-records error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // v0.63.0: 导出增强 - 带筛选条件
-ipcMain.handle('export-with-filters', async (_, { format, range, type, favorite }) => {
-  try {
-    const crypto = require('crypto');
-    let records = db.getRecords({ limit: 10000 });
+ipcMain.handle(
+  "export-with-filters",
+  async (_, { format, range, type, favorite }) => {
+    try {
+      const crypto = require("crypto");
+      let records = db.getRecords({ limit: 10000 });
 
-    // 应用时间范围筛选
-    const now = new Date();
-    if (range === 'today') {
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      records = records.filter(r => new Date(r.created_at) >= today);
-    } else if (range === 'week') {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      records = records.filter(r => new Date(r.created_at) >= weekAgo);
-    } else if (range === 'month') {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      records = records.filter(r => new Date(r.created_at) >= monthAgo);
-    }
+      // 应用时间范围筛选
+      const now = new Date();
+      if (range === "today") {
+        const today = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+        );
+        records = records.filter((r) => new Date(r.created_at) >= today);
+      } else if (range === "week") {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        records = records.filter((r) => new Date(r.created_at) >= weekAgo);
+      } else if (range === "month") {
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        records = records.filter((r) => new Date(r.created_at) >= monthAgo);
+      }
 
-    // 应用类型筛选
-    if (type && type !== 'all') {
-      records = records.filter(r => r.type === type);
-    }
+      // 应用类型筛选
+      if (type && type !== "all") {
+        records = records.filter((r) => r.type === type);
+      }
 
-    // 应用收藏筛选
-    if (favorite) {
-      records = records.filter(r => r.favorite);
-    }
+      // 应用收藏筛选
+      if (favorite) {
+        records = records.filter((r) => r.favorite);
+      }
 
-    if (format === 'json') {
-      return JSON.stringify(records, null, 2);
-    } else if (format === 'csv') {
-      const headers = 'ID,类型,内容,创建时间,收藏,标签\n';
-      const rows = records.map(r => `${r.id},"${r.type}","${(r.content || '').replace(/"/g, '""').substring(0, 500)}","${r.created_at}",${r.favorite},"${r.tags}"`).join('\n');
-      return headers + rows;
-    } else if (format === 'markdown') {
-      return records.map(r => {
-        const preview = (r.content || '').substring(0, 200).replace(/\n/g, ' ');
-        return `## ${r.type} (${r.created_at})\n\n${preview}\n\n---\n`;
-      }).join('\n');
+      if (format === "json") {
+        return JSON.stringify(records, null, 2);
+      } else if (format === "csv") {
+        const headers = "ID,类型,内容,创建时间,收藏,标签\n";
+        const rows = records
+          .map(
+            (r) =>
+              `${r.id},"${r.type}","${(r.content || "").replace(/"/g, '""').substring(0, 500)}","${r.created_at}",${r.favorite},"${r.tags}"`,
+          )
+          .join("\n");
+        return headers + rows;
+      } else if (format === "markdown") {
+        return records
+          .map((r) => {
+            const preview = (r.content || "")
+              .substring(0, 200)
+              .replace(/\n/g, " ");
+            return `## ${r.type} (${r.created_at})\n\n${preview}\n\n---\n`;
+          })
+          .join("\n");
+      }
+      return "";
+    } catch (err) {
+      log.error("export-with-filters error:", err);
+      return "";
     }
-    return '';
-  } catch (err) {
-    log.error('export-with-filters error:', err);
-    return '';
-  }
-});
+  },
+);
 
 // v0.63.0: 获取导出计数
-ipcMain.handle('get-export-count', async (_, { range, type, favorite }) => {
+ipcMain.handle("get-export-count", async (_, { range, type, favorite }) => {
   try {
     let records = db.getRecords({ limit: 10000 });
     const now = new Date();
 
-    if (range === 'today') {
+    if (range === "today") {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      records = records.filter(r => new Date(r.created_at) >= today);
-    } else if (range === 'week') {
+      records = records.filter((r) => new Date(r.created_at) >= today);
+    } else if (range === "week") {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      records = records.filter(r => new Date(r.created_at) >= weekAgo);
-    } else if (range === 'month') {
+      records = records.filter((r) => new Date(r.created_at) >= weekAgo);
+    } else if (range === "month") {
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      records = records.filter(r => new Date(r.created_at) >= monthAgo);
+      records = records.filter((r) => new Date(r.created_at) >= monthAgo);
     }
 
-    if (type && type !== 'all') {
-      records = records.filter(r => r.type === type);
+    if (type && type !== "all") {
+      records = records.filter((r) => r.type === type);
     }
 
     if (favorite) {
-      records = records.filter(r => r.favorite);
+      records = records.filter((r) => r.favorite);
     }
 
     return records.length;
   } catch (err) {
-    log.error('get-export-count error:', err);
+    log.error("get-export-count error:", err);
     return 0;
   }
 });
 
 // v0.63.0: 导入增强
-ipcMain.handle('import-records-enhanced', async (_, { records, duplicateMode }) => {
-  try {
-    const crypto = require('crypto');
-    const contentHashes = new Set();
-    const existingRecords = db.getRecords({ limit: 10000 });
+ipcMain.handle(
+  "import-records-enhanced",
+  async (_, { records, duplicateMode }) => {
+    try {
+      const crypto = require("crypto");
+      const contentHashes = new Set();
+      const existingRecords = db.getRecords({ limit: 10000 });
 
-    existingRecords.forEach(r => {
-      if (r.content) {
-        const hash = crypto.createHash('md5').update(r.content).digest('hex');
-        contentHashes.add(hash);
-      }
-    });
-
-    let imported = 0, skipped = 0;
-
-    for (const record of records) {
-      if (!record.content) continue;
-
-      const hash = crypto.createHash('md5').update(record.content).digest('hex');
-
-      if (contentHashes.has(hash) && duplicateMode === 'skip') {
-        skipped++;
-        continue;
-      }
-
-      db.addRecord({
-        type: record.type || 'text',
-        content: record.content,
-        source: 'import',
-        source_app: record.source_app || '',
-        tags: record.tags || '[]',
-        favorite: record.favorite ? 1 : 0
+      existingRecords.forEach((r) => {
+        if (r.content) {
+          const hash = crypto.createHash("md5").update(r.content).digest("hex");
+          contentHashes.add(hash);
+        }
       });
 
-      contentHashes.add(hash);
-      imported++;
+      let imported = 0,
+        skipped = 0;
+
+      for (const record of records) {
+        if (!record.content) continue;
+
+        const hash = crypto
+          .createHash("md5")
+          .update(record.content)
+          .digest("hex");
+
+        if (contentHashes.has(hash) && duplicateMode === "skip") {
+          skipped++;
+          continue;
+        }
+
+        db.addRecord({
+          type: record.type || "text",
+          content: record.content,
+          source: "import",
+          source_app: record.source_app || "",
+          tags: record.tags || "[]",
+          favorite: record.favorite ? 1 : 0,
+        });
+
+        contentHashes.add(hash);
+        imported++;
+      }
+
+      return { success: true, imported, skipped };
+    } catch (err) {
+      log.error("import-records-enhanced error:", err);
+      return { success: false, error: err.message };
     }
+  },
+);
 
-    return { success: true, imported, skipped };
-  } catch (err) {
-    log.error('import-records-enhanced error:', err);
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle('show-save-dialog', async (_, options) => {
+ipcMain.handle("show-save-dialog", async (_, options) => {
   try {
     const result = await dialog.showSaveDialog(mainWindow, options);
     return result;
   } catch (err) {
-    log.error('show-save-dialog error:', err);
+    log.error("show-save-dialog error:", err);
     return { canceled: true };
   }
 });
 
-ipcMain.handle('show-open-dialog', async (_, options) => {
+ipcMain.handle("show-open-dialog", async (_, options) => {
   try {
     const result = await dialog.showOpenDialog(mainWindow, options);
     return result;
   } catch (err) {
-    log.error('show-open-dialog error:', err);
+    log.error("show-open-dialog error:", err);
     return { canceled: true };
   }
 });
 
-ipcMain.handle('write-file', async (_, { filePath, content }) => {
+ipcMain.handle("write-file", async (_, { filePath, content }) => {
   try {
-    require('fs').writeFileSync(filePath, content, 'utf8');
+    require("fs").writeFileSync(filePath, content, "utf8");
     return { success: true };
   } catch (err) {
-    log.error('write-file error:', err);
+    log.error("write-file error:", err);
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle('read-file', async (_, { filePath }) => {
+ipcMain.handle("read-file", async (_, { filePath }) => {
   try {
-    const content = require('fs').readFileSync(filePath, 'utf8');
+    const content = require("fs").readFileSync(filePath, "utf8");
     return { success: true, content };
   } catch (err) {
-    log.error('read-file error:', err);
+    log.error("read-file error:", err);
     return { success: false, error: err.message };
   }
 });
@@ -2778,12 +3062,12 @@ ipcMain.handle('read-file', async (_, { filePath }) => {
 // ==================== v0.47.0: 文件路径快捷操作 ====================
 
 // 在资源管理器中打开
-ipcMain.handle('open-in-explorer', async (_, filePath) => {
+ipcMain.handle("open-in-explorer", async (_, filePath) => {
   try {
-    const fs = require('fs');
+    const fs = require("fs");
     // 检查路径是否存在
     if (!fs.existsSync(filePath)) {
-      return { success: false, error: '路径不存在' };
+      return { success: false, error: "路径不存在" };
     }
     const stat = fs.statSync(filePath);
     if (stat.isDirectory()) {
@@ -2794,15 +3078,15 @@ ipcMain.handle('open-in-explorer', async (_, filePath) => {
     }
     return { success: true };
   } catch (err) {
-    log.error('open-in-explorer error:', err);
+    log.error("open-in-explorer error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 在终端中打开
-ipcMain.handle('open-in-terminal', async (_, filePath) => {
+ipcMain.handle("open-in-terminal", async (_, filePath) => {
   try {
-    const fs = require('fs');
+    const fs = require("fs");
     let targetDir = filePath;
 
     // 如果是文件，取其所在目录
@@ -2812,54 +3096,59 @@ ipcMain.handle('open-in-terminal', async (_, filePath) => {
         targetDir = path.dirname(filePath);
       }
     } else {
-      return { success: false, error: '路径不存在' };
+      return { success: false, error: "路径不存在" };
     }
 
     // Windows: 使用系统默认终端
-    const { exec } = require('child_process');
-    if (process.platform === 'win32') {
+    const { exec } = require("child_process");
+    if (process.platform === "win32") {
       // 优先尝试 Windows Terminal，回退到 cmd
-      exec('where wt', (err) => {
+      exec("where wt", (err) => {
         if (!err) {
           // Windows Terminal 可用
           exec(`wt -d "${targetDir}"`, { windowsHide: true });
         } else {
           // 回退到 cmd
-          exec(`cmd /c start cmd /K "cd /d ${targetDir}"`, { windowsHide: true });
+          exec(`cmd /c start cmd /K "cd /d ${targetDir}"`, {
+            windowsHide: true,
+          });
         }
       });
-    } else if (process.platform === 'darwin') {
+    } else if (process.platform === "darwin") {
       exec(`open -a Terminal "${targetDir}"`);
     } else {
       exec(`gnome-terminal --working-directory="${targetDir}"`);
     }
     return { success: true };
   } catch (err) {
-    log.error('open-in-terminal error:', err);
+    log.error("open-in-terminal error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 检查路径是否存在
-ipcMain.handle('check-path-exists', async (_, filePath) => {
+ipcMain.handle("check-path-exists", async (_, filePath) => {
   try {
-    const fs = require('fs');
+    const fs = require("fs");
     if (!fs.existsSync(filePath)) {
       return { exists: false, type: null };
     }
     const stat = fs.statSync(filePath);
-    return { exists: true, type: stat.isFile() ? 'file' : stat.isDirectory() ? 'directory' : 'other' };
+    return {
+      exists: true,
+      type: stat.isFile() ? "file" : stat.isDirectory() ? "directory" : "other",
+    };
   } catch (err) {
     return { exists: false, type: null };
   }
 });
 
 // 批量在资源管理器中打开
-ipcMain.handle('batch-open-in-explorer', async (_, filePaths) => {
+ipcMain.handle("batch-open-in-explorer", async (_, filePaths) => {
   try {
     let opened = 0;
     let failed = 0;
-    const fs = require('fs');
+    const fs = require("fs");
     for (const fp of filePaths) {
       if (fs.existsSync(fp)) {
         const stat = fs.statSync(fp);
@@ -2875,36 +3164,35 @@ ipcMain.handle('batch-open-in-explorer', async (_, filePaths) => {
     }
     return { success: true, opened, failed };
   } catch (err) {
-    log.error('batch-open-in-explorer error:', err);
+    log.error("batch-open-in-explorer error:", err);
     return { success: false, error: err.message };
   }
 });
 
-
 // ==================== v0.49.0: 文件路径快捷操作增强 ====================
 
 // v0.52.0: Copy image file to a user-chosen path
-ipcMain.handle('copy-image-to-path', async (_, { srcPath, destPath }) => {
+ipcMain.handle("copy-image-to-path", async (_, { srcPath, destPath }) => {
   try {
-    const fs = require('fs');
+    const fs = require("fs");
     if (!fs.existsSync(srcPath)) {
-      return { success: false, error: '源图片不存在' };
+      return { success: false, error: "源图片不存在" };
     }
     fs.copyFileSync(srcPath, destPath);
     return { success: true };
   } catch (err) {
-    log.error('copy-image-to-path error:', err);
+    log.error("copy-image-to-path error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 启动文件（用系统默认程序打开）
-ipcMain.handle('file-launch', async (_, filePath) => {
+ipcMain.handle("file-launch", async (_, filePath) => {
   try {
-    const fs = require('fs');
-    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, '');
+    const fs = require("fs");
+    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, "");
     if (!fs.existsSync(normalizedPath)) {
-      return { success: false, error: '文件不存在' };
+      return { success: false, error: "文件不存在" };
     }
     await shell.openPath(normalizedPath);
     return { success: true, path: normalizedPath };
@@ -2914,17 +3202,21 @@ ipcMain.handle('file-launch', async (_, filePath) => {
 });
 
 // v0.49.0: 增强版 - 在资源管理器中打开（支持父目录回退）
-ipcMain.handle('file-open-explorer', async (_, filePath) => {
+ipcMain.handle("file-open-explorer", async (_, filePath) => {
   try {
-    const fs = require('fs');
-    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, '');
+    const fs = require("fs");
+    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, "");
     if (!fs.existsSync(normalizedPath)) {
       const parentDir = path.dirname(normalizedPath);
       if (fs.existsSync(parentDir)) {
         await shell.openPath(parentDir);
-        return { success: true, path: parentDir, note: '文件不存在，已打开父目录' };
+        return {
+          success: true,
+          path: parentDir,
+          note: "文件不存在，已打开父目录",
+        };
       }
-      return { success: false, error: '路径不存在' };
+      return { success: false, error: "路径不存在" };
     }
     const stat = fs.statSync(normalizedPath);
     if (stat.isDirectory()) {
@@ -2939,23 +3231,29 @@ ipcMain.handle('file-open-explorer', async (_, filePath) => {
 });
 
 // v0.49.0: 增强版 - 在终端中打开（智能选择 Windows Terminal）
-ipcMain.handle('file-open-terminal', async (_, filePath) => {
+ipcMain.handle("file-open-terminal", async (_, filePath) => {
   try {
-    const fs = require('fs');
-    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, '');
-    const targetDir = fs.existsSync(normalizedPath) && fs.statSync(normalizedPath).isFile()
-      ? path.dirname(normalizedPath)
-      : normalizedPath;
+    const fs = require("fs");
+    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, "");
+    const targetDir =
+      fs.existsSync(normalizedPath) && fs.statSync(normalizedPath).isFile()
+        ? path.dirname(normalizedPath)
+        : normalizedPath;
     if (!fs.existsSync(targetDir)) {
-      return { success: false, error: '路径不存在' };
+      return { success: false, error: "路径不存在" };
     }
-    const { exec } = require('child_process');
-    const wtPath = path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps', 'wt.exe');
+    const { exec } = require("child_process");
+    const wtPath = path.join(
+      process.env.LOCALAPPDATA,
+      "Microsoft",
+      "WindowsApps",
+      "wt.exe",
+    );
     const cmd = fs.existsSync(wtPath)
       ? `start "" "$wtPath" -d "$targetDir"`
       : `start cmd /k "cd /d "$targetDir""`;
     exec(cmd, (err) => {
-      if (err) log.error('file-open-terminal error:', err);
+      if (err) log.error("file-open-terminal error:", err);
     });
     return { success: true, path: targetDir };
   } catch (err) {
@@ -2963,64 +3261,72 @@ ipcMain.handle('file-open-terminal', async (_, filePath) => {
   }
 });
 // v0.39.0: Cycle mode IPC handlers
-ipcMain.on('cycle-paste', (event, item) => {
+ipcMain.on("cycle-paste", (event, item) => {
   try {
     if (item && item.content) {
       clipboard.writeText(item.content);
-      log.info('Cycle mode: pasted item #' + (item.id || 'unknown'));
+      log.info("Cycle mode: pasted item #" + (item.id || "unknown"));
     }
     if (cycleWindow && !cycleWindow.isDestroyed()) {
       cycleWindow.close();
     }
   } catch (err) {
-    log.error('cycle-paste error:', err);
+    log.error("cycle-paste error:", err);
     if (cycleWindow && !cycleWindow.isDestroyed()) cycleWindow.close();
   }
 });
 
-ipcMain.on('cycle-cancel', () => {
+ipcMain.on("cycle-cancel", () => {
   if (cycleWindow && !cycleWindow.isDestroyed()) {
     cycleWindow.close();
   }
 });
 
 // v0.57.0: Quick paste IPC handlers
-ipcMain.on('quick-paste-select', (event, item) => {
-  if (quickPasteWindow && !quickPasteWindow.isDestroyed()) quickPasteWindow.close();
+ipcMain.on("quick-paste-select", (event, item) => {
+  if (quickPasteWindow && !quickPasteWindow.isDestroyed())
+    quickPasteWindow.close();
   const record = db.getRecord(item.id);
   if (record && record.content) {
     clipboard.writeText(record.content);
 
     // 模拟粘贴操作（跨平台适配 v0.74.0）
     setTimeout(() => {
-      const { exec } = require('child_process');
+      const { exec } = require("child_process");
       const pasteCmd = Platform.getQuickPasteCommand();
 
       if (pasteCmd) {
         // Windows: 使用 PowerShell SendKeys
         exec(pasteCmd, { windowsHide: true });
-      } else if (process.platform === 'darwin') {
+      } else if (process.platform === "darwin") {
         // macOS: 使用 AppleScript 模拟 Cmd+V
-        exec(`osascript -e 'tell application "System Events" to keystroke "v" using command down'`, (err) => {
-          if (err) log.warn('macOS 快速粘贴失败:', err.message);
-        });
-      } else if (process.platform === 'linux') {
+        exec(
+          `osascript -e 'tell application "System Events" to keystroke "v" using command down'`,
+          (err) => {
+            if (err) log.warn("macOS 快速粘贴失败:", err.message);
+          },
+        );
+      } else if (process.platform === "linux") {
         // Linux: 使用 xdotool 模拟 Ctrl+V
-        exec('xdotool key ctrl+v', (err) => {
-          if (err) log.warn('Linux 快速粘贴失败: xdotool 不可用，请安装: sudo apt install xdotool');
+        exec("xdotool key ctrl+v", (err) => {
+          if (err)
+            log.warn(
+              "Linux 快速粘贴失败: xdotool 不可用，请安装: sudo apt install xdotool",
+            );
         });
       }
     }, 100);
   }
 });
 
-ipcMain.on('quick-paste-close', () => {
-  if (quickPasteWindow && !quickPasteWindow.isDestroyed()) quickPasteWindow.close();
+ipcMain.on("quick-paste-close", () => {
+  if (quickPasteWindow && !quickPasteWindow.isDestroyed())
+    quickPasteWindow.close();
 });
 
 // ==================== v0.48.0: 快捷片段 ====================
 
-const Snippets = require('../features/snippets/SnippetsManager');
+const Snippets = require("../features/snippets/SnippetsManager");
 let snippets = null; // 延迟初始化
 
 // 辅助函数：确保 snippets 已初始化
@@ -3031,123 +3337,160 @@ function ensureSnippets() {
   return snippets;
 }
 
-ipcMain.handle('snippets-get-all', async (_, category) => {
+ipcMain.handle("snippets-get-all", async (_, category) => {
   try {
     const s = ensureSnippets();
-    return s ? s.getAll(category) : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
+    return s ? s.getAll(category) : { error: "Database not initialized" };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-get-by-id', async (_, id) => {
+ipcMain.handle("snippets-get-by-id", async (_, id) => {
   try {
     const s = ensureSnippets();
-    return s ? s.getById(id) : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
+    return s ? s.getById(id) : { error: "Database not initialized" };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-search', async (_, query) => {
+ipcMain.handle("snippets-search", async (_, query) => {
   try {
     const s = ensureSnippets();
-    return s ? s.search(query) : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
+    return s ? s.search(query) : { error: "Database not initialized" };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-create', async (_, data) => {
+ipcMain.handle("snippets-create", async (_, data) => {
   try {
     const s = ensureSnippets();
-    return s ? s.create(data) : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
+    return s ? s.create(data) : { error: "Database not initialized" };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-update', async (_, { id, ...updates }) => {
+ipcMain.handle("snippets-update", async (_, { id, ...updates }) => {
   try {
     const s = ensureSnippets();
-    return s ? s.update(id, updates) : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
+    return s ? s.update(id, updates) : { error: "Database not initialized" };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-delete', async (_, id) => {
+ipcMain.handle("snippets-delete", async (_, id) => {
   try {
     const s = ensureSnippets();
-    return s ? s.delete(id) : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
+    return s ? s.delete(id) : { error: "Database not initialized" };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-get-categories', async () => {
+ipcMain.handle("snippets-get-categories", async () => {
   try {
     const s = ensureSnippets();
-    return s ? s.getCategories() : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
+    return s ? s.getCategories() : { error: "Database not initialized" };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-get-by-shortcut', async (_, shortcut) => {
+ipcMain.handle("snippets-get-by-shortcut", async (_, shortcut) => {
   try {
     const s = ensureSnippets();
-    return s ? s.getByShortcut(shortcut) : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
+    return s
+      ? s.getByShortcut(shortcut)
+      : { error: "Database not initialized" };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-use', async (_, id) => {
+ipcMain.handle("snippets-use", async (_, id) => {
   try {
     const s = ensureSnippets();
-    if (!s) return { error: 'Database not initialized' };
+    if (!s) return { error: "Database not initialized" };
     const snippet = s.use(id);
     if (snippet) {
       const content = s.renderContent(snippet.content);
       clipboard.writeText(content);
     }
     return snippet;
-  } catch (e) { return { error: e.message }; }
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-create-from-record', async (_, { record, title, category }) => {
+ipcMain.handle(
+  "snippets-create-from-record",
+  async (_, { record, title, category }) => {
+    try {
+      const s = ensureSnippets();
+      return s
+        ? s.createFromRecord(record, { title, category })
+        : { error: "Database not initialized" };
+    } catch (e) {
+      return { error: e.message };
+    }
+  },
+);
+
+ipcMain.handle("snippets-import", async (_, snippetList) => {
   try {
     const s = ensureSnippets();
-    return s ? s.createFromRecord(record, { title, category }) : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
+    return s
+      ? s.importSnippets(snippetList)
+      : { error: "Database not initialized" };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-import', async (_, snippetList) => {
+ipcMain.handle("snippets-export", async () => {
   try {
     const s = ensureSnippets();
-    return s ? s.importSnippets(snippetList) : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
+    return s ? s.exportSnippets() : { error: "Database not initialized" };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-export', async () => {
+ipcMain.handle("snippets-stats", async () => {
   try {
     const s = ensureSnippets();
-    return s ? s.exportSnippets() : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
+    return s ? s.getStats() : { error: "Database not initialized" };
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
-ipcMain.handle('snippets-stats', async () => {
+ipcMain.handle("snippets-render-content", async (_, content) => {
   try {
     const s = ensureSnippets();
-    return s ? s.getStats() : { error: 'Database not initialized' };
-  } catch (e) { return { error: e.message }; }
-});
-
-ipcMain.handle('snippets-render-content', async (_, content) => {
-  try {
-    const s = ensureSnippets();
-    if (!s) return { error: 'Database not initialized' };
+    if (!s) return { error: "Database not initialized" };
     let rendered = s.renderContent(content);
     // 动态替换 {{clipboard}}
-    if (rendered.includes('{{clipboard}}')) {
+    if (rendered.includes("{{clipboard}}")) {
       const currentClipboard = clipboard.readText();
-      rendered = rendered.split('{{clipboard}}').join(currentClipboard || '');
+      rendered = rendered.split("{{clipboard}}").join(currentClipboard || "");
     }
     return rendered;
-  } catch (e) { return { error: e.message }; }
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
 // ==================== v0.37.0: 诊断信息 ====================
 
-ipcMain.handle('get-diagnostics', async () => {
+ipcMain.handle("get-diagnostics", async () => {
   try {
     const memUsage = process.memoryUsage();
-    const dbPath = path.join(app.getPath('userData'), 'clawboard.db');
+    const dbPath = path.join(app.getPath("userData"), "clawboard.db");
     let dbSize = 0;
     if (fs.existsSync(dbPath)) {
       dbSize = fs.statSync(dbPath).size;
@@ -3160,28 +3503,27 @@ ipcMain.handle('get-diagnostics', async () => {
       chromeVersion: process.versions.chrome,
       platform: process.platform,
       arch: process.arch,
-      osRelease: require('os').release(),
-      totalMemory: Math.round(require('os').totalmem() / 1024 / 1024),
+      osRelease: require("os").release(),
+      totalMemory: Math.round(require("os").totalmem() / 1024 / 1024),
       heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
       heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
       dbSize: dbSize,
       recordCount: stats.total,
       favoriteCount: stats.favorite,
-      userDataPath: app.getPath('userData'),
+      userDataPath: app.getPath("userData"),
       dbPath: dbPath,
       uptime: Math.round(process.uptime()),
     };
   } catch (err) {
-    log.error('get-diagnostics error:', err);
+    log.error("get-diagnostics error:", err);
     return { error: err.message };
   }
 });
 
-
 // v0.70.0: Storage compression
-ipcMain.handle('get-storage-stats', async () => {
+ipcMain.handle("get-storage-stats", async () => {
   try {
-    const dbPath = path.join(app.getPath('userData'), 'clawboard.db');
+    const dbPath = path.join(app.getPath("userData"), "clawboard.db");
     let dbSize = 0;
     if (fs.existsSync(dbPath)) {
       dbSize = fs.statSync(dbPath).size;
@@ -3189,33 +3531,51 @@ ipcMain.handle('get-storage-stats', async () => {
     const stats = db.getDetailedStats ? db.getDetailedStats() : db.getStats();
     let compressedCount = 0;
     try {
-      compressedCount = db.db.exec('SELECT COUNT(*) as count FROM records WHERE compressed = 1')[0]?.values[0][0] || 0;
-    } catch (e) { }
+      compressedCount =
+        db.db.exec(
+          "SELECT COUNT(*) as count FROM records WHERE compressed = 1",
+        )[0]?.values[0][0] || 0;
+    } catch (e) {}
     return {
       dbSize,
-      dbSizeMB: Math.round(dbSize / 1024 / 1024 * 10) / 10,
+      dbSizeMB: Math.round((dbSize / 1024 / 1024) * 10) / 10,
       totalRecords: stats.total || 0,
       compressedRecords: compressedCount,
-      compressionRatio: compressedCount > 0 ? Math.round(compressedCount / (stats.total || 1) * 100) : 0
+      compressionRatio:
+        compressedCount > 0
+          ? Math.round((compressedCount / (stats.total || 1)) * 100)
+          : 0,
     };
   } catch (e) {
-    log.error('get-storage-stats error:', e);
-    return { dbSize: 0, dbSizeMB: 0, totalRecords: 0, compressedRecords: 0, compressionRatio: 0 };
+    log.error("get-storage-stats error:", e);
+    return {
+      dbSize: 0,
+      dbSizeMB: 0,
+      totalRecords: 0,
+      compressedRecords: 0,
+      compressionRatio: 0,
+    };
   }
 });
 
-ipcMain.handle('compress-all', async () => {
+ipcMain.handle("compress-all", async () => {
   try {
-    const lz = require('lz-string');
-    const result = db.db.exec('SELECT id, content FROM records WHERE compressed = 0 AND LENGTH(content) > 1024');
-    if (!result.length || !result[0].values.length) return { success: true, compressed: 0 };
+    const lz = require("lz-string");
+    const result = db.db.exec(
+      "SELECT id, content FROM records WHERE compressed = 0 AND LENGTH(content) > 1024",
+    );
+    if (!result.length || !result[0].values.length)
+      return { success: true, compressed: 0 };
     let compressed = 0;
     for (const row of result[0].values) {
       const [id, content] = row;
       try {
         const compressedStr = lz.compress(content);
         if (compressedStr.length < content.length) {
-          db.db.run('UPDATE records SET content = ?, compressed = 1 WHERE id = ?', [compressedStr, id]);
+          db.db.run(
+            "UPDATE records SET content = ?, compressed = 1 WHERE id = ?",
+            [compressedStr, id],
+          );
           compressed++;
         }
       } catch (e) {
@@ -3225,35 +3585,41 @@ ipcMain.handle('compress-all', async () => {
     if (compressed > 0) db._save();
     return { success: true, compressed };
   } catch (e) {
-    log.error('compress-all error:', e);
+    log.error("compress-all error:", e);
     return { success: false, error: e.message };
   }
 });
 
 // v0.55.0: 模糊去重（MinHash）
-ipcMain.handle('find-fuzzy-duplicates', async (_, { threshold = 0.75 } = {}) => {
-  try {
-    return db._findFuzzyDuplicates(threshold);
-  } catch (err) {
-    log.error('find-fuzzy-duplicates error:', err);
-    return [];
-  }
-});
+ipcMain.handle(
+  "find-fuzzy-duplicates",
+  async (_, { threshold = 0.75 } = {}) => {
+    try {
+      return db._findFuzzyDuplicates(threshold);
+    } catch (err) {
+      log.error("find-fuzzy-duplicates error:", err);
+      return [];
+    }
+  },
+);
 
-ipcMain.handle('cleanup-fuzzy-duplicates', async (_, { threshold = 0.85 } = {}) => {
-  try {
-    return db.cleanupFuzzyDuplicates(threshold);
-  } catch (err) {
-    log.error('cleanup-fuzzy-duplicates error:', err);
-    return { deleted: 0, found: 0 };
-  }
-});
+ipcMain.handle(
+  "cleanup-fuzzy-duplicates",
+  async (_, { threshold = 0.85 } = {}) => {
+    try {
+      return db.cleanupFuzzyDuplicates(threshold);
+    } catch (err) {
+      log.error("cleanup-fuzzy-duplicates error:", err);
+      return { deleted: 0, found: 0 };
+    }
+  },
+);
 
-ipcMain.handle('get-fuzzy-dedup-stats', async () => {
+ipcMain.handle("get-fuzzy-dedup-stats", async () => {
   try {
     return db.getFuzzyStats();
   } catch (err) {
-    log.error('get-fuzzy-dedup-stats error:', err);
+    log.error("get-fuzzy-dedup-stats error:", err);
     return { total: 0, fuzzyPairsFound: 0, samples: [] };
   }
 });
@@ -3261,17 +3627,33 @@ ipcMain.handle('get-fuzzy-dedup-stats', async () => {
 // ==================== v0.71.0: 内容预览增强 ====================
 
 // 获取图片文件信息（尺寸、格式、大小）
-ipcMain.handle('get-image-info', async (_, filePath) => {
+ipcMain.handle("get-image-info", async (_, filePath) => {
   try {
-    const fs = require('fs');
+    const fs = require("fs");
     if (!fs.existsSync(filePath)) {
-      return { success: false, error: '文件不存在' };
+      return { success: false, error: "文件不存在" };
     }
     const stat = fs.statSync(filePath);
     const img = nativeImage.createFromPath(filePath);
     const size = img.getSize();
-    const ext = path.extname(filePath).toLowerCase().replace('.', '').toUpperCase();
-    const formatMap = { PNG: 'PNG', JPG: 'JPEG', JPEG: 'JPEG', GIF: 'GIF', BMP: 'BMP', WEBP: 'WebP', SVG: 'SVG', ICO: 'ICO', TIFF: 'TIFF', TIF: 'TIFF', AVIF: 'AVIF' };
+    const ext = path
+      .extname(filePath)
+      .toLowerCase()
+      .replace(".", "")
+      .toUpperCase();
+    const formatMap = {
+      PNG: "PNG",
+      JPG: "JPEG",
+      JPEG: "JPEG",
+      GIF: "GIF",
+      BMP: "BMP",
+      WEBP: "WebP",
+      SVG: "SVG",
+      ICO: "ICO",
+      TIFF: "TIFF",
+      TIF: "TIFF",
+      AVIF: "AVIF",
+    };
     return {
       success: true,
       width: size.width,
@@ -3279,67 +3661,123 @@ ipcMain.handle('get-image-info', async (_, filePath) => {
       format: formatMap[ext] || ext,
       fileSize: stat.size,
       fileName: path.basename(filePath),
-      aspectRatio: (size.width / size.height).toFixed(2)
+      aspectRatio: (size.width / size.height).toFixed(2),
     };
   } catch (err) {
-    log.error('get-image-info error:', err);
+    log.error("get-image-info error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 读取文件内容用于预览（支持文本文件）
-ipcMain.handle('read-file-preview', async (_, filePath) => {
+ipcMain.handle("read-file-preview", async (_, filePath) => {
   try {
-    const fs = require('fs');
+    const fs = require("fs");
     if (!fs.existsSync(filePath)) {
-      return { success: false, error: '文件不存在' };
+      return { success: false, error: "文件不存在" };
     }
     const stat = fs.statSync(filePath);
     const maxSize = 100 * 1024; // 100KB
     const textExtensions = new Set([
-      '.txt', '.md', '.markdown', '.json', '.csv', '.tsv',
-      '.xml', '.html', '.htm', '.css', '.js', '.jsx', '.ts', '.tsx',
-      '.py', '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.go', '.rs',
-      '.rb', '.php', '.sh', '.bash', '.ps1', '.bat', '.cmd',
-      '.yaml', '.yml', '.toml', '.ini', '.conf', '.cfg', '.env',
-      '.sql', '.log', '.gitignore', '.dockerignore', '.editorconfig',
-      '.vue', '.svelte', '.astro', '.scss', '.sass', '.less',
-      '.lua', '.r', '.m', '.swift', '.kt', '.kts', '.dart', '.zig'
+      ".txt",
+      ".md",
+      ".markdown",
+      ".json",
+      ".csv",
+      ".tsv",
+      ".xml",
+      ".html",
+      ".htm",
+      ".css",
+      ".js",
+      ".jsx",
+      ".ts",
+      ".tsx",
+      ".py",
+      ".java",
+      ".c",
+      ".cpp",
+      ".h",
+      ".hpp",
+      ".cs",
+      ".go",
+      ".rs",
+      ".rb",
+      ".php",
+      ".sh",
+      ".bash",
+      ".ps1",
+      ".bat",
+      ".cmd",
+      ".yaml",
+      ".yml",
+      ".toml",
+      ".ini",
+      ".conf",
+      ".cfg",
+      ".env",
+      ".sql",
+      ".log",
+      ".gitignore",
+      ".dockerignore",
+      ".editorconfig",
+      ".vue",
+      ".svelte",
+      ".astro",
+      ".scss",
+      ".sass",
+      ".less",
+      ".lua",
+      ".r",
+      ".m",
+      ".swift",
+      ".kt",
+      ".kts",
+      ".dart",
+      ".zig",
     ]);
     const ext = path.extname(filePath).toLowerCase();
     if (!textExtensions.has(ext) && stat.size > maxSize) {
-      return { success: false, error: '文件过大或格式不支持预览', isTextFile: false };
+      return {
+        success: false,
+        error: "文件过大或格式不支持预览",
+        isTextFile: false,
+      };
     }
     if (stat.size > maxSize) {
-      return { success: false, error: `文件过大（${(stat.size / 1024).toFixed(0)}KB），超过 100KB 限制`, isTextFile: true };
+      return {
+        success: false,
+        error: `文件过大（${(stat.size / 1024).toFixed(0)}KB），超过 100KB 限制`,
+        isTextFile: true,
+      };
     }
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(filePath, "utf8");
     return {
       success: true,
       content,
       fileName: path.basename(filePath),
       fileSize: stat.size,
-      extension: ext.replace('.', ''),
-      isTruncated: false
+      extension: ext.replace(".", ""),
+      isTruncated: false,
     };
   } catch (err) {
-    log.error('read-file-preview error:', err);
+    log.error("read-file-preview error:", err);
     return { success: false, error: err.message };
   }
 });
 
 // 复制图片到剪贴板
-ipcMain.handle('copy-image-clipboard', async (_, filePath) => {
+ipcMain.handle("copy-image-clipboard", async (_, filePath) => {
   try {
-    const fs = require('fs');
+    const fs = require("fs");
     if (!fs.existsSync(filePath)) {
-      return { success: false, error: '文件不存在' };
+      return { success: false, error: "文件不存在" };
     }
     const img = nativeImage.createFromPath(filePath);
     clipboard.writeImage(img);
     return { success: true };
   } catch (err) {
-    log.error('copy-image-clipboard error:', err);
+    log.error("copy-image-clipboard error:", err);
     return { success: false, error: err.message };
   }
 });
