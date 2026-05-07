@@ -924,7 +924,7 @@ function setupIPC() {
     } catch (err) {
       log.error('get-settings error:', err);
       return {};
-    } catch {}
+    }
   });
 
   // 保存设置
