@@ -201,7 +201,7 @@ async function _chat(prompt, model = config.chatModel) {
 
 function _request(method, path, body = null) {
   return new Promise((resolve, reject) => {
-    const url = new URL(path, config.host);
+    const url = new URL(path, config.ollamaUrl);
     const options = {
       hostname: url.hostname,
       port: url.port,
