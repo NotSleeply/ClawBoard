@@ -3,6 +3,11 @@
   "version": "0.73.0",
   "description": "AI驱动的本地剪贴板管理器 - 智能记录、语义搜索、永久收藏",
   "main": "src/main/index.js",
+  "packageManager": "pnpm@10.13.1",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
@@ -11,7 +16,8 @@
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
     "build:all": "electron-builder -mwl",
-    "pack": "electron-builder --dir"
+    "pack": "electron-builder --dir",
+    "preinstall": "npx only-allow pnpm"
   },
   "keywords": [
     "clipboard",
@@ -24,7 +30,7 @@
   "author": "NotSleeply",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^28.0.0",
+    "electron": "28.3.3",
     "electron-builder": "^24.0.0"
   },
   "dependencies": {

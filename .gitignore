@@ -20,3 +20,10 @@ Thumbs.db
 *.db-shm
 images/
 logs/
+
+# pnpm
+.pnpm-store/
+.pnpm-debug.log
+
+# npm (保留以防回退)
+package-lock.json

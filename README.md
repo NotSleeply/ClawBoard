@@ -83,6 +83,7 @@
 
 **通用依赖：**
 - [Node.js](https://nodejs.org/) 18+
+- [pnpm](https://pnpm.io/) 8+ （推荐）或 npm
 - [Ollama](https://ollama.com/)（可选，用于 AI 摘要功能）
 
 ### 安装方式
@@ -94,18 +95,23 @@
 git clone https://github.com/NotSleeply/ClawBoard.git
 cd ClawBoard
 
+# 安装 pnpm（如果还没有）
+npm install -g pnpm
+
 # 安装依赖
-npm install
+pnpm install
 
 # 运行（开发模式）
-npm run dev
+pnpm dev
 ```
+
+> **注意**：本项目已迁移到 pnpm，推荐使用 pnpm 进行开发。详见 [pnpm 迁移指南](./docs/PNPM_MIGRATION.md)
 
 #### 方式二：Windows 安装包
 
 ```bash
 # 构建 Windows 安装包（NSIS + Portable）
-npm run build:win
+pnpm build:win
 
 # 输出文件在 dist/ 目录：
 # - ClawBoard-x.x.x-setup.exe (安装版)
@@ -116,7 +122,7 @@ npm run build:win
 
 ```bash
 # 构建 macOS .dmg 和 .zip 包
-npm run build:mac
+pnpm build:mac
 
 # 输出文件：
 # - ClawBoard-x.x.x.dmg (DMG 安装包)
@@ -132,7 +138,7 @@ npm run build:mac
 
 ```bash
 # 构建 Linux AppImage 和 .deb 包
-npm run build:linux
+pnpm build:linux
 
 # 输出文件：
 # - ClawBoard-x.x.x-x64.AppImage (AppImage)
@@ -160,7 +166,7 @@ chmod +x ClawBoard-x.x.x-x64.AppImage
 
 ```bash
 # 同时构建 Windows、macOS、Linux
-npm run build:all
+pnpm build:all
 ```
 
 ### Ollama 配置（可选）
