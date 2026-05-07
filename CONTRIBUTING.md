@@ -5,17 +5,20 @@
 ## 📋 贡献方式
 
 ### 🐛 报告 Bug
+
 - 在 [GitHub Issues](https://github.com/NotSleeply/ClawBoard/issues) 中创建 Issue
 - 选择 `bug` 标签
 - 描述清楚：复现步骤、环境配置、预期 vs 实际结果
 - 尽量提供截图或日志
 
 ### 💡 提出功能建议
+
 - 在 [GitHub Issues](https://github.com/NotSleeply/ClawBoard/issues) 中创建 Issue
 - 选择 `enhancement` 标签
 - 清晰描述功能需求和使用场景
 
 ### 🔧 提交代码
+
 1. **Fork** 本仓库
 2. 创建新分支：`git checkout -b feature/your-feature-name`
 3. 进行开发，遵循代码风格
@@ -57,6 +60,7 @@ refactor(db): migrate to sql.js for cross-platform
 ```
 
 **Type 类型：**
+
 - `feat` - 新功能
 - `fix` - Bug 修复
 - `docs` - 文档更新
