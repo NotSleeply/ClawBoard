@@ -116,6 +116,16 @@ class SyncService extends EventEmitter {
         throw new Error('不能配对同一设备');
       }
 
+      // 检查设备是否已配对，避免重复添加
+      if (this.pairedDevices.has(deviceInfo.deviceId)) {
+        const existingDevice = this.pairedDevices.get(deviceInfo.deviceId);
+        this.log.info(`设备已配对: ${deviceInfo.deviceName}`);
+        return {
+          ...existingDevice,
+          alreadyPaired: true
+        };
+      }
+
       // 添加到配对列表
       this.pairedDevices.set(deviceInfo.deviceId, {
         id: deviceInfo.deviceId,
