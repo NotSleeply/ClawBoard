@@ -414,3 +414,107 @@ input{font-family:inherit;outline:none}
 .insight-high{border-left:3px solid var(--accent)}
 .insight-medium{border-left:3px solid #f59e0b}
 .insight-low{border-left:3px solid var(--border)}
+
+/* v0.74.0: Content preview enhancements */
+.code-preview {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 12px;
+  overflow-x: auto;
+  max-height: 100px;
+}
+
+.code-preview code {
+  color: #e0e0e0;
+}
+
+.markdown-preview {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.markdown-preview h1, .markdown-preview h2, .markdown-preview h3 {
+  margin: 0.5em 0;
+  color: var(--accent);
+}
+
+.markdown-preview p {
+  margin: 0.25em 0;
+}
+
+.image-info {
+  display: flex;
+  gap: 0.5rem;
+  padding: 4px 8px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.hover-image-info {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.hover-code {
+  max-height: 150px;
+  overflow: auto;
+}
+
+.hover-markdown {
+  max-height: 100px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+/* v0.74.0: Hover preview structure */
+#hoverPreview .preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+#hoverPreview .preview-type {
+  font-size: 14px;
+}
+
+#hoverPreview .preview-time {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+#hoverPreview .preview-body {
+  padding: 10px 12px;
+  overflow: auto;
+  max-height: 200px;
+}
+
+#hoverPreview .preview-tags {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+#hoverPreview .hover-preview-body {
+  font-size: 12px;
+  color: var(--text);
+}
+
+#hoverPreview .hover-preview-body img {
+  max-width: 300px;
+  max-height: 200px;
+  border-radius: 6px;
+}
+
