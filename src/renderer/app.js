@@ -2289,24 +2289,64 @@
 
   function formatContent(record) {
     if (record.type === 'image') {
-      let imgHtml = `<img src="file://${record.content}" alt="图片" loading="lazy">`;
+      let html = `<img src="file://${record.content}" alt="图片" loading="lazy">`;
       // v0.40.0: 搜索时显示 OCR 文字提示
       if (searchQuery && record.ocr_text) {
         const ocrPreview = escapeHtml(record.ocr_text.substring(0, 120));
-        imgHtml += `<div class="ocr-search-hint">🔍 OCR: ${searchQuery ? highlightText(ocrPreview, searchQuery) : ocrPreview}</div>`;
+        html += `<div class="ocr-search-hint">🔍 OCR: ${searchQuery ? highlightText(ocrPreview, searchQuery) : ocrPreview}</div>`;
       }
-      return imgHtml;
+      // v0.74.0: Image info display
+      if (record.imageInfo) {
+        try {
+          const info = JSON.parse(record.imageInfo);
+          html += `<div class="image-info">
+            <span>${info.width}×${info.height}</span>
+            <span>${Math.round(info.size / 1024)}KB</span>
+            <span>${info.format || 'unknown'}</span>
+          </div>`;
+        } catch { /* ignore */ }
+      }
+      return html;
     }
 
+    // v0.74.0: Enhanced text preview
     let text = escapeHtml(record.content || record.summary || '');
     const lines = text.split('\n');
 
-    // v0.44.0: 按行截断预览，替代仅按字符数截断
-    if (lines.length > LONG_TEXT_LINE_THRESHOLD) {
+    // Code highlighting
+    let isCode = record.type === 'code';
+    if (!isCode && (text.includes('function ') || text.includes('const ') || text.includes('import '))) {
+      isCode = true;
+    }
+
+    if (isCode) {
+      try {
+        if (window.hljs) {
+          const lang = record.language || 'javascript';
+          const highlighted = window.hljs.highlight(text, { language: lang }).value;
+          text = `<pre class="code-preview"><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+        } else {
+          text = `<pre class="code-preview"><code>${text}</code></pre>`;
+        }
+      } catch (e) {
+        text = `<pre class="code-preview"><code>${text}</code></pre>`;
+      }
+    } else if (record.type === 'markdown' || (text.startsWith('#') || text.includes('**'))) {
+      try {
+        if (window.marked) {
+          const html = window.marked.parse(record.content || '');
+          text = `<div class="markdown-preview">${html}</div>`;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    // Line truncation (non-code)
+    if (!isCode && lines.length > LONG_TEXT_LINE_THRESHOLD) {
       text = lines.slice(0, LONG_TEXT_LINE_THRESHOLD).join('\n') + `\n<span class="long-text-hint">... 还有 ${lines.length - LONG_TEXT_LINE_THRESHOLD} 行</span>`;
-    } else if (text.length > 200) {
+    } else if (!isCode && text.length > 200) {
       text = text.substring(0, 197) + '...';
     }
+
     // v0.35.0: 搜索高亮
     if (searchQuery) {
       text = highlightText(text, searchQuery);
@@ -4485,31 +4525,41 @@
   let _hoverTimer = null;
   let _hoverPreviewVisible = false;
 
-  function showHoverPreview(record, cardEl) {
+  async function showHoverPreview(record, cardEl) {
     const preview = $('#hoverPreview');
-    const typeEl = $('#hoverPreviewType');
-    const metaEl = $('#hoverPreviewMeta');
-    const bodyEl = $('#hoverPreviewBody');
-
-    const typeLabels = { text: '📝 文字', code: '💻 代码', file: '📁 文件', image: '🖼️ 图片' };
-    typeEl.textContent = typeLabels[record.type] || '📋';
-    const charCount = (record.content || '').length;
-    metaEl.textContent = `${formatTimeAgo(new Date(record.created_at))} · ${charCount} 字符`;
-
+    // v0.74.0: Enhanced hover preview
+    let previewContent = '';
     if (record.encrypted) {
-      bodyEl.textContent = '🔒 内容已加密';
-      bodyEl.className = 'hover-preview-body';
+      previewContent = '🔒 内容已加密';
     } else if (record.type === 'image') {
-      bodyEl.innerHTML = `<img src="file://${record.content}" alt="图片">`;
-      bodyEl.className = 'hover-preview-body';
+      previewContent = `<img src="file://${record.content}" style="max-width:300px; max-height:200px;">`;
+      if (record.imageInfo) {
+        try {
+          const info = JSON.parse(record.imageInfo);
+          previewContent += `<div class="hover-image-info">
+            ${info.width}×${info.height} · ${Math.round(info.size / 1024)}KB
+          </div>`;
+        } catch { /* ignore */ }
+      }
     } else if (record.type === 'code') {
-      bodyEl.textContent = record.content || record.summary || '';
-      bodyEl.className = 'hover-preview-body code-preview';
+      const lang = record.language || 'javascript';
+      previewContent = `<pre class="hover-code"><code class="language-${lang}">${escapeHtml((record.content || '').substring(0, 300))}</code></pre>`;
+    } else if (record.type === 'markdown') {
+      previewContent = `<div class="hover-markdown">${(record.content || '').substring(0, 200)}...</div>`;
     } else {
-      bodyEl.textContent = record.content || record.summary || '';
-      bodyEl.className = 'hover-preview-body';
+      previewContent = escapeHtml((record.content || '').substring(0, 200));
     }
 
+    const typeLabels = { text: '📝 文字', code: '💻 代码', file: '📁 文件', image: '🖼️ 图片' };
+    const typeIcon = typeLabels[record.type] || '📋';
+    preview.innerHTML = `
+      <div class="preview-header">
+        <span class="preview-type">${typeIcon}</span>
+        <span class="preview-time">${formatTime(record.created_at)}</span>
+      </div>
+      <div class="preview-body">${previewContent}</div>
+      ${record.tags && record.tags !== '[]' ? `<div class="preview-tags">${formatTags(record.tags)}</div>` : ''}
+    `;
     preview.style.display = 'block';
     positionHoverPreview(cardEl);
     requestAnimationFrame(() => preview.classList.add('show'));

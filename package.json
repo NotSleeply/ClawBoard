@@ -1,6 +1,6 @@
 {
   "name": "clawboard",
-  "version": "0.73.0",
+  "version": "0.74.0",
   "description": "AI驱动的本地剪贴板管理器 - 智能记录、语义搜索、永久收藏",
   "main": "src/main/index.js",
   "packageManager": "pnpm@10.13.1",
