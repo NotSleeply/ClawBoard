@@ -2040,19 +2040,8 @@ class Database {
     if (!records.length) return '';
 
     const header = 'created_at,type,source_app,content\n';
-    const rows = records[0].values.map(row => {
-      const escaped = row.map(v => {
-        if (v === null || v === undefined) return '';
-        const s = String(v);
-        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-          return '"' + s.replace(/"/g, '""') + '"';
-        }
-        return s;
-      });
-      return rows.length; // placeholder, actual row below
-    });
 
-    // Rebuild properly
+    // Build CSV rows properly
     const lines = records[0].values.map(row => {
       const vals = row.map(v => {
         if (v === null || v === undefined) return '';
