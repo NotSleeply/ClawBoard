@@ -919,10 +919,11 @@ class Database {
       params.push(sourceApp);
     }
 
-    // 按标签筛选
+    // 按标签筛选（转义特殊字符防止 LIKE 模式注入）
     if (tag) {
       sql += ' AND tags LIKE ?';
-      params.push(`%"${tag}"%`);
+      const safeTag = tag.replace(/["'%\\]/g, '\\$&');
+      params.push(`%"${safeTag}"%`);
     }
 
     // 按分组筛选
@@ -1763,7 +1764,8 @@ class Database {
 
     if (tag) {
       sql += ' AND tags LIKE ?';
-      params.push(`%"${tag}"%`);
+      const safeTag = tag.replace(/["'%\\]/g, '\\$&');
+      params.push(`%"${safeTag}"%`);
     }
 
     sql += ' ORDER BY updated_at DESC LIMIT ? OFFSET ?';
