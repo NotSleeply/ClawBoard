@@ -20,6 +20,8 @@ const path = require("path");
 const fs = require("fs");
 const log = require("electron-log");
 const { autoUpdater } = require("electron-updater");
+const SecureUtils = require("../utils/SecureUtils"); // v0.75.0: 安全工具
+const SessionManager = require("../utils/SessionManager"); // v0.75.0: 会话管理
 
 // 配置日志
 log.transports.file.level = "info";
@@ -50,6 +52,7 @@ let cycleWindow = null; // v0.39.0: Cycle mode window
 let quickPasteWindow = null; // v0.57.0: Quick paste floating menu
 let tray = null;
 let db = null;
+let sessionManager = null; // v0.75.0: 会话安全管理器
 let clipboardWatcher = null;
 let ocrService = null; // v0.17.0 OCR服务实例
 let smartPaste = null; // v0.31.0 智能粘贴实例
@@ -1829,6 +1832,14 @@ app.whenReady().then(async () => {
     log.info("[Database] 自动备份机制已启用");
   } catch (err) {
     log.warn("[Database] 自动备份启动失败:", err.message);
+  }
+
+  // v0.75.0: 初始化会话安全管理器
+  try {
+    sessionManager = new SessionManager(app.getPath("userData"), db);
+    log.info("[Security] 会话安全管理器已启用");
+  } catch (err) {
+    log.error("[Security] 会话管理器初始化失败:", err);
   }
 
   // v0.17.0: 初始化 OCR 服务
@@ -3928,6 +3939,89 @@ ipcMain.handle("delete-backup", async (_, backupFilename) => {
     return { success: true };
   } catch (err) {
     log.error("delete-backup error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// ==================== v0.75.0: 企业级安全功能 ====================
+
+// 安全删除文件 (DoD 5220.22-M 标准)
+ipcMain.handle("secure-delete-file", async (_, filePath) => {
+  try {
+    // 验证路径安全性 (防止目录遍历攻击)
+    const normalizedPath = path.normalize(filePath);
+    if (!normalizedPath.startsWith(app.getPath("userData")) && 
+        !normalizedPath.startsWith(app.getPath("app"))) {
+      return { success: false, error: "不允许删除此位置的文件" };
+    }
+
+    const result = SecureUtils.secureDelete(normalizedPath);
+    log.info(`[Security] 安全删除: ${result.method} - ${result.size || 0} bytes`);
+    return result;
+  } catch (err) {
+    log.error("secure-delete-file error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 获取密码强度评估
+ipcMain.handle("get-password-strength", async (_, password) => {
+  try {
+    const strength = SecureUtils.checkPasswordStrength(password);
+    return strength;
+  } catch (err) {
+    log.error("get-password-strength error:", err);
+    return { score: 0, strength: 'error', suggestions: ['检测失败'] };
+  }
+});
+
+// 使用 AES-256-GCM 加密文本
+ipcMain.handle("encrypt-text-gcm", async (_, plaintext, password) => {
+  try {
+    // 派生密钥
+    const salt = SecureUtils.generateSalt();
+    const key = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256');
+    
+    // 加密
+    const encrypted = SecureUtils.encryptGCM(plaintext, key);
+    
+    return {
+      success: true,
+      data: encrypted,
+      salt: salt.toString('hex'),
+      algorithm: 'aes-256-gcm'
+    };
+  } catch (err) {
+    log.error("encrypt-text-gcm error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 使用 AES-256-GCM 解密文本
+ipcMain.handle("decrypt-text-gcm", async (_, encryptedData, password, saltHex) => {
+  try {
+    const salt = Buffer.from(saltHex, 'hex');
+    const key = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256');
+    
+    const decrypted = SecureUtils.decryptGCM(encryptedData, key);
+    
+    return {
+      success: true,
+      data: decrypted
+    };
+  } catch (err) {
+    log.error("decrypt-text-gcm error:", err);
+    return { success: false, error: '解密失败,请检查密码' };
+  }
+});
+
+// 计算文件哈希 (用于完整性验证)
+ipcMain.handle("hash-file", async (_, filePath) => {
+  try {
+    const hash = await SecureUtils.fileHashSHA256(filePath);
+    return { success: true, hash, algorithm: 'sha-256' };
+  } catch (err) {
+    log.error("hash-file error:", err);
     return { success: false, error: err.message };
   }
 });
