@@ -12,9 +12,271 @@ class Database {
   constructor(userDataPath) {
     this.dbPath = path.join(userDataPath, 'clawboard.db');
     this.dataPath = userDataPath;
+    this.backupPath = path.join(userDataPath, 'backups');
     this.db = null;
-    this.encryptionKey = null; // 用于内存中临时存储的加密密钥
+    this.encryptionKey = null;
+    this._inTransaction = false; // 事务状态标志
     this._init();
+  }
+
+  // ==================== 安全工具方法 ====================
+  
+  /**
+   * 清理字符串,防止 SQL 注入 (防御性编程)
+   * @param {string} str - 待清理的字符串
+   * @returns {string} - 安全的字符串
+   */
+  _sanitizeString(str) {
+    if (typeof str !== 'string') return '';
+    return str
+      .replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, char => {
+        switch (char) {
+          case '\0': return '\\0';
+          case '\x08': return '\\b';
+          case '\x09': return '\\t';
+          case '\x1a': return '\\z';
+          case '\n': return '\\n';
+          case '\r': return '\\r';
+          // 单引号和双引号转义（虽然使用参数化查询，但作为额外保护）
+          case '"': return '""';
+          case "'": return "''";
+          case '\\': return '\\\\';
+          case '%': return '\\%';
+          default: return char;
+        }
+      });
+  }
+
+  /**
+   * 验证标签名称是否合法
+   * @param {string} tag - 标签名称
+   * @returns {boolean} - 是否合法
+   */
+  _isValidTag(tag) {
+    if (typeof tag !== 'string' || tag.length === 0 || tag.length > 50) return false;
+    // 只允许字母、数字、中文、空格、下划线、连字符
+    return /^[\w\u4e00-\u9fa5\s-]+$/.test(tag);
+  }
+
+  /**
+   * 验证设置键名是否合法
+   * @param {string} key - 设置键名
+   * @returns {boolean} - 是否合法
+   */
+  _isValidSettingKey(key) {
+    if (typeof key !== 'string' || key.length === 0 || key.length > 100) return false;
+    // 只允许字母、数字、下划线、点、连字符
+    return /^[a-zA-Z0-9_.-]+$/.test(key);
+  }
+
+  /**
+   * 执行带参数的安全查询 (统一入口)
+   * @param {string} sql - SQL 语句(使用 ? 作为占位符)
+   * @param {Array} params - 参数数组
+   * @returns {Object|null} - 查询结果
+   */
+  _executeQuery(sql, params = []) {
+    try {
+      if (sql.trim().startsWith('SELECT') || sql.trim().startsWith('WITH')) {
+        const result = this.db.exec(sql, params);
+        return result.length > 0 ? result[0] : { columns: [], values: [] };
+      } else {
+        this.db.run(sql, params);
+        this._save();
+        return { changes: this.db.getRowsModified() };
+      }
+    } catch (err) {
+      console.error('SQL 执行错误:', err.message);
+      console.error('SQL:', sql);
+      console.error('参数:', params);
+      throw new Error(`数据库操作失败: ${err.message}`);
+    }
+  }
+
+  // ==================== 数据库备份机制 ====================
+
+  /**
+   * 创建数据库备份
+   * @param {string} [reason='manual'] - 备份原因
+   * @returns {Object} - 备份信息
+   */
+  createBackup(reason = 'manual') {
+    try {
+      if (!fs.existsSync(this.backupPath)) {
+        fs.mkdirSync(this.backupPath, { recursive: true });
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupFilename = `clawboard-backup-${timestamp}-${reason}.db`;
+      const backupFilePath = path.join(this.backupPath, backupFilename);
+
+      // 复制当前数据库文件
+      fs.copyFileSync(this.dbPath, backupFilePath);
+
+      // 记录备份元数据
+      const metaPath = path.join(this.backupPath, 'backup-manifest.json');
+      let manifest = [];
+      if (fs.existsSync(metaPath)) {
+        manifest = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      }
+      
+      manifest.push({
+        filename: backupFilename,
+        timestamp: new Date().toISOString(),
+        reason,
+        size: fs.statSync(backupFilePath).size,
+        recordCount: this.getStats().total
+      });
+
+      // 只保留最近 30 个备份
+      if (manifest.length > 30) {
+        const toDelete = manifest.splice(0, manifest.length - 30);
+        toDelete.forEach(backup => {
+          const oldBackup = path.join(this.backupPath, backup.filename);
+          if (fs.existsSync(oldBackup)) {
+            fs.unlinkSync(oldBackup);
+          }
+        });
+      }
+
+      fs.writeFileSync(metaPath, JSON.stringify(manifest, null, 2));
+
+      console.log(`[Database] 备份创建成功: ${backupFilename}`);
+      return {
+        success: true,
+        path: backupFilePath,
+        filename: backupFilename,
+        size: fs.statSync(backupFilePath).size
+      };
+    } catch (err) {
+      console.error('[Database] 备份创建失败:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * 从备份恢复数据库
+   * @param {string} backupFilename - 备份文件名
+   * @returns {Object} - 恢复结果
+   */
+  restoreFromBackup(backupFilename) {
+    try {
+      const backupFilePath = path.join(this.backupPath, backupFilename);
+      if (!fs.existsSync(backupFilePath)) {
+        throw new Error('备份文件不存在');
+      }
+
+      // 先创建当前状态的备份
+      this.createBackup('pre-restore');
+
+      // 关闭当前数据库连接并替换文件
+      this.close();
+      fs.copyFileSync(backupFilePath, this.dbPath);
+
+      // 重新初始化数据库
+      this._init();
+
+      console.log(`[Database] 成功从备份恢复: ${backupFilename}`);
+      return { success: true, restoredFrom: backupFilename };
+    } catch (err) {
+      console.error('[Database] 备份恢复失败:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * 获取备份列表
+   * @returns {Array} - 备份列表
+   */
+  getBackups() {
+    const metaPath = path.join(this.backupPath, 'backup-manifest.json');
+    if (!fs.existsSync(metaPath)) return [];
+    
+    try {
+      return JSON.parse(fs.readFileSync(metaPath, 'utf8')).reverse(); // 最新的在前
+    } catch (err) {
+      console.error('[Database] 读取备份清单失败:', err);
+      return [];
+    }
+  }
+
+  /**
+   * 自动定时备份 (每小时)
+   */
+  startAutoBackup() {
+    if (this._backupInterval) clearInterval(this._backupInterval);
+    
+    this._backupInterval = setInterval(() => {
+      this.createBackup('auto-hourly');
+    }, 3600000); // 每小时
+
+    // 启动时也创建一次备份
+    this.createBackup('startup');
+    console.log('[Database] 自动备份已启动 (间隔: 1小时)');
+  }
+
+  stopAutoBackup() {
+    if (this._backupInterval) {
+      clearInterval(this._backupInterval);
+      this._backupInterval = null;
+      console.log('[Database] 自动备份已停止');
+    }
+  }
+
+  // ==================== 事务支持 ====================
+
+  /**
+   * 开始事务
+   */
+  beginTransaction() {
+    if (this._inTransaction) {
+      console.warn('[Database] 事务已处于活动状态，忽略嵌套请求');
+      return;
+    }
+    this.db.run('BEGIN TRANSACTION');
+    this._inTransaction = true;
+  }
+
+  /**
+   * 提交事务
+   */
+  commitTransaction() {
+    if (!this._inTransaction) {
+      console.warn('[Database] 没有活动的事务可提交');
+      return;
+    }
+    this.db.run('COMMIT');
+    this._inTransaction = false;
+    this._save();
+  }
+
+  /**
+   * 回滚事务
+   */
+  rollbackTransaction() {
+    if (!this._inTransaction) {
+      console.warn('[Database] 没有活动的事务可回滚');
+      return;
+    }
+    this.db.run('ROLLBACK');
+    this._inTransaction = false;
+  }
+
+  /**
+   * 在事务中执行操作 (自动处理提交/回滚)
+   * @param {Function} callback - 事务回调函数
+   * @returns {*} - 回调函数返回值
+   */
+  async withTransaction(callback) {
+    this.beginTransaction();
+    try {
+      const result = await callback();
+      this.commitTransaction();
+      return result;
+    } catch (error) {
+      this.rollbackTransaction();
+      throw error;
+    }
   }
 
   // AES-256 加密
@@ -1971,7 +2233,12 @@ class Database {
   getAutoExpirySettings() {
     try {
       const get = (key, def) => {
-        const row = this.db.exec(`SELECT value FROM settings WHERE key = '${key}'`);
+        if (!this._isValidSettingKey(key)) {
+          console.warn(`[Database] 非法的设置键名: ${key}`);
+          return def;
+        }
+        // 使用参数化查询防止 SQL 注入
+        const row = this.db.exec('SELECT value FROM settings WHERE key = ?', [key]);
         return row.length > 0 && row[0].values.length > 0 ? row[0].values[0][0] : def;
       };
       return {
@@ -2007,13 +2274,18 @@ class Database {
       const settings = this.getAutoExpirySettings();
       if (!settings.enabled || settings.days <= 0) return 0;
       const cutoffDate = new Date(Date.now() - settings.days * 86400000).toISOString();
-      let query;
+      
+      // 使用参数化查询防止 SQL 注入
+      let query, params;
       if (settings.keepFavorites) {
-        query = `DELETE FROM records WHERE created_at < '${cutoffDate}' AND favorite = 0`;
+        query = 'DELETE FROM records WHERE created_at < ? AND favorite = 0';
+        params = [cutoffDate];
       } else {
-        query = `DELETE FROM records WHERE created_at < '${cutoffDate}'`;
+        query = 'DELETE FROM records WHERE created_at < ?';
+        params = [cutoffDate];
       }
-      this.db.run(query);
+      
+      this.db.run(query, params);
       const result = this.db.exec('SELECT changes() as count');
       return result.length > 0 && result[0].values.length > 0 ? result[0].values[0][0] : 0;
     } catch (e) {
@@ -2027,19 +2299,21 @@ class Database {
       const settings = this.getAutoExpirySettings();
       if (!settings.enabled || settings.days <= 0) return { total: 0, expired: 0, protected: 0 };
       const cutoffDate = new Date(Date.now() - settings.days * 86400000).toISOString();
+
+      // 使用参数化查询
       const getTotal = () => {
-        const r = this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at < '${cutoffDate}'`);
+        const r = this.db.exec('SELECT COUNT(*) FROM records WHERE created_at < ?', [cutoffDate]);
         return r.length > 0 && r[0].values.length > 0 ? r[0].values[0][0] : 0;
       };
       const getExpired = () => {
         const q = settings.keepFavorites
-          ? `SELECT COUNT(*) FROM records WHERE created_at < '${cutoffDate}' AND favorite = 0`
-          : `SELECT COUNT(*) FROM records WHERE created_at < '${cutoffDate}'`;
-        const r = this.db.exec(q);
+          ? 'SELECT COUNT(*) FROM records WHERE created_at < ? AND favorite = 0'
+          : 'SELECT COUNT(*) FROM records WHERE created_at < ?';
+        const r = this.db.exec(q, [cutoffDate]);
         return r.length > 0 && r[0].values.length > 0 ? r[0].values[0][0] : 0;
       };
       const getProtected = () => {
-        const r = this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at < '${cutoffDate}' AND favorite = 1`);
+        const r = this.db.exec('SELECT COUNT(*) FROM records WHERE created_at < ? AND favorite = 1', [cutoffDate]);
         return r.length > 0 && r[0].values.length > 0 ? r[0].values[0][0] : 0;
       };
       return { total: getTotal(), expired: getExpired(), protected: getProtected() };
