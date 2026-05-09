@@ -7,6 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const lz = require('lz-string');
 const CryptoJS = require('crypto-js'); // v0.71.0: ChaCha20 support
+const LRUCache = require('../utils/LRUCache'); // v0.74.0: 性能优化
 
 class Database {
   constructor(userDataPath) {
@@ -16,6 +17,12 @@ class Database {
     this.db = null;
     this.encryptionKey = null;
     this._inTransaction = false; // 事务状态标志
+
+    // v0.74.0: 性能优化 - LRU 缓存
+    this._searchCache = new LRUCache(50);  // 搜索结果缓存 (最多50条)
+    this._statsCache = new LRUCache(10);   // 统计数据缓存 (10秒过期)
+    this._cacheTimestamps = new Map();     // 缓存时间戳
+
     this._init();
   }
 
@@ -276,6 +283,52 @@ class Database {
     } catch (error) {
       this.rollbackTransaction();
       throw error;
+    }
+  }
+
+  // ==================== 缓存管理 ====================
+
+  /**
+   * 生成缓存键
+   * @param {string} prefix - 前缀
+   * @param {...any} args - 参数
+   * @returns {string}
+   */
+  _cacheKey(prefix, ...args) {
+    return `${prefix}:${args.join(':')}`;
+  }
+
+  /**
+   * 检查缓存是否过期 (默认10秒)
+   * @param {string} key - 缓存键
+   * @param {number} ttl - 过期时间(毫秒)
+   * @returns {boolean}
+   */
+  _isCacheExpired(key, ttl = 10000) {
+    const timestamp = this._cacheTimestamps.get(key);
+    if (!timestamp) return true;
+    return (Date.now() - timestamp) > ttl;
+  }
+
+  /**
+   * 清除所有搜索缓存 (数据变更时调用)
+   */
+  invalidateSearchCache() {
+    this._searchCache.clear();
+    this._statsCache.clear();
+    this._cacheTimestamps.clear();
+  }
+
+  /**
+   * 清除特定模式的缓存
+   * @param {string} pattern - 键名模式
+   */
+  invalidateCachePattern(pattern) {
+    for (const key of this._searchCache.cache.keys()) {
+      if (key.includes(pattern)) {
+        this._searchCache.delete(key);
+        this._cacheTimestamps.delete(key);
+      }
     }
   }
 
@@ -610,6 +663,9 @@ class Database {
     // 自动清理旧记录（保留收藏）
     this._autoCleanup();
 
+    // v0.74.0: 数据变更时清除缓存
+    this.invalidateSearchCache();
+
     const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
     this._save();
     return this.getRecord(id);
@@ -829,7 +885,15 @@ class Database {
   // 获取记录列表 — 合并版 (fix #159)
   // 原先 getRecords 被定义了 3 次，JS 后定义覆盖前定义导致功能丢失
   // 现在合并为一个完整方法，支持所有参数
+  // v0.74.0: 优化 - 添加缓存支持
   getRecords({ type, limit = 50, offset = 0, search, favorite, sourceApp, tag, groupId } = {}) {
+    // 对于无搜索条件的列表查询，使用缓存 (5秒过期)
+    const cacheKey = this._cacheKey('records', type, limit, offset, favorite, sourceApp, tag, groupId);
+
+    if (!search && this._searchCache.has(cacheKey) && !this._isCacheExpired(cacheKey, 5000)) {
+      return this._searchCache.get(cacheKey);
+    }
+
     let sql = 'SELECT * FROM records WHERE 1=1';
     const params = [];
 
@@ -876,7 +940,16 @@ class Database {
 
     const result = this.db.exec(sql, params);
     if (result.length === 0) return [];
-    return result[0].values.map(row => this._rowToRecord(result[0].columns, row));
+
+    const records = result[0].values.map(row => this._rowToRecord(result[0].columns, row));
+
+    // 缓存结果 (仅对无搜索的查询)
+    if (!search) {
+      this._searchCache.set(cacheKey, records);
+      this._cacheTimestamps.set(cacheKey, Date.now());
+    }
+
+    return records;
   }
 
   // v0.57.0: 快速粘贴搜索方法
@@ -1152,6 +1225,10 @@ class Database {
         record.merged_from, record.is_merged, record.sensitive_types]
     );
     this.db.run(`DELETE FROM records WHERE id = ?`, [id]);
+
+    // v0.74.0: 数据变更时清除缓存
+    this.invalidateSearchCache();
+
     this._save();
     return true;
   }
