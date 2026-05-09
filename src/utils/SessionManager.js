@@ -286,14 +286,19 @@ class SessionManager {
    * @private
    */
   _startActivityMonitor() {
-    setInterval(() => {
+    // 防止重复创建定时器
+    if (this._activityMonitor) {
+      clearInterval(this._activityMonitor);
+    }
+
+    this._activityMonitor = setInterval(() => {
       if (!this._isLocked && this._lastActivity) {
         const idleTime = Date.now() - this._lastActivity;
-        
+
         if (idleTime >= this.config.sessionTimeout) {
           log.info(`[Session] 无操作超时 (${Math.round(idleTime / 1000)}s),自动锁定`);
           this.lock();
-          
+
           // 通知渲染进程
           const { BrowserWindow } = require('electron');
           const windows = BrowserWindow.getAllWindows();
@@ -331,6 +336,14 @@ class SessionManager {
     this.lock();
     this._failedAttempts = 0;
     this._lockoutUntil = null;
+
+    // 清理活动监控定时器 (防止内存泄漏)
+    if (this._activityMonitor) {
+      clearInterval(this._activityMonitor);
+      this._activityMonitor = null;
+      log.info('[Session] 活动监控定时器已清理');
+    }
+
     log.info('[Session] 会话管理器已销毁');
   }
 }
