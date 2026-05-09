@@ -484,6 +484,7 @@
         <button class="settings-tab" data-tab="snippets">📋 快捷片段</button>
         <button class="settings-tab" data-tab="aiSettings">🤖 AI 设置</button>
         <button class="settings-tab" data-tab="monitoring">⏸️ 监控</button>
+        <button class="settings-tab" data-tab="encryption">🔐 加密设置</button>
         <button class="settings-tab" data-tab="storage">💾 存储</button>
         <button class="settings-tab" data-tab="search">🔍 搜索</button>
         <button class="settings-tab" data-tab="about">ℹ️ 关于</button>
@@ -845,6 +846,48 @@
             <div><code style="background:var(--surface2);padding:1px 5px;border-radius:3px">"精确短语"</code> 精确匹配</div>
             <div><code style="background:var(--surface2);padding:1px 5px;border-radius:3px">/正则表达式/</code> 正则搜索</div>
             <div style="margin-top:0.3rem">可组合使用，如: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">type:code tag:snippet "function"</code></div>
+          </div>
+        </div>
+
+        <!-- v0.71.0: 加密设置 -->
+        <div class="settings-tab-content" id="settingsEncryption" style="display:none">
+          <h3 style="margin-bottom:1rem">🔐 加密设置</h3>
+          <div class="encryption-stats" id="encryptionStatsSection">
+            <div class="stat-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem">
+              <div class="stat-card" style="background:var(--surface2);padding:1rem;border-radius:10px;text-align:center">
+                <div style="font-size:1.5rem;margin-bottom:0.3rem" id="encStatTotal">0</div>
+                <div style="color:var(--muted);font-size:0.82rem">加密总数</div>
+              </div>
+              <div class="stat-card" style="background:var(--surface2);padding:1rem;border-radius:10px;text-align:center">
+                <div style="font-size:1.5rem;margin-bottom:0.3rem" id="encStatAES">0</div>
+                <div style="color:var(--muted);font-size:0.82rem">AES-256-GCM</div>
+              </div>
+              <div class="stat-card" style="background:var(--surface2);padding:1rem;border-radius:10px;text-align:center">
+                <div style="font-size:1.5rem;margin-bottom:0.3rem" id="encStatChaCha">0</div>
+                <div style="color:var(--muted);font-size:0.82rem">ChaCha20-Poly1305</div>
+              </div>
+            </div>
+          </div>
+          <div class="setting-item">
+            <label>默认加密算法</label>
+            <select id="settingDefaultAlgorithm" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+              <option value="aes-256-gcm">AES-256-GCM（推荐）</option>
+              <option value="chacha20-poly1305">ChaCha20-Poly1305（更现代）</option>
+            </select>
+            <small style="color:var(--muted);font-size:0.75rem;margin-top:0.25rem">AES-256-GCM: 兼容性好，速度快 | ChaCha20-Poly1305: 更现代，抗量子</small>
+          </div>
+          <div class="setting-item" style="margin-top:1.5rem">
+            <label>批量解密</label>
+            <button class="btn-secondary" id="btnBatchDecryptAll">📋 批量解密所有记录</button>
+            <small style="color:var(--muted);font-size:0.75rem">解密后需保持加密密钥已设置</small>
+          </div>
+          <div class="setting-item" style="margin-top:1.5rem">
+            <label>密码强度检测</label>
+            <input type="password" id="testPasswordStrength" placeholder="输入密码测试强度" style="width:100%;padding:0.5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);margin-bottom:0.5rem">
+            <div class="password-strength-bar" id="passwordStrengthBar" style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div id="passwordStrengthFill" style="height:100%;width:0%;transition:all 0.3s"></div>
+            </div>
+            <small id="passwordStrengthLabel" style="color:var(--muted);font-size:0.75rem">输入密码以测试强度</small>
           </div>
         </div>
 

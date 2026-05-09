@@ -213,8 +213,8 @@
         if (tab.dataset.tab === 'search') loadSearchSettingsTab();
         // v0.70.0: 切换到存储 tab 时加载存储统计
         if (tab.dataset.tab === 'storage') loadStoragePanel();
-      });
-    });
+        // v0.71.0: 切换到加密设置 tab 时加载加密统计
+        if (tab.dataset.tab === 'encryption') loadEncryptionSettingsTab();
 
     $('#btnCloseSettings').addEventListener('click', () => {
       settingsOverlay.classList.remove('show');
@@ -4891,6 +4891,69 @@
           }
         } catch (e) {
           showToast('清空失败', 'error');
+        }
+      });
+    }
+  });
+
+  // ==================== v0.71.0: 加密设置 ====================
+  async function loadEncryptionSettingsTab() {
+    try {
+      const stats = await window.ClawBoard.getEncryptionStats();
+      const encTotal = document.getElementById('encStatTotal');
+      const encAES = document.getElementById('encStatAES');
+      const encChaCha = document.getElementById('encStatChaCha');
+      if (encTotal) encTotal.textContent = stats.total || 0;
+      // Parse byAlgorithm: [{encryption_algorithm: 'aes-256-gcm', count: N}, ...]
+      let aesCount = 0, chachaCount = 0;
+      if (stats.byAlgorithm && Array.isArray(stats.byAlgorithm)) {
+        for (const row of stats.byAlgorithm) {
+          if (row.encryption_algorithm === 'aes-256-gcm') aesCount = row.count;
+          if (row.encryption_algorithm === 'chacha20-poly1305') chachaCount = row.count;
+        }
+      }
+      if (encAES) encAES.textContent = aesCount;
+      if (encChaCha) encChaCha.textContent = chachaCount;
+    } catch (e) {
+      console.error('loadEncryptionSettingsTab failed:', e);
+    }
+  }
+
+  // v0.71.0: 加密设置事件
+  document.addEventListener('DOMContentLoaded', () => {
+    const btnBatch = document.getElementById('btnBatchDecryptAll');
+    if (btnBatch) {
+      btnBatch.addEventListener('click', async () => {
+        if (!confirm('确定批量解密所有记录？')) return;
+        try {
+          const result = await window.ClawBoard.batchDecrypt([]);
+          showToast(`批量解密完成：成功 ${result.success} 条，失败 ${result.failed} 条`, result.failed > 0 ? 'warning' : 'success');
+          await loadEncryptionSettingsTab();
+        } catch (e) {
+          showToast('批量解密失败：' + e.message, 'error');
+        }
+      });
+    }
+    const pwInput = document.getElementById('testPasswordStrength');
+    const pwFill = document.getElementById('passwordStrengthFill');
+    const pwLabel = document.getElementById('passwordStrengthLabel');
+    if (pwInput && pwFill && pwLabel) {
+      pwInput.addEventListener('input', async () => {
+        const pw = pwInput.value;
+        if (!pw) {
+          pwFill.style.width = '0%';
+          pwFill.style.background = 'var(--border)';
+          pwLabel.textContent = '输入密码以测试强度';
+          return;
+        }
+        try {
+          const result = await window.ClawBoard.checkPasswordStrength(pw);
+          const pct = result.score;
+          pwFill.style.width = pct + '%';
+          pwFill.style.background = pct < 40 ? '#e74c3c' : pct < 70 ? '#f39c12' : '#2ecc71';
+          pwLabel.textContent = `评分: ${result.score}/100 | ${result.level} | ${result.suggestions.join(' | ')}`;
+        } catch (e) {
+          pwLabel.textContent = '检测失败';
         }
       });
     }

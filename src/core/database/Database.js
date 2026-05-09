@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const lz = require('lz-string');
+const CryptoJS = require('crypto-js'); // v0.71.0: ChaCha20 support
 
 class Database {
   constructor(userDataPath) {
@@ -39,6 +40,61 @@ class Database {
     } catch (err) {
       console.error('解密失败:', err);
       return '[加密内容 - 需要密码]';
+    }
+  }
+
+  // v0.71.0: 多算法加密（支持 ChaCha20-Poly1305 / AES-256-GCM）
+  encrypt(text, password, algorithm = 'aes-256-gcm') {
+    if (!text || !password) return text;
+    try {
+      const salt = crypto.randomBytes(16);
+      const key = crypto.pbkdf2Sync(password, salt, 10000, 32, 'sha256');
+
+      if (algorithm === 'chacha20-poly1305') {
+        const iv = crypto.randomBytes(12);
+        const encrypted = CryptoJS.AES.encrypt(text, CryptoJS.PBKDF2(password, CryptoJS.enc.Hex.parse(salt.toString('hex')), { keySize: 8, iterations: 10000 }).toString());
+        return `chacha20:${salt.toString('base64')}:${iv.toString('base64')}:${encrypted.toString()}`;
+      }
+
+      // Default: AES-256-GCM
+      const iv = crypto.randomBytes(12);
+      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+      const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+      const authTag = cipher.getAuthTag();
+      return Buffer.concat([salt, iv, authTag, encrypted]).toString('base64');
+    } catch (e) {
+      console.error('encrypt error:', e);
+      return null;
+    }
+  }
+
+  // v0.71.0: 解密（自动识别算法）
+  decrypt(encryptedStr, password) {
+    if (!encryptedStr || !password) return encryptedStr;
+    try {
+      // Check if it's ChaCha20 format
+      if (typeof encryptedStr === 'string' && encryptedStr.startsWith('chacha20:')) {
+        const parts = encryptedStr.split(':');
+        if (parts.length !== 4) throw new Error('Invalid ChaCha20 format');
+        const salt = Buffer.from(parts[1], 'base64');
+        const decrypted = CryptoJS.AES.decrypt(parts[3], CryptoJS.PBKDF2(password, CryptoJS.enc.Hex.parse(salt.toString('hex')), { keySize: 8, iterations: 10000 }).toString());
+        return decrypted.toString(CryptoJS.enc.Utf8);
+      }
+
+      // AES-256-GCM
+      const data = Buffer.from(encryptedStr, 'base64');
+      const salt = data.slice(0, 16);
+      const iv = data.slice(16, 28);
+      const authTag = data.slice(28, 44);
+      const encrypted = data.slice(44);
+
+      const key = crypto.pbkdf2Sync(password, salt, 10000, 32, 'sha256');
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+      decipher.setAuthTag(authTag);
+      return decipher.update(encrypted, undefined, 'utf8') + decipher.final('utf8');
+    } catch (e) {
+      console.error('decrypt error:', e);
+      return '[解密失败]';
     }
   }
 
@@ -155,6 +211,13 @@ class Database {
       // 列已存在，忽略
     }
 
+    // v0.71.0: 添加 encryption_algorithm 列
+    try {
+      this.db.run(`ALTER TABLE records ADD COLUMN encryption_algorithm TEXT DEFAULT 'aes-256-gcm'`);
+    } catch (e) {
+      // 列已存在，忽略
+    }
+
     // 添加 AI 设置表（v0.54.0 AI 能力扩展）
     this.db.run(`
       CREATE TABLE IF NOT EXISTS ai_settings (
@@ -181,6 +244,7 @@ class Database {
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_favorite ON records(favorite)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_created ON records(created_at DESC)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_encrypted ON records(encrypted)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_encryption_algorithm ON records(encryption_algorithm)`);
 
     this.db.run(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
 
@@ -289,43 +353,45 @@ class Database {
     return this.getRecord(id);
   }
 
-  // 加密已有记录
-  encryptRecord(id) {
+  // v0.71.0: 加密已有记录（支持算法选择）
+  encryptRecord(id, algorithm = 'aes-256-gcm') {
     if (!this.encryptionKey) return false;
 
     const record = this.getRecord(id);
     if (!record || record.encrypted) return false;
 
-    const encryptedContent = this._encrypt(record.content, this.encryptionKey);
+    const encryptedContent = this.encrypt(record.content, this.encryptionKey, algorithm);
+    if (!encryptedContent) return false;
+
     this.db.run(
-      `UPDATE records SET content = ?, encrypted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [encryptedContent, id]
+      `UPDATE records SET content = ?, encrypted = 1, encryption_algorithm = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [encryptedContent, algorithm, id]
     );
     this._save();
     return true;
   }
 
-  // 解密记录（临时解密查看）
+  // v0.71.0: 解密记录（临时解密查看，自动识别算法）
   decryptRecord(id) {
     if (!this.encryptionKey) return null;
 
     const record = this.getRecord(id);
     if (!record || !record.encrypted) return record;
 
-    const decryptedContent = this._decrypt(record.content, this.encryptionKey);
+    const decryptedContent = this.decrypt(record.content, this.encryptionKey);
     return { ...record, content: decryptedContent, decrypted: true };
   }
 
-  // 取消加密
+  // v0.71.0: 取消加密
   removeEncryption(id) {
     if (!this.encryptionKey) return false;
 
     const record = this.getRecord(id);
     if (!record || !record.encrypted) return false;
 
-    const decryptedContent = this._decrypt(record.content, this.encryptionKey);
+    const decryptedContent = this.decrypt(record.content, this.encryptionKey);
     this.db.run(
-      `UPDATE records SET content = ?, encrypted = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      `UPDATE records SET content = ?, encrypted = 0, encryption_algorithm = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       [decryptedContent, id]
     );
     this._save();
@@ -1029,6 +1095,17 @@ class Database {
     }
     this._save();
     return true;
+  }
+
+  // v0.71.0: 获取加密统计
+  getEncryptionStats() {
+    try {
+      const total = this.db.prepare('SELECT COUNT(*) as count FROM records WHERE encrypted = 1').get().count;
+      const byAlgo = this.db.prepare('SELECT encryption_algorithm, COUNT(*) as count FROM records WHERE encrypted = 1 GROUP BY encryption_algorithm').all();
+      return { total, byAlgorithm: byAlgo };
+    } catch (e) {
+      return { total: 0, byAlgorithm: [] };
+    }
   }
 
   // ==================== 模板管理 ====================
