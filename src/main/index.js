@@ -17,6 +17,7 @@ const {
   Notification,
 } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const log = require("electron-log");
 const { autoUpdater } = require("electron-updater");
 
