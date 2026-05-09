@@ -22,6 +22,10 @@ const log = require("electron-log");
 const { autoUpdater } = require("electron-updater");
 const SecureUtils = require("../utils/SecureUtils"); // v0.75.0: 安全工具
 const SessionManager = require("../utils/SessionManager"); // v0.75.0: 会话管理
+const TextFormatter = require("../utils/TextFormatter"); // v0.76.0: 文本格式清理
+const PasteModeManager = require("../utils/PasteModeManager"); // v0.76.0: 特殊粘贴模式
+const SnippetsManager = require("../utils/SnippetsManager"); // v0.76.0: 快捷短语管理
+const TriggerEngine = require("../utils/TriggerEngine"); // v0.76.0: 自动触发器引擎
 
 // 配置日志
 log.transports.file.level = "info";
@@ -53,6 +57,9 @@ let quickPasteWindow = null; // v0.57.0: Quick paste floating menu
 let tray = null;
 let db = null;
 let sessionManager = null; // v0.75.0: 会话安全管理器
+let pasteModeManager = null; // v0.76.0: 特殊粘贴模式管理器
+let snippetsManager = null; // v0.76.0: 快捷短语管理器
+let triggerEngine = null; // v0.76.0: 自动触发器引擎
 let clipboardWatcher = null;
 let ocrService = null; // v0.17.0 OCR服务实例
 let smartPaste = null; // v0.31.0 智能粘贴实例
@@ -134,6 +141,238 @@ app.on("second-instance", () => {
   }
 });
 
+// ==================== v0.76.0: 竞品特性功能接口 ====================
+
+// 文本格式清理
+ipcMain.handle("format-text", async (_, text, formatType) => {
+  try {
+    let result = '';
+    switch (formatType) {
+      case 'plain':
+        result = TextFormatter.toPlainText(text);
+        break;
+      case 'uppercase':
+        result = TextFormatter.toUpperCase(text);
+        break;
+      case 'lowercase':
+        result = TextFormatter.toLowerCase(text);
+        break;
+      case 'titlecase':
+        result = TextFormatter.toTitleCase(text);
+        break;
+      case 'sentencecase':
+        result = TextFormatter.toSentenceCase(text);
+        break;
+      case 'togglecase':
+        result = TextFormatter.toggleCase(text);
+        break;
+      case 'strip-html':
+        result = TextFormatter.stripHTML(text);
+        break;
+      case 'strip-markdown':
+        result = TextFormatter.stripMarkdown(text);
+        break;
+      default:
+        result = text;
+    }
+
+    return { success: true, data: result, originalLength: text.length, newLength: result.length };
+  } catch (err) {
+    log.error("format-text error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 获取文本统计信息
+ipcMain.handle("get-text-stats", async (_, text) => {
+  try {
+    const stats = TextFormatter.getStats(text);
+    return { success: true, stats };
+  } catch (err) {
+    log.error("get-text-stats error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 特殊粘贴模式
+ipcMain.handle("paste-with-mode", async (_, text, modeId) => {
+  try {
+    if (!pasteModeManager) {
+      return { success: false, error: '粘贴模式管理器未初始化' };
+    }
+
+    const result = pasteModeManager.paste(text, modeId);
+    return result;
+  } catch (err) {
+    log.error("paste-with-mode error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 预览所有粘贴模式
+ipcMain.handle("preview-paste-modes", async (_, text) => {
+  try {
+    if (!pasteModeManager) {
+      return { success: false, error: '粘贴模式管理器未初始化', modes: [] };
+    }
+
+    const previews = pasteModeManager.previewAllModes(text);
+    return { success: true, modes: previews };
+  } catch (err) {
+    log.error("preview-paste-modes error:", err);
+    return { success: false, error: err.message, modes: [] };
+  }
+});
+
+// 获取所有可用粘贴模式
+ipcMain.handle("get-paste-modes", async () => {
+  try {
+    if (!pasteModeManager) {
+      return { success: false, error: '未初始化', modes: [] };
+    }
+
+    const modes = pasteModeManager.getModes();
+    return { success: true, modes };
+  } catch (err) {
+    log.error("get-paste-modes error:", err);
+    return { success: false, error: err.message, modes: [] };
+  }
+});
+
+// 快捷短语管理
+ipcMain.handle("get-snippets", async (_, options) => {
+  try {
+    if (!snippetsManager) {
+      return { success: false, error: '未初始化', snippets: [] };
+    }
+
+    const snippets = snippetsManager.getAllSnippets(options || {});
+    return { success: true, snippets };
+  } catch (err) {
+    log.error("get-snippets error:", err);
+    return { success: false, error: err.message, snippets: [] };
+  }
+});
+
+// 渲染短语模板
+ipcMain.handle("render-snippet", async (_, snippetId, context) => {
+  try {
+    if (!snippetsManager) {
+      return { success: false, error: '未初始化' };
+    }
+
+    const result = snippetsManager.renderSnippet(snippetId, context || {});
+    return result;
+  } catch (err) {
+    log.error("render-snippet error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 创建新短语
+ipcMain.handle("create-snippet", async (_, snippetData) => {
+  try {
+    if (!snippetsManager) {
+      return { success: false, error: '未初始化' };
+    }
+
+    const snippet = snippetsManager.createSnippet(snippetData);
+    return { success: true, snippet };
+  } catch (err) {
+    log.error("create-snippet error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 更新短语
+ipcMain.handle("update-snippet", async (_, id, updates) => {
+  try {
+    if (!snippetsManager) {
+      return { success: false, error: '未初始化' };
+    }
+
+    const snippet = snippetsManager.updateSnippet(id, updates);
+    return { success: !!snippet, snippet };
+  } catch (err) {
+    log.error("update-snippet error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 删除短语
+ipcMain.handle("delete-snippet", async (_, id) => {
+  try {
+    if (!snippetsManager) {
+      return { success: false, error: '未初始化' };
+    }
+
+    const deleted = snippetsManager.deleteSnippet(id);
+    return { success: deleted };
+  } catch (err) {
+    log.error("delete-snippet error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 获取短语分组
+ipcMain.handle("get-snippet-groups", async () => {
+  try {
+    if (!snippetsManager) {
+      return { success: false, error: '未初始化', groups: [] };
+    }
+
+    const groups = snippetsManager.getGroups();
+    return { success: true, groups };
+  } catch (err) {
+    log.error("get-snippet-groups error:", err);
+    return { success: false, error: err.message, groups: [] };
+  }
+});
+
+// 获取短语使用统计
+ipcMain.handle("get-snippet-stats", async () => {
+  try {
+    if (!snippetsManager) {
+      return { success: false, error: '未初始化', stats: {} };
+    }
+
+    const stats = snippetsManager.getStats();
+    return { success: true, stats };
+  } catch (err) {
+    log.error("get-snippet-stats error:", err);
+    return { success: false, error: err.message, stats: {} };
+  }
+});
+
+// 导出短语为 JSON
+ipcMain.handle("export-snippets", async () => {
+  try {
+    if (!snippetsManager) {
+      return { success: false, error: '未初始化', json: '' };
+    }
+
+    const json = snippetsManager.exportJSON();
+    return { success: true, json };
+  } catch (err) {
+    log.error("export-snippets error:", err);
+    return { success: false, error: err.message, json: '' };
+  }
+});
+
+// 从 JSON 导入短语
+ipcMain.handle("import-snippets", async (_, jsonString) => {
+  try {
+    if (!snippetsManager) {
+      return { success: false, error: '未初始化' };
+    }
+
+    const result = snippetsManager.importJSON(jsonString);
+    return { success: true, ...result };
+  } catch (err) {
+    log.error("import-snippets error:", err);
+    return { success: false, error: err.message };
+  }
+});
 // v0.39.0: Cycle mode window
 function createCycleWindow() {
   if (cycleWindow && !cycleWindow.isDestroyed()) {
@@ -1840,6 +2079,20 @@ app.whenReady().then(async () => {
     log.info("[Security] 会话安全管理器已启用");
   } catch (err) {
     log.error("[Security] 会话管理器初始化失败:", err);
+  }
+
+  // v0.76.0: 初始化竞品特性模块
+  try {
+    pasteModeManager = new PasteModeManager();
+    log.info("[Feature] 特殊粘贴模式管理器已启用 (12种模式)");
+
+    snippetsManager = new SnippetsManager(app.getPath("userData"), db);
+    log.info(`[Feature] 快捷短语管理器已启用 (${snippetsManager.snippets.size} 个预设短语)`);
+
+    triggerEngine = new TriggerEngine(db, clipboardWatcher);
+    log.info("[Feature] 自动触发器引擎已启用");
+  } catch (err) {
+    log.error("[Feature] 模块初始化失败:", err);
   }
 
   // v0.17.0: 初始化 OCR 服务
