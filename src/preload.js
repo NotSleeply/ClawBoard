@@ -63,9 +63,16 @@ contextBridge.exposeInMainWorld('ClawBoard', {
   // 加密相关
   setEncryptionPassword: (password) => ipcRenderer.invoke('set-encryption-password', password),
   clearEncryptionKey: () => ipcRenderer.invoke('clear-encryption-key'),
-  encryptRecord: (id) => ipcRenderer.invoke('encrypt-record', id),
+  // v0.71.0: encrypt-record 支持 algorithm 参数
+  encryptRecord: (id, algorithm) => ipcRenderer.invoke('encrypt-record', { id, algorithm }),
   decryptRecord: (id) => ipcRenderer.invoke('decrypt-record', id),
   removeEncryption: (id) => ipcRenderer.invoke('remove-encryption', id),
+  // v0.71.0: 批量解密
+  batchDecrypt: (ids) => ipcRenderer.invoke('batch-decrypt', ids),
+  // v0.71.0: 加密统计
+  getEncryptionStats: () => ipcRenderer.invoke('get-encryption-stats'),
+  // v0.71.0: 密码强度检查
+  checkPasswordStrength: (password) => ipcRenderer.invoke('check-password-strength', password),
 
   // v0.17.0: OCR 相关
   ocrRecognize: (imagePath) => ipcRenderer.invoke('ocr-recognize', imagePath),

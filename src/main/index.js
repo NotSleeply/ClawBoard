@@ -1384,10 +1384,10 @@ ipcMain.handle("clear-encryption-key", async () => {
   }
 });
 
-// 加密记录
-ipcMain.handle("encrypt-record", async (event, id) => {
+// v0.71.0: 加密记录（支持算法选择）
+ipcMain.handle("encrypt-record", async (event, { id, algorithm = 'aes-256-gcm' }) => {
   try {
-    return db.encryptRecord(id);
+    return db.encryptRecord(id, algorithm);
   } catch (err) {
     log.error("encrypt-record error:", err);
     return false;
@@ -1412,6 +1412,63 @@ ipcMain.handle("remove-encryption", async (event, id) => {
     log.error("remove-encryption error:", err);
     return false;
   }
+});
+
+// v0.71.0: 批量解密
+ipcMain.handle("batch-decrypt", async (event, ids) => {
+  try {
+    // v0.71.0: 如果 ids 为空，解密所有加密记录
+    let targetIds = ids;
+    if (!ids || ids.length === 0) {
+      const allEncrypted = db.db.prepare('SELECT id FROM records WHERE encrypted = 1').all();
+      targetIds = allEncrypted.map(r => r.id);
+    }
+    let success = 0, failed = 0;
+    for (const id of targetIds) {
+      try {
+        const result = db.decryptRecord(id);
+        if (result) { db.removeEncryption(id); success++; } else { failed++; }
+      } catch { failed++; }
+    }
+    return { success, failed, total: targetIds.length };
+  } catch (err) {
+    log.error("batch-decrypt error:", err);
+    return { success: 0, failed: 0, total: 0, error: err.message };
+  }
+});
+
+// v0.71.0: 获取加密统计
+ipcMain.handle("get-encryption-stats", async () => {
+  try {
+    if (!db) return null;
+    return db.getEncryptionStats ? db.getEncryptionStats() : null;
+  } catch (err) {
+    log.error("get-encryption-stats error:", err);
+    return null;
+  }
+});
+
+// v0.71.0: 检查密码强度
+ipcMain.handle("check-password-strength", async (event, password) => {
+  const analyze = (pw) => {
+    let score = 0;
+    const suggestions = [];
+    if (pw.length < 8) { suggestions.push('至少8个字符'); } else { score += 20; }
+    if (pw.length >= 12) score += 15;
+    if (pw.length >= 16) score += 10;
+    if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score += 15;
+    if (/[0-9]/.test(pw)) score += 10;
+    if (/[^A-Za-z0-9]/.test(pw)) score += 15;
+    if (/(.)\1{2,}/.test(pw)) { suggestions.push('避免连续重复字符'); score -= 10; }
+    if (/^[a-z]+$/i.test(pw)) { suggestions.push('避免纯字母'); score -= 10; }
+    if (/^[0-9]+$/.test(pw)) { suggestions.push('避免纯数字'); score -= 15; }
+    const commonPasswords = ['password', '123456', 'qwerty', 'admin', 'letmein', 'welcome'];
+    if (commonPasswords.some(p => pw.toLowerCase().includes(p))) { suggestions.push('避免常见密码'); score -= 20; }
+    score = Math.max(0, Math.min(100, score));
+    const levels = ['极弱', '弱', '中等', '强', '很强'];
+    return { score, level: levels[Math.min(Math.floor(score / 20), 4)], suggestions };
+  };
+  return analyze(password);
 });
 
 // v0.23.0: 保存记录（用于合并功能）
