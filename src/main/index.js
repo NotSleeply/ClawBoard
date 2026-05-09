@@ -1823,6 +1823,14 @@ app.whenReady().then(async () => {
   db = new Database(app.getPath("userData"));
   await db._init();
 
+  // v0.74.0: 启动自动备份机制（每小时备份，保留30天）
+  try {
+    db.startAutoBackup();
+    log.info("[Database] 自动备份机制已启用");
+  } catch (err) {
+    log.warn("[Database] 自动备份启动失败:", err.message);
+  }
+
   // v0.17.0: 初始化 OCR 服务
   const ocrLangPath = path.join(app.getAppPath(), "assets", "tessdata");
   const ocrCachePath = path.join(app.getPath("userData"), "tessdata");
@@ -3836,6 +3844,90 @@ ipcMain.handle("copy-image-clipboard", async (_, filePath) => {
     return { success: true };
   } catch (err) {
     log.error("copy-image-clipboard error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// ==================== v0.74.0: 数据库备份管理 ====================
+
+// 手动创建备份
+ipcMain.handle("create-backup", async (_, reason = "manual") => {
+  try {
+    const result = db.createBackup(reason);
+    return result;
+  } catch (err) {
+    log.error("create-backup error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 获取备份列表
+ipcMain.handle("get-backups", async () => {
+  try {
+    const backups = db.getBackups();
+    return backups;
+  } catch (err) {
+    log.error("get-backups error:", err);
+    return [];
+  }
+});
+
+// 从备份恢复
+ipcMain.handle("restore-from-backup", async (_, backupFilename) => {
+  try {
+    // 显示确认对话框（因为这是危险操作）
+    const { dialog } = require("electron");
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: "warning",
+      title: "⚠️ 确认恢复备份",
+      message: `即将从备份恢复数据:\n${backupFilename}\n\n当前数据将自动备份，但此操作不可撤销。`,
+      buttons: ["取消", "确认恢复"],
+      defaultId: 0,
+      cancelId: 0,
+    });
+
+    if (result.response !== 1) {
+      return { success: false, canceled: true, message: "用户取消操作" };
+    }
+
+    const restoreResult = db.restoreFromBackup(backupFilename);
+    
+    // 通知渲染进程数据已变更
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("database-restored", restoreResult);
+    }
+
+    return restoreResult;
+  } catch (err) {
+    log.error("restore-from-backup error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// 删除备份
+ipcMain.handle("delete-backup", async (_, backupFilename) => {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const backupPath = path.join(db.backupPath, backupFilename);
+
+    if (!fs.existsSync(backupPath)) {
+      return { success: false, error: "备份文件不存在" };
+    }
+
+    fs.unlinkSync(backupPath);
+
+    // 更新清单
+    const metaPath = path.join(db.backupPath, "backup-manifest.json");
+    if (fs.existsSync(metaPath)) {
+      let manifest = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+      manifest = manifest.filter((b) => b.filename !== backupFilename);
+      fs.writeFileSync(metaPath, JSON.stringify(manifest, null, 2));
+    }
+
+    return { success: true };
+  } catch (err) {
+    log.error("delete-backup error:", err);
     return { success: false, error: err.message };
   }
 });
