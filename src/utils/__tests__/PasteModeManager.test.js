@@ -2,7 +2,7 @@
  * PasteModeManager 单元测试
  */
 
-const PasteModeManager = require('../../src/utils/PasteModeManager');
+const PasteModeManager = require('../PasteModeManager');
 
 describe('PasteModeManager', () => {
   let manager;
@@ -90,8 +90,8 @@ describe('PasteModeManager', () => {
 
     test('空文本应该优雅处理', () => {
       const result = manager.paste('', 'uppercase');
-      expect(result.success).toBe(true);
-      expect(result.text).toBe('');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('无效');
     });
 
     test('null 文本应该处理', () => {

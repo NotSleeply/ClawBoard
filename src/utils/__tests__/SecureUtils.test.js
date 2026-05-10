@@ -2,7 +2,7 @@
  * SecureUtils 单元测试
  */
 
-const SecureUtils = require('../../src/utils/SecureUtils');
+const SecureUtils = require('../SecureUtils');
 
 describe('SecureUtils', () => {
   describe('密钥派生', () => {
@@ -124,7 +124,7 @@ describe('SecureUtils', () => {
       expect(/^[a-zA-Z0-9_.-]+$/.test('auto-sync.interval')).toBe(true);
       
       // 非法键名
-      expect(/^[a-zA-Z0-9_.-]+$].test('../../etc/passwd')).toBe(false);
+      expect(/^[a-zA-Z0-9_.-]+$/.test('../../etc/passwd')).toBe(false);
     });
   });
 
