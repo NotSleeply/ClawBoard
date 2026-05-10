@@ -216,7 +216,7 @@
       document.body.classList.remove('drag-over');
     });
 
-    document.addEventListener('drop', async (e) => {
+    document.addEventListener('drop', safeEventHandler(async (e) => {
       e.preventDefault();
       e.stopPropagation();
       document.body.classList.remove('drag-over');
@@ -227,7 +227,7 @@
         await window.ClawBoard.copyToClipboard(filePaths);
         showToast('✅ 文件路径已复制', 'success');
       }
-    });
+    }, '文件拖放处理失败'));
 
     clearSearchBtn.addEventListener('click', () => {
       searchInput.value = '';
@@ -758,10 +758,10 @@
     $('#btnGenerateInsights').addEventListener('click', loadInsights);
 
     // 标签面板
-    $('#btnTags').addEventListener('click', async () => {
+    $('#btnTags').addEventListener('click', safeEventHandler(async () => {
       $('#tagsOverlay').classList.add('show');
       await loadTags();
-    });
+    }, '打开标签面板失败'));
     $('#btnCloseTags').addEventListener('click', () => {
       $('#tagsOverlay').classList.remove('show');
     });
@@ -997,7 +997,7 @@
       groupEl.addEventListener('dragleave', () => {
         groupEl.classList.remove('drag-over');
       });
-      groupEl.addEventListener('drop', async (e) => {
+      groupEl.addEventListener('drop', safeEventHandler(async (e) => {
         e.preventDefault();
         groupEl.classList.remove('drag-over');
         if (draggedRecord) {
@@ -1006,7 +1006,7 @@
           draggedRecord = null;
           loadRecords();
         }
-      });
+      }, '移动记录到分组失败'));
 
       groupsList.appendChild(groupEl);
     });
@@ -1465,23 +1465,23 @@
     });
 
     // 复制按钮
-    item.querySelector('.pinned-copy-btn').addEventListener('click', async () => {
+    item.querySelector('.pinned-copy-btn').addEventListener('click', safeEventHandler(async () => {
       const fullRecord = await window.ClawBoard.getRecord(record.id);
       if (fullRecord && !fullRecord.encrypted) {
         await window.ClawBoard.copyToClipboard(fullRecord.content);
         showToast('已复制到剪贴板');
       }
-    });
+    }, '复制置顶记录失败'));
 
     // 取消置顶按钮
-    item.querySelector('.pinned-remove-btn').addEventListener('click', async () => {
+    item.querySelector('.pinned-remove-btn').addEventListener('click', safeEventHandler(async () => {
       if (confirm('确定取消置顶？')) {
         await window.ClawBoard.toggleFavorite(record.id);
         await loadPinnedList();
         await loadPinnedStats();
         showToast('已取消置顶');
       }
-    });
+    }, '取消置顶失败'));
 
     return item;
   }
@@ -1494,7 +1494,7 @@
   }
 
   // 置顶批量操作
-  $('#btnPinnedBatchUnfavorite').addEventListener('click', async () => {
+  $('#btnPinnedBatchUnfavorite').addEventListener('click', safeEventHandler(async () => {
     if (pinnedSelectedIds.size === 0) return;
     if (confirm(`确定取消置顶 ${pinnedSelectedIds.size} 条记录？`)) {
       await window.ClawBoard.batchUpdatePinned([...pinnedSelectedIds], { favorite: false });
@@ -1502,9 +1502,9 @@
       await loadPinnedStats();
       showToast('已批量取消置顶');
     }
-  });
+  }, '批量取消置顶失败'));
 
-  $('#btnPinnedBatchDelete').addEventListener('click', async () => {
+  $('#btnPinnedBatchDelete').addEventListener('click', safeEventHandler(async () => {
     if (pinnedSelectedIds.size === 0) return;
     if (confirm(`确定删除 ${pinnedSelectedIds.size} 条置顶记录？`)) {
       await window.ClawBoard.batchUpdatePinned([...pinnedSelectedIds], { delete: true });
@@ -1512,7 +1512,7 @@
       await loadPinnedStats();
       showToast('已批量删除');
     }
-  });
+  }, '批量删除置顶记录失败'));
 
   // v0.72.0: 回收站面板
   async function loadTrashPanel() {
@@ -2053,13 +2053,13 @@
           $('#tagsOverlay').classList.remove('show');
           loadRecords();
         });
-        tagEl.querySelector('.tag-delete').addEventListener('click', async (e) => {
+        tagEl.querySelector('.tag-delete').addEventListener('click', safeEventHandler(async (e) => {
           e.stopPropagation();
           if (!confirm(`确定删除标签 "${item.tag}" 吗？`)) return;
           await window.ClawBoard.deleteTag(item.tag);
           showToast(`已删除标签 "${item.tag}"`, 'success');
           await loadTags();
-        });
+        }, '删除标签失败'));
         tagsList.appendChild(tagEl);
       });
     } catch (err) {
@@ -3892,13 +3892,13 @@
         </div>
         <button class="btn-danger" id="btnCleanupDuplicates">一键清理重复项</button>
       `;
-      $('#btnCleanupDuplicates').addEventListener('click', async () => {
+      $('#btnCleanupDuplicates').addEventListener('click', safeEventHandler(async () => {
         if (!confirm(`确定清理 ${totalCount} 条重复记录吗？\n将保留每组最新的一条。`)) return;
         const deleted = await window.ClawBoard.cleanupDuplicates();
         showToast(`已清理 ${deleted} 条重复记录`, 'success');
         resultDiv.innerHTML = '<span style="color:var(--green)">✅ 清理完成</span>';
         await loadStats();
-      });
+      }, '清理重复项失败'));
     } catch (err) {
       resultDiv.innerHTML = '<span style="color:var(--red)">扫描失败</span>';
     }
@@ -4019,40 +4019,32 @@
   $('#btnTestNotification').addEventListener('click', handleTestNotification);
 
   // v0.59.0: AI 设置相关按钮
-  $('#btnRefreshAiModels').addEventListener('click', loadAiModels);
-  $('#btnResetAiPrompts').addEventListener('click', async () => {
+  $('#btnRefreshAiModels').addEventListener('click', safeEventHandler(loadAiModels, '刷新AI模型失败'));
+  $('#btnResetAiPrompts').addEventListener('click', safeEventHandler(async () => {
     if (!confirm('确定重置 AI 设置为默认值？')) return;
-    try {
-      const defaults = await window.ClawBoard.resetAIDefaults();
-      // 重新加载 AI 设置以反映默认值
-      const aiConfig = await window.ClawBoard.getAIConfig();
-      const aiPrompts = await window.ClawBoard.getAIPrompts();
-      if (aiConfig.chatModel) $('#settingAiChatModel').value = aiConfig.chatModel;
-      if (aiConfig.embedModel) $('#settingAiEmbedModel').value = aiConfig.embedModel;
-      if (aiPrompts.summary) $('#settingAiSummarizePrompt').value = aiPrompts.summary;
-      if (aiPrompts.tag) $('#settingAiTagsPrompt').value = aiPrompts.tag;
-      if (aiPrompts.search) $('#settingAiSearchPrompt').value = aiPrompts.search;
-      showToast('✅ 已重置为默认值', 'success');
-    } catch (e) {
-      showToast('❌ 重置失败', 'error');
-    }
-  });
+    const defaults = await window.ClawBoard.resetAIDefaults();
+    // 重新加载 AI 设置以反映默认值
+    const aiConfig = await window.ClawBoard.getAIConfig();
+    const aiPrompts = await window.ClawBoard.getAIPrompts();
+    if (aiConfig.chatModel) $('#settingAiChatModel').value = aiConfig.chatModel;
+    if (aiConfig.embedModel) $('#settingAiEmbedModel').value = aiConfig.embedModel;
+    if (aiPrompts.summary) $('#settingAiSummarizePrompt').value = aiPrompts.summary;
+    if (aiPrompts.tag) $('#settingAiTagsPrompt').value = aiPrompts.tag;
+    if (aiPrompts.search) $('#settingAiSearchPrompt').value = aiPrompts.search;
+    showToast('✅ 已重置为默认值', 'success');
+  }, '重置AI设置失败'));
 
   // v0.31.0: 立即清理过期条目
-  $('#btnCleanExpired').addEventListener('click', async () => {
-    try {
-      const result = await window.ClawBoard.cleanExpiredItems();
-      if (result.success) {
-        showToast('🗑️ 已清理 ' + result.count + ' 条过期记录', 'success');
-        loadExpiryStats();
-        loadRecords();
-      } else {
-        showToast('❌ 清理失败', 'error');
-      }
-    } catch (e) {
+  $('#btnCleanExpired').addEventListener('click', safeEventHandler(async () => {
+    const result = await window.ClawBoard.cleanExpiredItems();
+    if (result.success) {
+      showToast('🗑️ 已清理 ' + result.count + ' 条过期记录', 'success');
+      loadExpiryStats();
+      loadRecords();
+    } else {
       showToast('❌ 清理失败', 'error');
     }
-  });
+  }, '清理过期条目失败'));
 
   // v0.31.0: 监听过期清理事件
   window.ClawBoard.onExpiryCleanup((data) => {
@@ -4536,24 +4528,19 @@
     });
   }
 
-  $('#settingAutoEncrypt').addEventListener('change', async () => {
+  $('#settingAutoEncrypt').addEventListener('change', safeEventHandler(async () => {
     await window.electronAPI.setAutoEncryptEnabled($('#settingAutoEncrypt').checked);
     showToast($('#settingAutoEncrypt').checked ? '🔐 自动加密已启用' : '🔓 自动加密已禁用', 'success');
-  });
+  }, '切换自动加密失败'));
 
-  $('#btnAddAutoEncryptRule').addEventListener('click', async () => {
+  $('#btnAddAutoEncryptRule').addEventListener('click', safeEventHandler(async () => {
     const name = $('#customRuleName').value.trim();
     const pattern = $('#customRulePattern').value.trim();
     if (!name || !pattern) {
       showToast('请填写规则名称和正则表达式', 'error');
       return;
     }
-    try {
-      new RegExp(pattern);
-    } catch (e) {
-      showToast('正则表达式无效：' + e.message, 'error');
-      return;
-    }
+    new RegExp(pattern); // 验证正则表达式有效性
     await window.electronAPI.addCustomAutoEncryptRule(name, pattern);
     $('#customRuleName').value = '';
     $('#customRulePattern').value = '';
@@ -4561,15 +4548,15 @@
     loadAutoEncryptSettings();
   });
 
-  $('#btnBatchAutoEncrypt').addEventListener('click', async () => {
+  $('#btnBatchAutoEncrypt').addEventListener('click', safeEventHandler(async () => {
     const result = await window.electronAPI.batchAutoEncrypt();
     if (result.success) {
       $('#batchEncryptResult').innerHTML = `<small style="color:var(--success)">✅ 加密 ${result.encryptedCount} 条，跳过 ${result.skippedCount} 条</small>`;
       showToast(`✅ 批量加密完成：${result.encryptedCount} 条`, 'success');
     } else {
-      $('#batchEncryptResult').innerHTML = `<small style="color:var(--danger)">❌ ${result.message}</small>``;
+      $('#batchEncryptResult').innerHTML = `<small style="color:var(--danger)">❌ ${result.message}</small>`;
     }
-  });
+  }, '批量自动加密失败'));
 
   // ==================== v0.46.0: 悬浮预览弹窗 ====================
 
