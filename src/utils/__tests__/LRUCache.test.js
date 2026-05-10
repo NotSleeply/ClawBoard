@@ -2,7 +2,7 @@
  * LRUCache 单元测试
  */
 
-const LRUCache = require('../../src/utils/LRUCache');
+const LRUCache = require('../LRUCache');
 
 describe('LRUCache', () => {
   let cache;

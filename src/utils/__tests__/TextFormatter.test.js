@@ -2,7 +2,7 @@
  * TextFormatter 单元测试
  */
 
-const TextFormatter = require('../../src/utils/TextFormatter');
+const TextFormatter = require('../TextFormatter');
 
 describe('TextFormatter', () => {
   describe('toPlainText - 纯文本转换', () => {
@@ -44,7 +44,7 @@ describe('TextFormatter', () => {
 
     test('应该解码 HTML 实体', () => {
       const html = '&amp; &lt; &gt; &quot; &#39;';
-      expect(TextFormatter.stripHTML(html)).toBe('& < > > \'');
+      expect(TextFormatter.stripHTML(html)).toBe('& < > " \'');
     });
 
     test('应该处理复杂的 HTML 结构', () => {
@@ -67,7 +67,7 @@ describe('TextFormatter', () => {
     });
 
     test('toSentenceCase 应该句首大写', () => {
-      expect(TextFormatter.toSentenceCase('hello. WORLD.'))toBe('Hello. World.');
+      expect(TextFormatter.toSentenceCase('hello. WORLD.')).toBe('Hello. World.');
     });
 
     test('toggleCase 应该反转大小写', () => {
@@ -113,8 +113,8 @@ describe('TextFormatter', () => {
   describe('文本统计', () => {
     test('getStats 应该返回正确的统计信息', () => {
       const stats = TextFormatter.getStats('Hello 世界!');
-      
-      expect(stats.characters).toBe(8); // H,e,l,l,o, ,世,界,! (8个字符)
+
+      expect(stats.characters).toBe(9); // H,e,l,l,o, ,世,界,! (9个字符)
       expect(stats.words).toBe(2); // Hello 和 世界
       expect(stats.lines).toBe(1);
       expect(stats.bytes).toBeGreaterThan(0);
