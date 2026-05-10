@@ -1,6 +1,6 @@
 {
   "name": "clawboard",
-  "version": "0.74.0",
+  "version": "0.76.0",
   "description": "AI驱动的本地剪贴板管理器 - 智能记录、语义搜索、永久收藏",
   "main": "src/main/index.js",
   "packageManager": "pnpm@10.13.1",
@@ -17,7 +17,13 @@
     "build:linux": "electron-builder --linux",
     "build:all": "electron-builder -mwl",
     "pack": "electron-builder --dir",
-    "preinstall": "npx only-allow pnpm"
+    "preinstall": "npx only-allow pnpm",
+    "lint": "eslint src/ --ext .js,.jsx --max-warnings 100",
+    "lint:fix": "eslint src/ --ext .js,.jsx --fix",
+    "format": "prettier --write \"src/**/*.{js,jsx,json,css}\"",
+    "format:check": "prettier --check \"src/**/*.{js,jsx,json,css}\"",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "keywords": [
     "clipboard",
@@ -31,7 +37,10 @@
   "license": "MIT",
   "devDependencies": {
     "electron": "28.3.3",
-    "electron-builder": "^24.0.0"
+    "electron-builder": "^24.0.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4",
+    "jest": "^29.7.0"
   },
   "dependencies": {
     "crypto-js": "^4.2.0",
