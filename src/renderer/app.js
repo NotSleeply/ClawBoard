@@ -5,6 +5,34 @@
 (function() {
   'use strict';
 
+  // ==================== 全局错误处理 ====================
+  
+  // 捕获未处理的 Promise 拒绝
+  window.addEventListener('unhandledrejection', (event) => {
+    console.error('[ClawBoard] 未处理的Promise拒绝:', event.reason);
+    showToast('⚠️ 操作失败: ' + (event.reason?.message || '未知错误'), 'error');
+    // 阻止默认行为(不显示控制台错误)
+    event.preventDefault();
+  });
+
+  // 捕获全局 JavaScript 错误
+  window.onerror = function(message, source, lineno, colno, error) {
+    console.error('[ClawBoard] 全局错误:', { message, source, lineno, colno, error });
+    return true; // 阻止默认错误提示
+  };
+
+  // 安全的事件包装器 - 确保事件处理器中的错误不会导致应用无响应
+  function safeEventHandler(fn, errorMsg = '操作失败') {
+    return async function(...args) {
+      try {
+        await fn.apply(this, args);
+      } catch (err) {
+        console.error(`[ClawBoard] ${errorMsg}:`, err);
+        showToast(`⚠️ ${errorMsg}: ${err.message || '未知错误'}`, 'error');
+      }
+    };
+  }
+
   // ==================== 状态 ====================
   let currentFilter = 'all';
   let searchQuery = '';
@@ -61,18 +89,51 @@
 
   // ==================== 初始化 ====================
   async function init() {
-    setupEventListeners();
-    initShortcutRecording();  // 初始化快捷键录制
-    initAboutPanel();         // v0.37.0: 初始化关于面板
-    loadSearchHistory();      // v0.35.0: 加载搜索历史
-    initSearchHistoryUI();    // v0.35.0: 初始化搜索历史下拉
-    loadHoverPreviewSettings(); // v0.46.0: 加载悬浮预览设置
-    initImageActions();        // v0.71.0: 初始化图片操作
-    initFilePreviewToggle();   // v0.71.0: 初始化文件预览
-    await loadGroups();
-    await loadRecords();
-    await loadStats();
-    setupIpcListeners();
+    console.log('[ClawBoard] 开始初始化...');
+    
+    try {
+      // 1. 首先设置事件监听器 (确保UI交互可用)
+      setupEventListeners();
+      console.log('[ClawBoard] ✅ 事件监听器已设置');
+
+      // 2. 初始化各个功能模块 (允许独立失败)
+      await Promise.allSettled([
+        initShortcutRecording().catch(e => { console.warn('[ClawBoard] 快捷键录制初始化失败:', e); }),
+        initAboutPanel().catch(e => { console.warn('[ClawBoard] 关于面板初始化失败:', e); }),
+        loadSearchHistory().catch(e => { console.warn('[ClawBoard] 搜索历史加载失败:', e); }),
+        initSearchHistoryUI().catch(e => { console.warn('[ClawBoard] 搜索历史UI初始化失败:', e); }),
+        loadHoverPreviewSettings().catch(e => { console.warn('[ClawBoard] 悬浮预览设置加载失败:', e); }),
+        initImageActions().catch(e => { console.warn('[ClawBoard] 图片操作初始化失败:', e); }),
+        initFilePreviewToggle().catch(e => { console.warn('[ClawBoard] 文件预览切换初始化失败:', e); })
+      ]);
+
+      // 3. 加载数据 (核心功能)
+      await Promise.allSettled([
+        loadGroups().catch(e => {
+          console.error('[ClawBoard] 分组加载失败:', e);
+          showToast('⚠️ 分组加载失败', 'error');
+          groups = []; // 确保有默认值
+        }),
+        loadRecords().catch(e => {
+          console.error('[ClawBoard] 记录加载失败:', e);
+          showToast('⚠️ 记录加载失败', 'error');
+          records = []; // 确保有默认值
+        }),
+        loadStats().catch(e => {
+          console.warn('[ClawBoard] 统计数据加载失败:', e);
+        })
+      ]);
+
+      // 4. 设置IPC监听器 (最后设置,确保数据已准备好)
+      setupIpcListeners();
+      console.log('[ClawBoard] ✅ IPC监听器已设置');
+
+      console.log('[ClawBoard] 🎉 初始化完成!');
+      
+    } catch (err) {
+      console.error('[ClawBoard] ❌ 初始化严重错误:', err);
+      showToast('🚨 应用初始化失败,部分功能可能不可用', 'error');
+    }
   }
 
   function setupEventListeners() {
@@ -226,42 +287,43 @@
       }
     });
 
-    $('#btnSaveSettings').addEventListener('click', handleSaveSettings);
-    $('#btnClearHistory').addEventListener('click', handleClearHistory);
-    $('#btnFindDuplicates').addEventListener('click', handleFindDuplicates);
+    // 使用 safeEventHandler 包装关键按钮操作
+    $('#btnSaveSettings').addEventListener('click', safeEventHandler(handleSaveSettings, '保存设置失败'));
+    $('#btnClearHistory').addEventListener('click', safeEventHandler(handleClearHistory, '清除历史失败'));
+    $('#btnFindDuplicates').addEventListener('click', safeEventHandler(handleFindDuplicates, '查找重复项失败'));
 
     // v0.34.0: 导入导出按钮
-    $('#btnExportJSON').addEventListener('click', handleExportJSON);
-    $('#btnExportCSV').addEventListener('click', handleExportCSV);
-    $('#btnImportJSON').addEventListener('click', handleImportJSON);
+    $('#btnExportJSON').addEventListener('click', safeEventHandler(handleExportJSON, '导出JSON失败'));
+    $('#btnExportCSV').addEventListener('click', safeEventHandler(handleExportCSV, '导出CSV失败'));
+    $('#btnImportJSON').addEventListener('click', safeEventHandler(handleImportJSON, '导入JSON失败'));
 
-    // 详情面板
-    $('#btnCloseDetail').addEventListener('click', closeDetailPanel);
-    $('#btnCopy').addEventListener('click', handleCopyRecord);
-    $('#btnFavorite').addEventListener('click', handleToggleFavorite);
-    $('#btnDelete').addEventListener('click', handleDeleteRecord);
+    // 详情面板 - 核心操作按钮
+    $('#btnCloseDetail').addEventListener('click', safeEventHandler(closeDetailPanel, '关闭详情失败'));
+    $('#btnCopy').addEventListener('click', safeEventHandler(handleCopyRecord, '复制失败'));
+    $('#btnFavorite').addEventListener('click', safeEventHandler(handleToggleFavorite, '收藏操作失败'));
+    $('#btnDelete').addEventListener('click', safeEventHandler(handleDeleteRecord, '删除失败'));
 
     // v0.47.0: 文件路径快捷操作
-    $('#btnOpenExplorer').addEventListener('click', async () => {
+    $('#btnOpenExplorer').addEventListener('click', safeEventHandler(async () => {
       if (!selectedRecord || selectedRecord.type !== 'file') return;
       const result = await window.ClawBoard.openInExplorer(selectedRecord.content.trim());
       if (!result.success) {
         showToast(`无法打开: ${result.error}`, 'error');
       }
-    });
-    $('#btnOpenTerminal').addEventListener('click', async () => {
+    }, '打开资源管理器失败'));
+    $('#btnOpenTerminal').addEventListener('click', safeEventHandler(async () => {
       if (!selectedRecord || selectedRecord.type !== 'file') return;
       const result = await window.ClawBoard.openInTerminal(selectedRecord.content.trim());
       if (!result.success) {
         showToast(`无法打开终端: ${result.error}`, 'error');
       }
-    });
+    }, '打开终端失败'));
 
     // v0.38.0: 内容编辑器
-    $('#btnEdit').addEventListener('click', openEditor);
-    $('#btnCloseEditor').addEventListener('click', closeEditor);
-    $('#btnCancelEditor').addEventListener('click', closeEditor);
-    $('#btnSaveEditor').addEventListener('click', handleSaveEditor);
+    $('#btnEdit').addEventListener('click', safeEventHandler(openEditor, '打开编辑器失败'));
+    $('#btnCloseEditor').addEventListener('click', safeEventHandler(closeEditor, '关闭编辑器失败'));
+    $('#btnCancelEditor').addEventListener('click', safeEventHandler(closeEditor, '取消编辑失败'));
+    $('#btnSaveEditor').addEventListener('click', safeEventHandler(handleSaveEditor, '保存内容失败'));
     $('#editorOverlay').addEventListener('click', (e) => {
       if (e.target === $('#editorOverlay')) closeEditor();
     });
@@ -305,29 +367,31 @@
     });
 
     // 多选模式按钮
-    $('#btnMultiSelect').addEventListener('click', toggleMultiSelectMode);
-    $('#btnSelectAll').addEventListener('click', handleSelectAll);
-    $('#btnExitMultiSelect').addEventListener('click', () => setMultiSelectMode(false));
-    $('#btnBatchMerge').addEventListener('click', handleBatchMerge);
-    $('#btnBatchFavorite').addEventListener('click', handleBatchFavorite);
-    $('#btnBatchDelete').addEventListener('click', handleBatchDelete);
-    $('#btnBatchExport').addEventListener('click', handleBatchExport);
-    $('#btnBatchMoveToGroup').addEventListener('click', handleBatchMoveToGroup);
-    $('#btnBatchTag').addEventListener('click', handleBatchTag);           // v0.51.0
-    $('#btnBatchEncrypt').addEventListener('click', handleBatchEncrypt);   // v0.51.0
-    $('#btnBatchCopy').addEventListener('click', handleBatchCopy);         // v0.51.0
+    $('#btnMultiSelect').addEventListener('click', safeEventHandler(toggleMultiSelectMode, '切换多选模式失败'));
+    $('#btnSelectAll').addEventListener('click', safeEventHandler(handleSelectAll, '全选操作失败'));
+    $('#btnExitMultiSelect').addEventListener('click', safeEventHandler(() => setMultiSelectMode(false), '退出多选模式失败'));
+    $('#btnBatchMerge').addEventListener('click', safeEventHandler(handleBatchMerge, '批量合并失败'));
+    $('#btnBatchFavorite').addEventListener('click', safeEventHandler(handleBatchFavorite, '批量收藏失败'));
+    $('#btnBatchDelete').addEventListener('click', safeEventHandler(handleBatchDelete, '批量删除失败'));
+    $('#btnBatchExport').addEventListener('click', safeEventHandler(handleBatchExport, '批量导出失败'));
+    $('#btnBatchMoveToGroup').addEventListener('click', safeEventHandler(handleBatchMoveToGroup, '批量移动分组失败'));
+    $('#btnBatchTag').addEventListener('click', safeEventHandler(handleBatchTag, '批量添加标签失败'));           // v0.51.0
+    $('#btnBatchEncrypt').addEventListener('click', safeEventHandler(handleBatchEncrypt, '批量加密失败'));   // v0.51.0
+    $('#btnBatchCopy').addEventListener('click', safeEventHandler(handleBatchCopy, '批量复制失败'));         // v0.51.0
 
     // v0.62.0: Diff 对比按钮
-    $('#btnBatchDiff').addEventListener('click', () => {
+    $('#btnBatchDiff').addEventListener('click', safeEventHandler(async () => {
       if (selectedIds.size !== 2) {
         showToast('请选择恰好 2 条记录进行对比', 'error');
         return;
       }
       const ids = Array.from(selectedIds);
-      Promise.all([window.ClawBoard.getRecord(ids[0]), window.ClawBoard.getRecord(ids[1])])
-        .then(([a, b]) => openDiffPanel(a, b))
-        .catch(() => showToast('加载记录失败', 'error'));
-    });
+      const [a, b] = await Promise.all([
+        window.ClawBoard.getRecord(ids[0]),
+        window.ClawBoard.getRecord(ids[1])
+      ]);
+      openDiffPanel(a, b);
+    }, 'Diff对比失败'));
     $('#btnCloseDiff').addEventListener('click', () => {
       document.getElementById('diffOverlay').classList.remove('show');
     });
@@ -360,11 +424,11 @@
     document.addEventListener('click', () => { const cm = $('#multiSelectContextMenu'); if (cm) cm.style.display = 'none'; });
 
     // 分组管理
-    $('#btnAddGroup').addEventListener('click', () => showGroupDialog());
+    $('#btnAddGroup').addEventListener('click', safeEventHandler(showGroupDialog, '显示分组对话框失败'));
     $('#btnCloseGroup').addEventListener('click', () => $('#groupOverlay').classList.remove('show'));
     $('#btnCancelGroup').addEventListener('click', () => $('#groupOverlay').classList.remove('show'));
-    $('#btnConfirmGroup').addEventListener('click', handleConfirmGroup);
-    $('#btnDeleteGroup').addEventListener('click', handleDeleteGroup);
+    $('#btnConfirmGroup').addEventListener('click', safeEventHandler(handleConfirmGroup, '确认分组失败'));
+    $('#btnDeleteGroup').addEventListener('click', safeEventHandler(handleDeleteGroup, '删除分组失败'));
     $('#groupOverlay').addEventListener('click', (e) => {
       if (e.target === $('#groupOverlay')) $('#groupOverlay').classList.remove('show');
     });
@@ -398,9 +462,9 @@
     $('#exportOverlay').addEventListener('click', (e) => {
       if (e.target === $('#exportOverlay')) $('#exportOverlay').classList.remove('show');
     });
-    $('#btnExportStatsJSON').addEventListener('click', () => handleExportStats('json'));
-    $('#btnExportStatsCSV').addEventListener('click', () => handleExportStats('csv'));
-    $('#btnExportRecords').addEventListener('click', handleExportRecords);
+    $('#btnExportStatsJSON').addEventListener('click', safeEventHandler(() => handleExportStats('json'), '导出统计JSON失败'));
+    $('#btnExportStatsCSV').addEventListener('click', safeEventHandler(() => handleExportStats('csv'), '导出统计CSV失败'));
+    $('#btnExportRecords').addEventListener('click', safeEventHandler(handleExportRecords, '导出记录失败'));
 
     // 合并对话框
     $('#btnCloseMerge').addEventListener('click', () => {
@@ -414,10 +478,10 @@
     $('#btnCancelMerge').addEventListener('click', () => {
       $('#mergeOverlay').classList.remove('show');
     });
-    $('#btnConfirmMerge').addEventListener('click', handleConfirmMerge);
+    $('#btnConfirmMerge').addEventListener('click', safeEventHandler(handleConfirmMerge, '确认合并失败'));
 
     // 视图切换
-    $('#btnViewToggle').addEventListener('click', toggleViewMode);
+    $('#btnViewToggle').addEventListener('click', safeEventHandler(toggleViewMode, '视图切换失败'));
 
     // 加密功能
     $('#btnEncryption').addEventListener('click', () => {
@@ -426,16 +490,16 @@
     });
 
     // 统计面板
-    $('#btnStats').addEventListener('click', async () => {
+    $('#btnStats').addEventListener('click', safeEventHandler(async () => {
       $('#statsOverlay').classList.add('show');
       await loadDetailedStats();
-    });
+    }, '加载统计失败'));
 
     // 运行状态面板
-    $('#btnRuntimeStats').addEventListener('click', async () => {
+    $('#btnRuntimeStats').addEventListener('click', safeEventHandler(async () => {
       $('#runtimeStatsOverlay').classList.add('show');
       await loadRuntimeStats();
-    });
+    }, '加载运行状态失败'));
     $('#btnCloseRuntimeStats').addEventListener('click', () => {
       $('#runtimeStatsOverlay').classList.remove('show');
     });
@@ -446,10 +510,10 @@
     });
 
     // 置顶管理面板 v0.27.0
-    $('#btnPinnedManager').addEventListener('click', async () => {
+    $('#btnPinnedManager').addEventListener('click', safeEventHandler(async () => {
       $('#pinnedManagerOverlay').classList.add('show');
       await loadPinnedManager();
-    });
+    }, '打开置顶管理失败'));
     $('#btnClosePinnedManager').addEventListener('click', () => {
       $('#pinnedManagerOverlay').classList.remove('show');
     });
@@ -460,21 +524,21 @@
     });
 
     // 置顶管理搜索和筛选
-    $('#pinnedSearchInput').addEventListener('input', debounce(async () => {
+    $('#pinnedSearchInput').addEventListener('input', debounce(safeEventHandler(async () => {
       await loadPinnedList();
-    }, 300));
-    $('#pinnedTypeFilter').addEventListener('change', async () => {
+    }, '搜索置顶失败'), 300));
+    $('#pinnedTypeFilter').addEventListener('change', safeEventHandler(async () => {
       await loadPinnedList();
-    });
-    $('#pinnedTagFilter').addEventListener('change', async () => {
+    }, '筛选置顶类型失败'));
+    $('#pinnedTagFilter').addEventListener('change', safeEventHandler(async () => {
       await loadPinnedList();
-    });
+    }, '筛选置顶标签失败'));
 
     // v0.72.0: 回收站面板
-    $('#btnTrash').addEventListener('click', async () => {
+    $('#btnTrash').addEventListener('click', safeEventHandler(async () => {
       $('#trashOverlay').classList.add('show');
       await loadTrashPanel();
-    });
+    }, '打开回收站失败'));
     $('#btnCloseTrash').addEventListener('click', () => {
       $('#trashOverlay').classList.remove('show');
     });
@@ -483,18 +547,18 @@
         $('#trashOverlay').classList.remove('show');
       }
     });
-    $('#btnEmptyTrash').addEventListener('click', async () => {
+    $('#btnEmptyTrash').addEventListener('click', safeEventHandler(async () => {
       if (!confirm('确定要清空回收站吗？此操作不可撤销！')) return;
       await window.ClawBoard.emptyTrash();
       showToast('🗑️ 回收站已清空', 'success');
       await loadTrashPanel();
-    });
+    }, '清空回收站失败'));
 
     // 云端同步面板 v0.28.0
-    $('#btnCloudSync').addEventListener('click', async () => {
+    $('#btnCloudSync').addEventListener('click', safeEventHandler(async () => {
       $('#cloudSyncOverlay').classList.add('show');
       await loadSyncPanel();
-    });
+    }, '打开云端同步失败'));
     $('#btnCloseCloudSync').addEventListener('click', () => {
       $('#cloudSyncOverlay').classList.remove('show');
     });
@@ -510,7 +574,7 @@
     });
 
     // 测试连接
-    $('#btnTestConnection').addEventListener('click', async () => {
+    $('#btnTestConnection').addEventListener('click', safeEventHandler(async () => {
       const config = getSyncConfigFromForm();
       if (!config.host) {
         showToast('请填写服务器地址', 'error');
@@ -533,23 +597,19 @@
       
       $('#btnTestConnection').disabled = false;
       $('#btnTestConnection').textContent = '🔗 测试连接';
-    });
+    }, '测试连接失败'));
 
     // 保存配置
-    $('#btnSaveSyncConfig').addEventListener('click', async () => {
+    $('#btnSaveSyncConfig').addEventListener('click', safeEventHandler(async () => {
       const config = getSyncConfigFromForm();
       
-      try {
-        await window.ClawBoard.saveSyncConfig(config);
-        showToast('配置已保存');
-        await loadSyncPanel();
-      } catch (err) {
-        showToast('保存失败: ' + err.message, 'error');
-      }
-    });
+      await window.ClawBoard.saveSyncConfig(config);
+      showToast('配置已保存');
+      await loadSyncPanel();
+    }, '保存同步配置失败'));
 
     // 上传
-    $('#btnSyncUpload').addEventListener('click', async () => {
+    $('#btnSyncUpload').addEventListener('click', safeEventHandler(async () => {
       const config = getSyncConfigFromForm();
       if (!config.host) {
         showToast('请先配置并保存 WebDAV', 'error');
@@ -562,25 +622,20 @@
       $('#syncProgressText').textContent = '上传中...';
       $('#syncProgressFill').style.width = '0%';
       
-      try {
-        const result = await window.ClawBoard.syncToWebDAV(config);
-        if (result.success) {
-          $('#syncProgressFill').style.width = '100%';
-          $('#syncProgressText').textContent = `上传完成！${result.recordCount} 条记录已同步`;
-          showToast(`上传成功！${result.recordCount} 条记录`);
-          await loadSyncPanel();
-        } else {
-          showToast(`上传失败: ${result.error || result.status}`, 'error');
-          $('#syncProgress').style.display = 'none';
-        }
-      } catch (err) {
-        showToast('上传失败: ' + err.message, 'error');
+      const result = await window.ClawBoard.syncToWebDAV(config);
+      if (result.success) {
+        $('#syncProgressFill').style.width = '100%';
+        $('#syncProgressText').textContent = `上传完成！${result.recordCount} 条记录已同步`;
+        showToast(`上传成功！${result.recordCount} 条记录`);
+        await loadSyncPanel();
+      } else {
+        showToast(`上传失败: ${result.error || result.status}`, 'error');
         $('#syncProgress').style.display = 'none';
       }
-    });
+    }, '上传到云端失败'));
 
     // 下载
-    $('#btnSyncDownload').addEventListener('click', async () => {
+    $('#btnSyncDownload').addEventListener('click', safeEventHandler(async () => {
       const config = getSyncConfigFromForm();
       if (!config.host) {
         showToast('请先配置并保存 WebDAV', 'error');
@@ -593,22 +648,17 @@
       $('#syncProgressText').textContent = '下载中...';
       $('#syncProgressFill').style.width = '0%';
       
-      try {
-        const result = await window.ClawBoard.syncFromWebDAV(config);
-        if (result.success) {
-          $('#syncProgressFill').style.width = '100%';
-          $('#syncProgressText').textContent = `下载完成！导入 ${result.imported} 条记录`;
-          showToast(`下载成功！导入 ${result.imported} 条记录`);
-          await loadSyncPanel();
-        } else {
-          showToast(`下载失败: ${result.error || result.status}`, 'error');
-          $('#syncProgress').style.display = 'none';
-        }
-      } catch (err) {
-        showToast('下载失败: ' + err.message, 'error');
+      const result = await window.ClawBoard.syncFromWebDAV(config);
+      if (result.success) {
+        $('#syncProgressFill').style.width = '100%';
+        $('#syncProgressText').textContent = `下载完成！导入 ${result.imported} 条记录`;
+        showToast(`下载成功！导入 ${result.imported} 条记录`);
+        await loadSyncPanel();
+      } else {
+        showToast(`下载失败: ${result.error || result.status}`, 'error');
         $('#syncProgress').style.display = 'none';
       }
-    });
+    }, '从云端下载失败'));
 
     function getSyncConfigFromForm() {
       const serverUrl = $('#syncServer').value.trim();
@@ -736,10 +786,13 @@
         $('#tagInputOverlay').classList.remove('show');
       }
     });
-    $('#btnConfirmTag').addEventListener('click', handleConfirmTag);
-    $('#newTagInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handleConfirmTag();
-    });
+    $('#btnConfirmTag').addEventListener('click', safeEventHandler(handleConfirmTag, '确认标签失败'));
+    $('#newTagInput').addEventListener('keydown', safeEventHandler(async (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        await handleConfirmTag();
+      }
+    }, '确认标签失败'));
     $('#btnCloseStats').addEventListener('click', () => {
       $('#statsOverlay').classList.remove('show');
     });
@@ -757,10 +810,10 @@
         $('#encryptionOverlay').classList.remove('show');
       }
     });
-    $('#btnConfirmEncryption').addEventListener('click', handleSetEncryption);
-    $('#btnLockEncryption').addEventListener('click', handleLockEncryption);
-    $('#btnEncrypt').addEventListener('click', handleEncryptRecord);
-    $('#btnDecrypt').addEventListener('click', handleDecryptRecord);
+    $('#btnConfirmEncryption').addEventListener('click', safeEventHandler(handleSetEncryption, '设置加密失败'));
+    $('#btnLockEncryption').addEventListener('click', safeEventHandler(handleLockEncryption, '锁定加密失败'));
+    $('#btnEncrypt').addEventListener('click', safeEventHandler(handleEncryptRecord, '加密记录失败'));
+    $('#btnDecrypt').addEventListener('click', safeEventHandler(handleDecryptRecord, '解密记录失败'));
     $('#btnAddTag').addEventListener('click', () => {
       $('#tagInputOverlay').classList.add('show');
       $('#newTagInput').focus();
