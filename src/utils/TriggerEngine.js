@@ -21,6 +21,13 @@ class TriggerEngine {
     this._isEnabled = true;
     this._isProcessing = false;
 
+    // v0.78.0: 执行日志和调试功能
+    this.executionLog = [];
+    this.maxLogSize = 100;
+    this.executionCount = 0;
+    this.lastExecutedAt = null;
+    this.debugMode = false;
+
     this._init();
   }
 
@@ -303,6 +310,93 @@ class TriggerEngine {
       .sort((a, b) => a.priority - b.priority);
   }
 
+  // ==================== v0.78.0: 日志和调试功能 ====================
+
+  /**
+   * 获取执行日志
+   * @param {number} limit - 返回的最大条数
+   * @returns {Array} 执行日志数组
+   */
+  getExecutionLog(limit = 20) {
+    return this.executionLog.slice(0, limit);
+  }
+
+  /**
+   * 清空执行日志
+   */
+  clearExecutionLog() {
+    this.executionLog = [];
+    log.info('[Trigger] 执行日志已清空');
+  }
+
+  /**
+   * 获取执行统计
+   * @returns {Object} 统计信息
+   */
+  getExecutionStats() {
+    return {
+      totalExecutions: this.executionCount,
+      lastExecution: this.lastExecutedAt,
+      logSize: this.executionLog.length,
+      maxLogSize: this.maxLogSize,
+      debugMode: this.debugMode,
+      triggerCount: this.triggers.size,
+      enabledTriggers: Array.from(this.triggers.values()).filter(t => t.enabled).length
+    };
+  }
+
+  /**
+   * 设置调试模式
+   * @param {boolean} enabled - 是否启用
+   */
+  setDebugMode(enabled) {
+    this.debugMode = enabled;
+    log.info(`[Trigger] 调试模式: ${enabled ? '开启' : '关闭'}`);
+  }
+
+  /**
+   * 手动触发规则测试（用于调试）
+   * @param {string} triggerId - 触发器ID
+   * @param {string} testContent - 测试内容
+   * @returns {Object} 执行结果
+   */
+  async testTrigger(triggerId, testContent) {
+    const trigger = this.triggers.get(triggerId);
+    if (!trigger) {
+      throw new Error(`触发器不存在: ${triggerId}`);
+    }
+
+    log.info(`[Trigger] 测试触发器: ${trigger.name}`);
+    
+    const conditionResult = this._evaluateConditions(trigger.conditions, testContent, {});
+    
+    if (conditionResult.matched) {
+      const actionResult = this._executeActions(trigger.actions, testContent, {});
+      
+      const result = {
+        matched: true,
+        conditions: conditionResult.details || [],
+        actions: actionResult.actions,
+        modified: actionResult.modified,
+        originalContent: testContent,
+        finalContent: actionResult.content
+      };
+      
+      if (this.debugMode) {
+        log.debug('[Trigger] 测试结果:', JSON.stringify(result, null, 2));
+      }
+      
+      return result;
+    }
+    
+    return {
+      matched: false,
+      conditions: conditionResult.details || [],
+      originalContent: testContent,
+      finalContent: testContent
+    };
+  }
+
   // ==================== 核心逻辑 ====================
 
   /**
@@ -319,16 +413,24 @@ class TriggerEngine {
     this._isProcessing = true;
     let finalContent = content;
     const results = [];
+    const startTime = Date.now();
 
     try {
       // 按优先级排序后执行
       const sortedTriggers = this.getAllTriggers().filter(t => t.enabled);
 
       for (const trigger of sortedTriggers) {
+        const triggerStartTime = Date.now();
+
         // 检查冷却时间
         if (trigger.cooldown && trigger.lastRunAt) {
           const elapsed = Date.now() - new Date(trigger.lastRunAt).getTime();
-          if (elapsed < trigger.cooldown) continue;
+          if (elapsed < trigger.cooldown) {
+            if (this.debugMode) {
+              log.debug(`[Trigger] 跳过 ${trigger.name}: 冷却中 (${Math.round(elapsed)}ms/${trigger.cooldown}ms)`);
+            }
+            continue;
+          }
         }
 
         // 检查是否只运行一次
@@ -351,6 +453,32 @@ class TriggerEngine {
           trigger.lastRunAt = new Date().toISOString();
           trigger.runCount++;
           this.triggers.set(trigger.id, trigger);
+          
+          // v0.78.0: 记录执行日志
+          this.executionCount++;
+          this.lastExecutedAt = new Date().toISOString();
+          const executionTime = Date.now() - triggerStartTime;
+          
+          const logEntry = {
+            timestamp: new Date().toISOString(),
+            triggerId: trigger.id,
+            triggerName: trigger.name,
+            matched: true,
+            conditions: conditionResult.details || [],
+            actionsExecuted: actionResult.actions.length,
+            modified: actionResult.modified,
+            executionTime,
+            contentPreview: finalContent.substring(0, 100)
+          };
+          
+          this.executionLog.unshift(logEntry);
+          if (this.executionLog.length > this.maxLogSize) {
+            this.executionLog.pop();
+          }
+          
+          if (this.debugMode) {
+            log.debug(`[Trigger] 执行详情:`, JSON.stringify(logEntry, null, 2));
+          }
 
           results.push({
             triggerId: trigger.id,
@@ -359,6 +487,10 @@ class TriggerEngine {
             actionsExecuted: actionResult.actions.length,
             modified: actionResult.modified
           });
+        } else {
+          if (this.debugMode) {
+            log.debug(`[Trigger] 未匹配: ${trigger.name}`);
+          }
         }
       }
     } catch (err) {
