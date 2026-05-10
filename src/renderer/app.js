@@ -128,11 +128,38 @@
       setupIpcListeners();
       console.log('[ClawBoard] ✅ IPC监听器已设置');
 
+      // v0.77.0: 数据备份提醒
+      initBackupReminder();
+      
       console.log('[ClawBoard] 🎉 初始化完成!');
       
     } catch (err) {
       console.error('[ClawBoard] ❌ 初始化严重错误:', err);
       showToast('🚨 应用初始化失败,部分功能可能不可用', 'error');
+    }
+  }
+
+  // v0.77.0: 数据备份提醒功能
+  function initBackupReminder() {
+    const LAST_BACKUP_KEY = 'lastBackupReminder';
+    const BACKUP_INTERVAL = 7 * 24 * 60 * 60 * 1000; // 7天
+    
+    const lastReminder = localStorage.getItem(LAST_BACKUP_KEY);
+    const now = Date.now();
+    
+    if (!lastReminder || (now - parseInt(lastReminder)) > BACKUP_INTERVAL) {
+      setTimeout(() => {
+        const shouldRemind = confirm(
+          '💾 建议定期备份数据以防止意外丢失。\n\n' +
+          '是否现在打开导出功能进行备份？'
+        );
+        
+        if (shouldRemind) {
+          $('#exportOverlay').classList.add('show');
+        }
+        
+        localStorage.setItem(LAST_BACKUP_KEY, now.toString());
+      }, 3000); // 延迟3秒显示，避免影响初始化体验
     }
   }
 
@@ -200,6 +227,47 @@
         if (e.key === 'Escape') {
           closeDetailPanel();
         }
+        // v0.77.0: 新增快捷键
+        if (e.key === 'e' || e.key === 'E') {
+          e.preventDefault();
+          safeEventHandler(openEditor, '打开编辑器失败')();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+          e.preventDefault();
+          safeEventHandler(openEditor, '打开编辑器失败')();
+        }
+        if (e.key === 'f' || e.key === 'F') {
+          e.preventDefault();
+          safeEventHandler(handleToggleFavorite, '收藏操作失败')();
+        }
+        if (e.key === 'p' || e.key === 'P') {
+          e.preventDefault();
+          // 打印/预览
+          window.print?.();
+        }
+      }
+      
+      // 全局快捷键
+      if ((e.ctrlKey || e.metaKey) && e.key === '1') {
+        e.preventDefault();
+        currentFilter = 'all';
+        $$('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelector('[data-filter="all"]')?.classList.add('active');
+        loadRecords();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '2') {
+        e.preventDefault();
+        currentFilter = 'text';
+        $$('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelector('[data-filter="text"]')?.classList.add('active');
+        loadRecords();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '3') {
+        e.preventDefault();
+        currentFilter = 'image';
+        $$('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelector('[data-filter="image"]')?.classList.add('active');
+        loadRecords();
       }
     });
 
@@ -3760,6 +3828,19 @@
   async function handleSearch() {
     searchQuery = searchInput.value.trim();
     clearSearchBtn.classList.toggle('show', !!searchQuery);
+    
+    // v0.77.0: 支持正则表达式搜索
+    if (searchQuery.startsWith('/') && searchQuery.endsWith('/')) {
+      try {
+        const regexPattern = searchQuery.slice(1, -1);
+        new RegExp(regexPattern); // 验证正则表达式有效性
+        console.log('[ClawBoard] 使用正则表达式搜索:', regexPattern);
+      } catch (e) {
+        showToast('⚠️ 无效的正则表达式: ' + e.message, 'error');
+        return;
+      }
+    }
+    
     // v0.35.0: 保存搜索历史
     if (searchQuery && searchQuery.length >= 2) {
       saveSearchHistory(searchQuery);
