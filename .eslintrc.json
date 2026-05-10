@@ -1,0 +1,48 @@
+{
+  "env": {
+    "browser": false,
+    "node": true,
+    "es2021": true,
+    "electron": true
+  },
+  "extends": [
+    "eslint:recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "prefer-const": "error",
+    "no-var": "error",
+    "eqeqeq": ["error", "always"],
+    "curly": ["error", "all"],
+    "brace-style": ["error", "1tbs"],
+    "no-multiple-empty-lines": ["error", { "max": 2, "maxEOF": 0, "maxBOF": 0 }],
+    "no-trailing-spaces": "error",
+    "space-infix-ops": "error",
+    "keyword-spacing": "error",
+    "comma-spacing": ["error", { "before": false, "after": true }],
+    "indent": ["error", 2, { "SwitchCase": 1 }],
+    "quotes": ["error", "single"],
+    "semi": ["error", "always"],
+    "no-unreachable": "error",
+    "no-duplicate-case": "error",
+    "no-fallthrough": ["error", { "commentPattern": "break\\s*omitted" }]
+  },
+  "globals": {
+    "require": "readonly",
+    "module": "readonly",
+    "__dirname": "readonly",
+    "__filename": "readonly",
+    "process": "readonly",
+    "console": "readonly",
+    "Buffer": "readonly",
+    "setTimeout": "readonly",
+    "setInterval": "readonly",
+    "clearTimeout": "readonly",
+    "clearInterval": "readonly"
+  }
+}

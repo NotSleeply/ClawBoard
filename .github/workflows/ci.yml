@@ -30,6 +30,17 @@ jobs:
         run: pnpm lint
         continue-on-error: true
 
+      - name: Test
+        run: pnpm test
+        continue-on-error: false
+
       - name: Build
         run: pnpm build
         continue-on-error: true
+
+      - name: Upload coverage
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
