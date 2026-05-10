@@ -3429,25 +3429,27 @@ ipcMain.handle("open-in-terminal", async (_, filePath) => {
       return { success: false, error: "路径不存在" };
     }
 
-    // Windows: 使用系统默认终端
-    const { exec } = require("child_process");
+    // Windows: 使用系统默认终端 (spawn 替代 exec 防止命令注入)
+    const { exec, spawn } = require("child_process");
+    // 验证路径合法性：必须存在且为目录
+    if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
+      return { success: false, error: 'Invalid directory path' };
+    }
+    // 路径规范化，消除 ../ 等跳转
+    targetDir = path.resolve(targetDir);
     if (process.platform === "win32") {
       // 优先尝试 Windows Terminal，回退到 cmd
       exec("where wt", (err) => {
         if (!err) {
-          // Windows Terminal 可用
-          exec(`wt -d "${targetDir}"`, { windowsHide: true });
+          spawn('wt', ['-d', targetDir], { windowsHide: true, shell: false, detached: true }).unref();
         } else {
-          // 回退到 cmd
-          exec(`cmd /c start cmd /K "cd /d ${targetDir}"`, {
-            windowsHide: true,
-          });
+          spawn('cmd', ['/c', 'start', 'cmd', '/K', `cd /d ${targetDir}`], { windowsHide: true, shell: false, detached: true }).unref();
         }
       });
     } else if (process.platform === "darwin") {
-      exec(`open -a Terminal "${targetDir}"`);
+      spawn('open', ['-a', 'Terminal', targetDir], { detached: true }).unref();
     } else {
-      exec(`gnome-terminal --working-directory="${targetDir}"`);
+      spawn('gnome-terminal', ['--working-directory', targetDir], { detached: true }).unref();
     }
     return { success: true };
   } catch (err) {
@@ -3579,28 +3581,29 @@ ipcMain.handle("file-open-explorer", async (_, filePath) => {
 ipcMain.handle("file-open-terminal", async (_, filePath) => {
   try {
     const fs = require("fs");
+    const { spawn } = require("child_process");
     const normalizedPath = filePath.trim().replace(/^["']|["']$/g, "");
     const targetDir =
       fs.existsSync(normalizedPath) && fs.statSync(normalizedPath).isFile()
         ? path.dirname(normalizedPath)
         : normalizedPath;
-    if (!fs.existsSync(targetDir)) {
-      return { success: false, error: "路径不存在" };
+    if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
+      return { success: false, error: "路径不存在或不是目录" };
     }
-    const { exec } = require("child_process");
+    // 路径规范化，消除路径跳转
+    const safeDir = path.resolve(targetDir);
     const wtPath = path.join(
       process.env.LOCALAPPDATA,
       "Microsoft",
       "WindowsApps",
       "wt.exe",
     );
-    const cmd = fs.existsSync(wtPath)
-      ? `start "" "$wtPath" -d "$targetDir"`
-      : `start cmd /k "cd /d "$targetDir""`;
-    exec(cmd, (err) => {
-      if (err) log.error("file-open-terminal error:", err);
-    });
-    return { success: true, path: targetDir };
+    if (fs.existsSync(wtPath)) {
+      spawn(wtPath, ['-d', safeDir], { windowsHide: true, shell: false, detached: true }).unref();
+    } else {
+      spawn('cmd', ['/c', 'start', 'cmd', '/k', `cd /d ${safeDir}`], { windowsHide: true, shell: false, detached: true }).unref();
+    }
+    return { success: true, path: safeDir };
   } catch (err) {
     return { success: false, error: err.message };
   }

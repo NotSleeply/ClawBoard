@@ -1061,7 +1061,9 @@ class Database {
 
   // 删除标签（从所有记录中移除）
   deleteTag(tag) {
-    const result = this.db.exec(`SELECT id, tags FROM records WHERE tags LIKE ?`, [`%"${tag}"%`]);
+    // 转义 tag 中的特殊字符，防止破坏 LIKE 模式
+    const safeTag = tag.replace(/["'%\\]/g, '\\$&');
+    const result = this.db.exec(`SELECT id, tags FROM records WHERE tags LIKE ?`, [`%"${safeTag}"%`]);
     if (result.length === 0) return 0;
 
     let count = 0;
@@ -1440,9 +1442,13 @@ class Database {
   // v0.71.0: 获取加密统计
   getEncryptionStats() {
     try {
-      const total = this.db.prepare('SELECT COUNT(*) as count FROM records WHERE encrypted = 1').get().count;
-      const byAlgo = this.db.prepare('SELECT encryption_algorithm, COUNT(*) as count FROM records WHERE encrypted = 1 GROUP BY encryption_algorithm').all();
-      return { total, byAlgorithm: byAlgo };
+      const totalResult = this.db.exec('SELECT COUNT(*) as count FROM records WHERE encrypted = 1');
+      const total = totalResult.length ? totalResult[0].values[0][0] : 0;
+      const byAlgoResult = this.db.exec('SELECT encryption_algorithm, COUNT(*) as count FROM records WHERE encrypted = 1 GROUP BY encryption_algorithm');
+      const byAlgorithm = byAlgoResult.length && byAlgoResult[0].values.length
+        ? byAlgoResult[0].values.map(row => ({ encryption_algorithm: row[0], count: row[1] }))
+        : [];
+      return { total, byAlgorithm };
     } catch (e) {
       return { total: 0, byAlgorithm: [] };
     }
@@ -2761,7 +2767,7 @@ class Database {
   }
 
   getStatsByApp(limit) {
-    limit = limit || 10;
+    limit = Math.max(1, Math.min(parseInt(limit) || 10, 1000));
     try {
       const result = this.db.exec(`
       SELECT source_app, COUNT(*) as count
@@ -2769,8 +2775,8 @@ class Database {
       WHERE source_app IS NOT NULL AND source_app != ''
       GROUP BY source_app
       ORDER BY count DESC
-      LIMIT ${limit}
-    `);
+      LIMIT ?
+    `, [limit]);
       if (!result.length || !result[0].values.length) return [];
       return result[0].values.map(row => ({ source_app: row[0], count: row[1] }));
     } catch (e) {
@@ -2780,7 +2786,7 @@ class Database {
   }
 
   getDailyStats(days) {
-    days = days || 30;
+    days = Math.max(1, Math.min(parseInt(days) || 30, 3650));
     try {
       const result = this.db.exec(`
       SELECT
@@ -2791,10 +2797,10 @@ class Database {
         SUM(CASE WHEN type='file' THEN 1 ELSE 0 END) as file_count,
         SUM(CASE WHEN type='image' THEN 1 ELSE 0 END) as image_count
       FROM records
-      WHERE created_at >= DATE('now', '-${days} days')
+      WHERE created_at >= DATE('now', '-' || ? || ' days')
       GROUP BY DATE(created_at)
       ORDER BY date ASC
-    `);
+    `, [String(days)]);
       if (!result.length || !result[0].values.length) return [];
       return result[0].values.map(row => ({
         date: row[0],
@@ -2834,17 +2840,17 @@ class Database {
 
   // v0.62.0: Calendar heatmap data
   getCalendarData(days) {
-    days = days || 365;
+    days = Math.max(1, Math.min(parseInt(days) || 365, 3650));
     try {
       const result = this.db.exec(`
       SELECT 
         DATE(created_at) as date,
         COUNT(*) as count
       FROM records 
-      WHERE created_at >= DATE('now', '-' || ${days} || ' days')
+      WHERE created_at >= DATE('now', '-' || ? || ' days')
       GROUP BY DATE(created_at)
       ORDER BY date ASC
-    `);
+    `, [String(days)]);
       const dataMap = {};
       if (result.length && result[0].values.length) {
         result[0].values.forEach(row => { dataMap[row[0]] = row[1]; });
