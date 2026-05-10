@@ -2221,7 +2221,7 @@
         <span class="record-fav" title="${record.favorite ? '取消收藏' : '收藏'}">
           ${record.favorite ? '★' : '☆'}
         </span>
-        <button class="record-note-btn ${noteText ? 'has-note' : ''}" data-id="${record.id}" title="${noteText ? '查看/编辑备注' : '添加备注'}">
+        <button class="record-note-btn ${noteText ? 'has-note' : ''}" data-id="${record.id}" title="${escapeAttr(noteText ? '查看/编辑备注' : '添加备注')}">
           📝
         </button>
       </div>
@@ -2426,9 +2426,45 @@
   }
 
   function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = String(text);
     return div.innerHTML;
+  }
+
+  function escapeAttr(text) {
+    if (text === null || text === undefined) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function sanitizeHtml(html) {
+    const temp = document.createElement('div');
+    temp.textContent = '';
+    temp.innerHTML = html;
+    
+    // 移除危险元素和属性
+    const dangerousTags = ['script', 'iframe', 'object', 'embed', 'form'];
+    dangerousTags.forEach(tag => {
+      const elements = temp.querySelectorAll(tag);
+      elements.forEach(el => el.remove());
+    });
+    
+    // 移除事件处理器属性
+    const allElements = temp.querySelectorAll('*');
+    allElements.forEach(el => {
+      Array.from(el.attributes).forEach(attr => {
+        if (attr.name.startsWith('on')) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    });
+    
+    return temp.innerHTML;
   }
 
   // ==================== v0.71.0: 代码语言检测 ====================

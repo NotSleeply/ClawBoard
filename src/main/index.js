@@ -3505,10 +3505,25 @@ ipcMain.handle("batch-open-in-explorer", async (_, filePaths) => {
 ipcMain.handle("copy-image-to-path", async (_, { srcPath, destPath }) => {
   try {
     const fs = require("fs");
+    const path = require("path");
+    
+    // 安全验证：防止路径遍历攻击
+    const normalizedDest = path.normalize(destPath);
+    if (normalizedDest.includes("..") || !normalizedDest.startsWith(path.resolve(destPath))) {
+      return { success: false, error: "非法的目标路径" };
+    }
+    
     if (!fs.existsSync(srcPath)) {
       return { success: false, error: "源图片不存在" };
     }
-    fs.copyFileSync(srcPath, destPath);
+    
+    // 确保目标目录存在
+    const destDir = path.dirname(normalizedDest);
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+    
+    fs.copyFileSync(srcPath, normalizedDest);
     return { success: true };
   } catch (err) {
     log.error("copy-image-to-path error:", err);
