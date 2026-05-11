@@ -83,8 +83,7 @@ class ClipboardWatcher {
         // 需要加密密钥才能自动加密
         if (global.db && global.db.encryptionKey) {
           this.log.info(`自动加密: ${ignoreResult.reason}`);
-          // 继续处理，但标记为加密
-          this._handleTextWithEncrypt(trimmed, ignoreResult.types);
+          this._processText(trimmed, { encrypted: true, sensitive_types: ignoreResult.types });
           return;
         } else {
           // 没有加密密钥，仍记录但不加密，添加敏感类型标记
@@ -96,80 +95,25 @@ class ClipboardWatcher {
       }
     }
 
-    // 判断类型
-    let type = 'text';
-    let content = trimmed;
-
-    // 检测是否为文件路径
-    if (this._isFilePath(trimmed)) {
-      type = 'file';
-    }
-    // 检测是否为代码
-    else if (this._isCode(trimmed)) {
-      type = 'code';
-    }
-
-    // 检测代码语言
-    const language = type === 'code' ? this._detectLanguage(trimmed) : null;
-
-    // 检查去重
-    const lastRecords = this.db.getRecords({ limit: 1 });
-    if (lastRecords.length > 0 && lastRecords[0].content === trimmed && !lastRecords[0].locked) {
-      this.log.info('内容重复，跳过记录');
-      return;
-    }
-
-    // 异步生成 AI 摘要和嵌入向量
-    this._generateAI(trimmed).then(aiResult => {
-      // 保存到数据库
-      const record = this.db.addRecord({
-        type,
-        content,
-        summary: (aiResult && aiResult.summary) || this._generateSummary(trimmed),
-        ai_summary: aiResult && aiResult.summary,
-        embedding: aiResult && aiResult.embedding,
-        language: language,
-        source: 'clipboard',
-      });
-
-      this.log.info(`新记录: [${type}] ${trimmed.substring(0, 50)}...`);
-
-      // 通知渲染进程
-      if (global.mainWindow && !global.mainWindow.isDestroyed()) {
-        global.mainWindow.webContents.send('new-record', record);
-      }
-
-      // v0.29.0: 触发系统通知
-      if (global.showClipboardNotification) {
-        global.showClipboardNotification(record);
-      }
-    }).catch(err => {
-      this.log.warn('AI 处理失败，使用默认摘要:', err.message);
-      // 降级处理
-      const record = this.db.addRecord({
-        type,
-        content,
-        summary: this._generateSummary(trimmed),
-        source: 'clipboard',
-      });
-
-      this.log.info(`新记录: [${type}] ${trimmed.substring(0, 50)}...`);
-
-      if (global.mainWindow && !global.mainWindow.isDestroyed()) {
-        global.mainWindow.webContents.send('new-record', record);
-      }
-
-      // v0.29.0: 触发系统通知
-      if (global.showClipboardNotification) {
-        global.showClipboardNotification(record);
-      }
-    });
+    this._processText(trimmed, {});
   }
 
   /**
-   * v0.45.0: 处理需要自动加密的文本
+   * v0.45.0: 处理需要自动加密的文本（保留向后兼容，内部委托给 _processText）
    */
   _handleTextWithEncrypt(text, sensitiveTypes) {
+    this._processText(text, { encrypted: true, sensitive_types: sensitiveTypes });
+  }
+
+  /**
+   * 统一文本处理流程，消除 _handleText 和 _handleTextWithEncrypt 之间的重复代码
+   * @param {string} text - 剪贴板文本
+   * @param {object} options - 可选标记
+   * @param {boolean} options.encrypted - 是否自动加密
+   * @param {string[]} options.sensitive_types - 敏感信息类型列表
+   */
+  _processText(text, options = {}) {
+    // 判断类型
     let type = 'text';
     if (this._isFilePath(text)) {
       type = 'file';
@@ -178,7 +122,8 @@ class ClipboardWatcher {
     }
 
     const language = type === 'code' ? this._detectLanguage(text) : null;
-    const sensitiveTypesStr = sensitiveTypes.join(',');
+    const sensitiveTypesStr = options.sensitive_types ? options.sensitive_types.join(',') : null;
+    const isEncrypted = !!options.encrypted;
 
     // 检查去重
     const lastRecords = this.db.getRecords({ limit: 1 });
@@ -187,6 +132,9 @@ class ClipboardWatcher {
       return;
     }
 
+    const logPrefix = isEncrypted ? `自动加密记录` : '新记录';
+
+    // 异步生成 AI 摘要和嵌入向量
     this._generateAI(text).then(aiResult => {
       const record = this.db.addRecord({
         type,
@@ -196,46 +144,45 @@ class ClipboardWatcher {
         embedding: aiResult && aiResult.embedding,
         language,
         source: 'clipboard',
-        encrypted: true, // 自动加密
-        sensitive_types: sensitiveTypesStr,
+        ...(isEncrypted ? { encrypted: true, sensitive_types: sensitiveTypesStr } : {}),
       });
 
-      this.log.info(`自动加密记录: [${type}] ${sensitiveTypesStr} → 已加密`);
+      this.log.info(`${logPrefix}: [${type}] ${isEncrypted ? sensitiveTypesStr + ' → ' : ''}${text.substring(0, 50)}...`);
 
+      // 通知渲染进程
       if (global.mainWindow && !global.mainWindow.isDestroyed()) {
         global.mainWindow.webContents.send('new-record', record);
       }
 
+      // v0.29.0: 触发系统通知
       if (global.showClipboardNotification) {
-        global.showClipboardNotification({
-          ...record,
-          _autoEncrypted: true,
-          _sensitiveTypes: sensitiveTypes,
-        });
+        const notificationData = isEncrypted
+          ? { ...record, _autoEncrypted: true, _sensitiveTypes: options.sensitive_types }
+          : record;
+        global.showClipboardNotification(notificationData);
       }
     }).catch(err => {
       this.log.warn('AI 处理失败，使用默认摘要:', err.message);
+      // 降级处理
       const record = this.db.addRecord({
         type,
         content: text,
         summary: this._generateSummary(text),
         source: 'clipboard',
-        encrypted: true,
-        sensitive_types: sensitiveTypesStr,
+        ...(isEncrypted ? { encrypted: true, sensitive_types: sensitiveTypesStr } : {}),
       });
 
-      this.log.info(`自动加密记录: [${type}] ${sensitiveTypesStr} → 已加密`);
+      this.log.info(`${logPrefix}: [${type}] ${isEncrypted ? sensitiveTypesStr + ' → ' : ''}${text.substring(0, 50)}...`);
 
       if (global.mainWindow && !global.mainWindow.isDestroyed()) {
         global.mainWindow.webContents.send('new-record', record);
       }
 
       if (global.showClipboardNotification) {
-        global.showClipboardNotification({
-          ...record,
-          _autoEncrypted: true,
-          _sensitiveTypes: sensitiveTypes,
-        });
+        const notificationData = isEncrypted
+          ? { ...record, _autoEncrypted: true, _sensitiveTypes: options.sensitive_types }
+          : record;
+        global.showClipboardNotification(notificationData);
       }
     });
   }
