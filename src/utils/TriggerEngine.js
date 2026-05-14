@@ -56,8 +56,15 @@ class TriggerEngine {
    */
   _loadTriggers() {
     try {
-      // TODO: 从数据库加载 (当前使用内存存储)
-      log.info(`[Trigger] 已加载 ${this.triggers.size} 个触发器`);
+      if (this.db && typeof this.db.getAllTriggers === 'function') {
+        const saved = this.db.getAllTriggers();
+        if (saved.length > 0) {
+          saved.forEach(trigger => {
+            this.triggers.set(trigger.id, trigger);
+          });
+          log.info(`[Trigger] 从数据库加载了 ${saved.length} 个触发器`);
+        }
+      }
     } catch (err) {
       log.error('[Trigger] 加载失败:', err);
     }
@@ -74,6 +81,7 @@ class TriggerEngine {
         description: '自动去除 URL 中的追踪参数',
         enabled: true,
         priority: 10,
+        isDefault: true,
         conditions: [
           {
             type: 'regex',
@@ -95,6 +103,7 @@ class TriggerEngine {
         description: '自动识别并标记代码片段',
         enabled: true,
         priority: 20,
+        isDefault: true,
         conditions: [
           {
             type: 'regex',
@@ -125,6 +134,7 @@ class TriggerEngine {
         description: '检测到邮箱时提醒加密',
         enabled: true,
         priority: 5,
+        isDefault: true,
         conditions: [
           {
             type: 'regex',
@@ -150,6 +160,7 @@ class TriggerEngine {
         description: '超过1KB的文本建议压缩',
         enabled: true,
         priority: 15,
+        isDefault: true,
         conditions: [
           {
             type: 'maxLength',
@@ -248,6 +259,12 @@ class TriggerEngine {
     };
 
     this.triggers.set(id, trigger);
+
+    // 持久化到数据库
+    if (this.db && typeof this.db.saveTrigger === 'function') {
+      this.db.saveTrigger(trigger);
+    }
+
     log.info(`[Trigger] 创建成功: ${trigger.name} (${id})`);
 
     return trigger;
@@ -271,6 +288,12 @@ class TriggerEngine {
     };
 
     this.triggers.set(id, updated);
+
+    // 持久化到数据库
+    if (this.db && typeof this.db.saveTrigger === 'function') {
+      this.db.saveTrigger(updated);
+    }
+
     log.info(`[Trigger] 更新成功: ${updated.name}`);
 
     return updated;
@@ -286,6 +309,12 @@ class TriggerEngine {
     if (!trigger) return false;
 
     this.triggers.delete(id);
+
+    // 从数据库删除
+    if (this.db && typeof this.db.deleteTrigger === 'function') {
+      this.db.deleteTrigger(id);
+    }
+
     log.info(`[Trigger] 删除成功: ${trigger.name}`);
 
     return true;
