@@ -20,6 +20,8 @@ Thumbs.db
 *.db-shm
 images/
 logs/
+coverage/
+*.txt
 
 # pnpm
 .pnpm-store/
