@@ -620,6 +620,27 @@ class Database {
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_rules_priority ON rules(priority DESC)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_rules_enabled ON rules(enabled)`);
 
+    // v0.76.0: 触发器配置持久化
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS triggers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        enabled INTEGER DEFAULT 1,
+        priority INTEGER DEFAULT 50,
+        conditions TEXT DEFAULT '[]',
+        actions TEXT DEFAULT '[]',
+        run_once INTEGER DEFAULT 0,
+        cooldown INTEGER DEFAULT 0,
+        last_run_at TEXT,
+        run_count INTEGER DEFAULT 0,
+        is_default INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_triggers_priority ON triggers(priority)`);
+
     this._save();
   }
 
@@ -632,6 +653,86 @@ class Database {
     } catch (err) {
       console.error('数据库保存失败:', err);
     }
+  }
+
+  // ==================== 触发器持久化 ====================
+
+  /**
+   * 获取所有触发器
+   */
+  getAllTriggers() {
+    const result = this.db.exec(`SELECT * FROM triggers ORDER BY priority ASC, created_at ASC`);
+    if (!result.length || !result[0].values.length) return [];
+    return result[0].values.map(row => ({
+      id: row[0],
+      name: row[1],
+      description: row[2],
+      enabled: !!row[3],
+      priority: row[4],
+      conditions: JSON.parse(row[5] || '[]'),
+      actions: JSON.parse(row[6] || '[]'),
+      runOnce: !!row[7],
+      cooldown: row[8],
+      lastRunAt: row[9],
+      runCount: row[10],
+      isDefault: !!row[11],
+      createdAt: row[12],
+      updatedAt: row[13],
+    }));
+  }
+
+  /**
+   * 保存触发器（创建或更新）
+   */
+  saveTrigger(trigger) {
+    const now = new Date().toISOString();
+    const existing = this.db.exec(`SELECT id FROM triggers WHERE id = ?`, [trigger.id]);
+
+    if (existing.length && existing[0].values.length) {
+      // 更新
+      this.db.run(
+        `UPDATE triggers SET name=?, description=?, enabled=?, priority=?, conditions=?, actions=?,
+         run_once=?, cooldown=?, last_run_at=?, run_count=?, is_default=?, updated_at=? WHERE id=?`,
+        [trigger.name, trigger.description || '', trigger.enabled ? 1 : 0, trigger.priority || 50,
+         JSON.stringify(trigger.conditions || []), JSON.stringify(trigger.actions || []),
+         trigger.runOnce ? 1 : 0, trigger.cooldown || 0,
+         trigger.lastRunAt || null, trigger.runCount || 0,
+         trigger.isDefault ? 1 : 0, now, trigger.id]
+      );
+    } else {
+      // 创建
+      this.db.run(
+        `INSERT INTO triggers (id, name, description, enabled, priority, conditions, actions,
+         run_once, cooldown, last_run_at, run_count, is_default, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [trigger.id, trigger.name, trigger.description || '', trigger.enabled ? 1 : 0, trigger.priority || 50,
+         JSON.stringify(trigger.conditions || []), JSON.stringify(trigger.actions || []),
+         trigger.runOnce ? 1 : 0, trigger.cooldown || 0,
+         trigger.lastRunAt || null, trigger.runCount || 0,
+         trigger.isDefault ? 1 : 0, trigger.createdAt || now, now]
+      );
+    }
+    this._save();
+    return trigger;
+  }
+
+  /**
+   * 删除触发器
+   */
+  deleteTrigger(id) {
+    this.db.run(`DELETE FROM triggers WHERE id = ?`, [id]);
+    this._save();
+  }
+
+  /**
+   * 更新触发器运行状态（lastRunAt, runCount）
+   */
+  updateTriggerRunState(id, lastRunAt, runCount) {
+    this.db.run(
+      `UPDATE triggers SET last_run_at=?, run_count=?, updated_at=? WHERE id=?`,
+      [lastRunAt || null, runCount || 0, new Date().toISOString(), id]
+    );
+    // 不调用 _save() 避免高频写盘，状态更新会在下次 saveTrigger 或应用退出时持久化
   }
 
   // 添加记录
