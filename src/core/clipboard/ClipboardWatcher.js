@@ -3,6 +3,7 @@
  */
 
 const path = require('path');
+const fs = require('fs');
 const { app } = require('electron');
 
 class ClipboardWatcher {
@@ -215,10 +216,6 @@ class ClipboardWatcher {
 
   _handleImage(image) {
     try {
-      const { nativeImage, app } = require('electron');
-      const path = require('path');
-      const fs = require('fs');
-
       // 保存图片
       const dataDir = path.join(app.getPath('userData'), 'images');
       if (!fs.existsSync(dataDir)) {
@@ -231,16 +228,22 @@ class ClipboardWatcher {
       const imageBuffer = image.toPNG();
       fs.writeFileSync(filepath, imageBuffer);
 
-      // v0.17.0: 异步进行 OCR 识别
-      let ocrText = null;
+      // v0.17.0: 保存到数据库（先保存，OCR 结果异步更新）
+      const record = this.db.addRecord({
+        type: 'image',
+        content: filepath,
+        summary: '[图片]',
+        source: 'clipboard',
+        ocr_text: null, // OCR 完成后更新
+      });
+
+      // v0.17.0: 异步进行 OCR 识别（record 已声明，闭包安全）
       if (this.ocr) {
         this.ocr.recognizeClipboardImage(imageBuffer).then(ocrResult => {
           if (ocrResult.success && ocrResult.text) {
-            // 更新记录的 OCR 文本
             this.db.updateOCRText(record.id, ocrResult.text);
             this.log.info(`图片 OCR 完成: ${ocrResult.text.substring(0, 50)}...`);
 
-            // 通知渲染进程更新
             if (global.mainWindow && !global.mainWindow.isDestroyed()) {
               global.mainWindow.webContents.send('ocr-complete', { id: record.id, text: ocrResult.text });
             }
@@ -249,15 +252,6 @@ class ClipboardWatcher {
           this.log.warn('OCR 识别失败:', err.message);
         });
       }
-
-      // 保存到数据库（先保存，OCR 结果异步更新）
-      const record = this.db.addRecord({
-        type: 'image',
-        content: filepath,
-        summary: '[图片]',
-        source: 'clipboard',
-        ocr_text: ocrText, // 初始为空，OCR 完成后更新
-      });
 
       this.log.info(`新图片记录: ${filename}`);
 
