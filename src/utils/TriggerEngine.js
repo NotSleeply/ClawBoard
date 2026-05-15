@@ -221,9 +221,13 @@ class TriggerEngine {
       return this.toggleTrigger(id, enabled);
     });
 
-    // 测试触发器 (不实际执行)
+    // 测试触发器（调试模式，模拟执行但不写入数据库）
     ipcMain.handle('test-trigger', async (_, id, testContent) => {
-      return this.testTrigger(id, testContent);
+      try {
+        return { success: true, ...await this.testTrigger(id, testContent) };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
     });
 
     // 手动运行所有触发器
@@ -767,32 +771,6 @@ class TriggerEngine {
   }
 
   // ==================== 工具方法 ====================
-
-  /**
-   * 测试触发器 (不实际执行)
-   * @param {string} id - 触发器ID
-   * @param {string} testContent - 测试内容
-   * @returns {Object}
-   */
-  testTrigger(id, testContent) {
-    const trigger = this.triggers.get(id);
-    if (!trigger) {
-      return { success: false, error: '触发器不存在' };
-    }
-
-    const conditionResult = this._evaluateConditions(
-      trigger.conditions,
-      testContent,
-      {}
-    );
-
-    return {
-      success: true,
-      triggerName: trigger.name,
-      matched: conditionResult.matched,
-      conditionDetails: conditionResult.details
-    };
-  }
 
   /**
    * 启用/禁用整个引擎
