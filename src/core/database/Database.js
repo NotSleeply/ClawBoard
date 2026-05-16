@@ -849,40 +849,53 @@ class Database {
   }
 
   // ==================== 智能去重 ====================
-  // 计算文本相似度（基于编辑距离）
+  // 最大比对文本长度（超过此长度的文本会被截断后再计算相似度）
+  static SIMILARITY_MAX_LEN = 256;
+
+  // 计算文本相似度（基于编辑距离，带预过滤和截断优化）
   _levenshteinDistance(a, b) {
     if (a.length === 0) return b.length;
     if (b.length === 0) return a.length;
-    const matrix = [];
-    for (let i = 0; i <= b.length; i++) {
-      matrix[i] = [i];
-    }
-    for (let j = 0; j <= a.length; j++) {
-      matrix[0][j] = j;
-    }
+    // 使用单行数组优化内存（只需前一行）
+    let prev = new Array(a.length + 1);
+    for (let j = 0; j <= a.length; j++) prev[j] = j;
+
     for (let i = 1; i <= b.length; i++) {
+      const curr = new Array(a.length + 1);
+      curr[0] = i;
       for (let j = 1; j <= a.length; j++) {
         if (b.charAt(i - 1) === a.charAt(j - 1)) {
-          matrix[i][j] = matrix[i - 1][j - 1];
+          curr[j] = prev[j - 1];
         } else {
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1
-          );
+          curr[j] = 1 + Math.min(prev[j - 1], prev[j], curr[j - 1]);
         }
       }
+      prev = curr;
     }
-    return matrix[b.length][a.length];
+    return prev[a.length];
   }
 
-  // 计算相似度（0-1）
+  // 计算相似度（0-1），带长度预过滤和截断优化
   _similarity(a, b) {
-    if (!a || !b) return 0;
+    if (a == null || b == null) return 0;
+
     const maxLen = Math.max(a.length, b.length);
+    const minLen = Math.min(a.length, b.length);
     if (maxLen === 0) return 1;
-    const dist = this._levenshteinDistance(a, b);
-    return 1 - dist / maxLen;
+
+    // 快速路径：长度差异过大，相似度不可能达到阈值，返回 0
+    // 例如 threshold=0.8 时，长度比至少要 >= 0.8
+    const lenRatio = minLen / maxLen;
+    if (lenRatio < 0.5) return 0;
+
+    // 截断长文本，避免大矩阵计算
+    const truncLen = Database.SIMILARITY_MAX_LEN;
+    const ta = a.length > truncLen ? a.substring(0, truncLen) : a;
+    const tb = b.length > truncLen ? b.substring(0, truncLen) : b;
+
+    const dist = this._levenshteinDistance(ta, tb);
+    const truncMax = Math.max(ta.length, tb.length);
+    return truncMax === 0 ? 1 : 1 - dist / truncMax;
   }
 
   // 查找相似记录
@@ -899,9 +912,17 @@ class Database {
 
     if (result.length === 0 || result[0].values.length === 0) return [];
 
+    const maxLen = content.length;
+    const minAcceptLen = Math.floor(maxLen * threshold);
+    const maxAcceptLen = Math.ceil(maxLen / threshold);
+
     const similar = [];
     for (const row of result[0].values) {
       const [id, recordContent, createdAt, favorite, type] = row;
+
+      // 长度预过滤：长度差异过大直接跳过
+      if (recordContent.length < minAcceptLen || recordContent.length > maxAcceptLen) continue;
+
       const sim = this._similarity(content, recordContent);
       if (sim >= threshold && sim < 1) { // 排除完全相同
         similar.push({
