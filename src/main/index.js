@@ -2178,9 +2178,6 @@ app.whenReady().then(async () => {
   // 注册 IPC
   setupIPC();
 
-  // 注册全局快捷键 Ctrl+Shift+V
-  registerGlobalShortcut();
-
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -2690,17 +2687,6 @@ ipcMain.handle("update-shortcut", async (event, shortcut) => {
     return { success: false, message: err.message };
   }
 });
-
-// v0.29.0: 通知与声音功能
-// 播放提示音
-function playNotificationSound() {
-  try {
-    // Electron Notification 使用系统默认音效，silent 参数控制是否静音
-    return { success: true };
-  } catch (e) {
-    log.error("播放提示音失败:", e);
-  }
-}
 
 // 获取通知设置
 ipcMain.handle("get-notification-settings", async () => {
