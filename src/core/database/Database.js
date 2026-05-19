@@ -18,6 +18,11 @@ class Database {
     this.encryptionKey = null;
     this._inTransaction = false; // 事务状态标志
 
+    // v0.79.0: 防抖保存 - 合并高频写入
+    this._saveTimer = null;
+    this._saveDebounceMs = 500; // 500ms 防抖间隔
+    this._pendingSave = false;
+
     // v0.74.0: 性能优化 - LRU 缓存
     this._searchCache = new LRUCache(50);  // 搜索结果缓存 (最多50条)
     this._statsCache = new LRUCache(10);   // 统计数据缓存 (10秒过期)
@@ -89,7 +94,7 @@ class Database {
         return result.length > 0 ? result[0] : { columns: [], values: [] };
       } else {
         this.db.run(sql, params);
-        this._save();
+        this._requestSave();
         return { changes: this.db.getRowsModified() };
       }
     } catch (err) {
@@ -109,6 +114,9 @@ class Database {
    */
   createBackup(reason = 'manual') {
     try {
+      // 先刷新防抖待保存的数据，确保备份完整
+      this._flushSave();
+
       if (!fs.existsSync(this.backupPath)) {
         fs.mkdirSync(this.backupPath, { recursive: true });
       }
@@ -254,7 +262,7 @@ class Database {
     }
     this.db.run('COMMIT');
     this._inTransaction = false;
-    this._save();
+    this._requestSave();
   }
 
   /**
@@ -641,10 +649,10 @@ class Database {
     `);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_triggers_priority ON triggers(priority)`);
 
-    this._save();
+    this._requestSave();
   }
 
-  // 保存到磁盘
+  // 保存到磁盘（同步，仅用于关键操作如 close/backup）
   _save() {
     try {
       const data = this.db.export();
@@ -652,6 +660,35 @@ class Database {
       fs.writeFileSync(this.dbPath, buffer);
     } catch (err) {
       console.error('数据库保存失败:', err);
+    }
+  }
+
+  // 防抖保存：合并高频写入请求，500ms 内多次调用只执行一次 _save
+  // 用于 addRecord、updateNote、toggleFavorite 等高频数据修改操作
+  _requestSave() {
+    this._pendingSave = true;
+    if (this._saveTimer) return;
+    this._saveTimer = setTimeout(() => {
+      this._saveTimer = null;
+      if (this._pendingSave) {
+        this._pendingSave = false;
+        this._requestSave();
+      }
+    }, this._saveDebounceMs);
+    // 确保 timer 不会阻止进程退出
+    if (this._saveTimer.unref) this._saveTimer.unref();
+  }
+
+  // 同步刷新防抖缓冲：立即执行待保存的数据
+  // 用于 close()、createBackup() 等需要确保数据一致性的关键操作
+  _flushSave() {
+    if (this._saveTimer) {
+      clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+    }
+    if (this._pendingSave) {
+      this._pendingSave = false;
+      this._save();
     }
   }
 
@@ -712,7 +749,7 @@ class Database {
          trigger.isDefault ? 1 : 0, trigger.createdAt || now, now]
       );
     }
-    this._save();
+    this._requestSave();
     return trigger;
   }
 
@@ -721,7 +758,7 @@ class Database {
    */
   deleteTrigger(id) {
     this.db.run(`DELETE FROM triggers WHERE id = ?`, [id]);
-    this._save();
+    this._requestSave();
   }
 
   /**
@@ -768,7 +805,7 @@ class Database {
     this.invalidateSearchCache();
 
     const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
-    this._save();
+    this._requestSave();
     return this.getRecord(id);
   }
 
@@ -786,7 +823,7 @@ class Database {
       `UPDATE records SET content = ?, encrypted = 1, encryption_algorithm = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       [encryptedContent, algorithm, id]
     );
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -813,7 +850,7 @@ class Database {
       `UPDATE records SET content = ?, encrypted = 0, encryption_algorithm = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       [decryptedContent, id]
     );
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -823,7 +860,7 @@ class Database {
       `UPDATE records SET ocr_text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       [ocrText, id]
     );
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -985,7 +1022,7 @@ class Database {
     }
 
     if (deletedCount > 0) {
-      this._save();
+      this._requestSave();
     }
     return deletedCount;
   }
@@ -993,7 +1030,7 @@ class Database {
   // 切换锁定状态
   toggleLock(id) {
     this.db.run(`UPDATE records SET locked = NOT locked, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1156,7 +1193,7 @@ class Database {
 
     tags.push(tag);
     this.db.run(`UPDATE records SET tags = ? WHERE id = ?`, [JSON.stringify(tags), recordId]);
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1175,7 +1212,7 @@ class Database {
 
     tags.splice(index, 1);
     this.db.run(`UPDATE records SET tags = ? WHERE id = ?`, [JSON.stringify(tags), recordId]);
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1201,7 +1238,7 @@ class Database {
       } catch (e) { }
     });
 
-    if (count > 0) this._save();
+    if (count > 0) this._requestSave();
     return count;
   }
 
@@ -1304,14 +1341,14 @@ class Database {
   // 切换收藏
   toggleFavorite(id) {
     this.db.run(`UPDATE records SET favorite = NOT favorite, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
-    this._save();
+    this._requestSave();
     return true;
   }
 
   // 更新备注
   updateNote(id, note) {
     this.db.run(`UPDATE records SET note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [note, id]);
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1325,7 +1362,7 @@ class Database {
       `UPDATE records SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       [newContent, id]
     );
-    this._save();
+    this._requestSave();
     return this.getRecord(id);
   }
 
@@ -1333,7 +1370,7 @@ class Database {
   deleteRecord(id, permanent = false) {
     if (permanent) {
       this.db.run(`DELETE FROM records WHERE id = ?`, [id]);
-      this._save();
+      this._requestSave();
       return true;
     }
     // 软删除：复制到回收站
@@ -1354,21 +1391,21 @@ class Database {
     // v0.74.0: 数据变更时清除缓存
     this.invalidateSearchCache();
 
-    this._save();
+    this._requestSave();
     return true;
   }
 
   // v0.72.0: 永久删除单条回收站记录
   deleteTrashRecord(id) {
     this.db.run(`DELETE FROM trash WHERE id = ?`, [id]);
-    this._save();
+    this._requestSave();
     return true;
   }
 
   // v0.72.0: 清空回收站
   emptyTrash() {
     this.db.run(`DELETE FROM trash`);
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1388,7 +1425,7 @@ class Database {
       trashRecord.is_merged, trashRecord.sensitive_types]
     );
     this.db.run(`DELETE FROM trash WHERE id = ?`, [trashId]);
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1427,13 +1464,13 @@ class Database {
   // v0.72.0: 自动清理过期回收站记录（30天）
   autoCleanTrash() {
     this.db.run(`DELETE FROM trash WHERE datetime(deleted_at) < datetime('now', '-30 days')`);
-    this._save();
+    this._requestSave();
   }
 
   // 清空历史
   clearHistory() {
     this.db.run(`DELETE FROM records WHERE favorite = 0`);
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1557,7 +1594,7 @@ class Database {
         [key, JSON.stringify(value)]
       );
     }
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1591,7 +1628,7 @@ class Database {
       [name, content, category]
     );
     const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
-    this._save();
+    this._requestSave();
     return this.getTemplate(id);
   }
 
@@ -1608,21 +1645,22 @@ class Database {
       `UPDATE templates SET name = ?, content = ?, category = ? WHERE id = ?`,
       [name, content, category, id]
     );
-    this._save();
+    this._requestSave();
     return this.getTemplate(id);
   }
 
   // 删除模板
   deleteTemplate(id) {
     this.db.run(`DELETE FROM templates WHERE id = ?`, [id]);
-    this._save();
+    this._requestSave();
     return true;
   }
 
   // 关闭
   close() {
+    this._flushSave(); // 同步刷新所有待保存数据
     if (this.db) {
-      this._save();
+      this._save(); // close 场景必须同步保存，确保数据不丢失
       this.db.close();
     }
   }
@@ -1649,7 +1687,7 @@ class Database {
       [name, color, icon, maxOrder + 1]
     );
     const id = this.db.exec(`SELECT last_insert_rowid() as id`)[0].values[0][0];
-    this._save();
+    this._requestSave();
     return this.getGroup(id);
   }
 
@@ -1677,7 +1715,7 @@ class Database {
 
     params.push(id);
     this.db.run(`UPDATE groups SET ${updates.join(', ')} WHERE id = ?`, params);
-    this._save();
+    this._requestSave();
     return this.getGroup(id);
   }
 
@@ -1686,7 +1724,7 @@ class Database {
     // 先将分组中的记录移到未分组
     this.db.run(`UPDATE records SET group_id = NULL WHERE group_id = ?`, [id]);
     this.db.run(`DELETE FROM groups WHERE id = ?`, [id]);
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1695,7 +1733,7 @@ class Database {
     const group = this.getGroup(id);
     if (!group) return false;
     this.db.run(`UPDATE groups SET collapsed = NOT collapsed WHERE id = ?`, [id]);
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1705,7 +1743,7 @@ class Database {
       `UPDATE records SET group_id = ? WHERE id = ?`,
       [groupId, recordId]
     );
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1717,7 +1755,7 @@ class Database {
       `UPDATE records SET sort_order = ?, group_id = ? WHERE id = ?`,
       [newOrder, newGroupId, recordId]
     );
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1730,7 +1768,7 @@ class Database {
         [update.sort_order, update.group_id, update.id]
       );
     }
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -1934,7 +1972,7 @@ class Database {
     params.push(id);
 
     this.db.run(`UPDATE records SET ${updates.join(', ')} WHERE id = ?`, params);
-    this._save();
+    this._requestSave();
     return this.getRecord(id);
   }
 
@@ -1947,7 +1985,7 @@ class Database {
     if (shouldDelete) {
       // 批量删除
       this.db.run(`DELETE FROM records WHERE id IN (${placeholders}) AND favorite = 1`, ids);
-      this._save();
+      this._requestSave();
       return { updated: 0, deleted: ids.length };
     }
 
@@ -1966,7 +2004,7 @@ class Database {
       updated += this.db.getRowsModified();
     }
 
-    if (updated > 0) this._save();
+    if (updated > 0) this._requestSave();
     return { updated, deleted: 0 };
   }
 
@@ -2127,7 +2165,7 @@ class Database {
     this.db.run(`
       INSERT OR REPLACE INTO settings (key, value) VALUES ('sync_config', ?)
     `, [JSON.stringify(config)]);
-    this._save();
+    this._requestSave();
     return true;
   }
 
@@ -2139,7 +2177,7 @@ class Database {
     this.db.run(`
       INSERT OR REPLACE INTO settings (key, value) VALUES ('last_sync_time', ?)
     `, [now]);
-    this._save();
+    this._requestSave();
     return now;
   }
 
@@ -2313,7 +2351,7 @@ class Database {
       }
     }
 
-    this._save();
+    this._requestSave();
 
     return {
       imported,
@@ -2331,7 +2369,7 @@ class Database {
 
     const placeholders = ids.map(() => '?').join(',');
     this.db.run(`UPDATE records SET synced = 1 WHERE id IN (${placeholders})`, ids);
-    this._save();
+    this._requestSave();
     return ids.length;
   }
 
@@ -2557,7 +2595,7 @@ class Database {
           [key, JSON.stringify(value)]
         );
       }
-      this._save();
+      this._requestSave();
       // 同时更新 AI 模块配置
       const ai = require('./ai');
       ai.setConfig(settings);
@@ -2792,7 +2830,7 @@ class Database {
       deletedCount++;
     }
 
-    if (deletedCount > 0) this._save();
+    if (deletedCount > 0) this._requestSave();
     return { deleted: deletedCount, found: dups.length };
   }
 
