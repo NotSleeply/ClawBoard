@@ -7,7 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const lz = require('lz-string');
 const CryptoJS = require('crypto-js'); // v0.71.0: ChaCha20 support
-const LRUCache = require('../utils/LRUCache'); // v0.74.0: 性能优化
+const LRUCache = require('../../utils/LRUCache'); // v0.74.0: 性能优化
 
 class Database {
   constructor(userDataPath) {
@@ -24,15 +24,15 @@ class Database {
     this._pendingSave = false;
 
     // v0.74.0: 性能优化 - LRU 缓存
-    this._searchCache = new LRUCache(50);  // 搜索结果缓存 (最多50条)
-    this._statsCache = new LRUCache(10);   // 统计数据缓存 (10秒过期)
-    this._cacheTimestamps = new Map();     // 缓存时间戳
+    this._searchCache = new LRUCache(50); // 搜索结果缓存 (最多50条)
+    this._statsCache = new LRUCache(10); // 统计数据缓存 (10秒过期)
+    this._cacheTimestamps = new Map(); // 缓存时间戳
 
     this._init();
   }
 
   // ==================== 安全工具方法 ====================
-  
+
   /**
    * 清理字符串,防止 SQL 注入 (防御性编程)
    * @param {string} str - 待清理的字符串
@@ -40,23 +40,33 @@ class Database {
    */
   _sanitizeString(str) {
     if (typeof str !== 'string') return '';
-    return str
-      .replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, char => {
-        switch (char) {
-          case '\0': return '\\0';
-          case '\x08': return '\\b';
-          case '\x09': return '\\t';
-          case '\x1a': return '\\z';
-          case '\n': return '\\n';
-          case '\r': return '\\r';
-          // 单引号和双引号转义（虽然使用参数化查询，但作为额外保护）
-          case '"': return '""';
-          case "'": return "''";
-          case '\\': return '\\\\';
-          case '%': return '\\%';
-          default: return char;
-        }
-      });
+    return str.replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, char => {
+      switch (char) {
+        case '\0':
+          return '\\0';
+        case '\x08':
+          return '\\b';
+        case '\x09':
+          return '\\t';
+        case '\x1a':
+          return '\\z';
+        case '\n':
+          return '\\n';
+        case '\r':
+          return '\\r';
+        // 单引号和双引号转义（虽然使用参数化查询，但作为额外保护）
+        case '"':
+          return '""';
+        case "'":
+          return "''";
+        case '\\':
+          return '\\\\';
+        case '%':
+          return '\\%';
+        default:
+          return char;
+      }
+    });
   }
 
   /**
@@ -134,7 +144,7 @@ class Database {
       if (fs.existsSync(metaPath)) {
         manifest = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
       }
-      
+
       manifest.push({
         filename: backupFilename,
         timestamp: new Date().toISOString(),
@@ -206,7 +216,7 @@ class Database {
   getBackups() {
     const metaPath = path.join(this.backupPath, 'backup-manifest.json');
     if (!fs.existsSync(metaPath)) return [];
-    
+
     try {
       return JSON.parse(fs.readFileSync(metaPath, 'utf8')).reverse(); // 最新的在前
     } catch (err) {
@@ -220,7 +230,7 @@ class Database {
    */
   startAutoBackup() {
     if (this._backupInterval) clearInterval(this._backupInterval);
-    
+
     this._backupInterval = setInterval(() => {
       this.createBackup('auto-hourly');
     }, 3600000); // 每小时
@@ -315,7 +325,7 @@ class Database {
   _isCacheExpired(key, ttl = 10000) {
     const timestamp = this._cacheTimestamps.get(key);
     if (!timestamp) return true;
-    return (Date.now() - timestamp) > ttl;
+    return Date.now() - timestamp > ttl;
   }
 
   /**
@@ -375,7 +385,13 @@ class Database {
 
       if (algorithm === 'chacha20-poly1305') {
         const iv = crypto.randomBytes(12);
-        const encrypted = CryptoJS.AES.encrypt(text, CryptoJS.PBKDF2(password, CryptoJS.enc.Hex.parse(salt.toString('hex')), { keySize: 8, iterations: 10000 }).toString());
+        const encrypted = CryptoJS.AES.encrypt(
+          text,
+          CryptoJS.PBKDF2(password, CryptoJS.enc.Hex.parse(salt.toString('hex')), {
+            keySize: 8,
+            iterations: 10000
+          }).toString()
+        );
         return `chacha20:${salt.toString('base64')}:${iv.toString('base64')}:${encrypted.toString()}`;
       }
 
@@ -400,7 +416,13 @@ class Database {
         const parts = encryptedStr.split(':');
         if (parts.length !== 4) throw new Error('Invalid ChaCha20 format');
         const salt = Buffer.from(parts[1], 'base64');
-        const decrypted = CryptoJS.AES.decrypt(parts[3], CryptoJS.PBKDF2(password, CryptoJS.enc.Hex.parse(salt.toString('hex')), { keySize: 8, iterations: 10000 }).toString());
+        const decrypted = CryptoJS.AES.decrypt(
+          parts[3],
+          CryptoJS.PBKDF2(password, CryptoJS.enc.Hex.parse(salt.toString('hex')), {
+            keySize: 8,
+            iterations: 10000
+          }).toString()
+        );
         return decrypted.toString(CryptoJS.enc.Utf8);
       }
 
@@ -479,7 +501,9 @@ class Database {
     // 添加新列（如果不存在）
     ['source_app', 'source_title', 'source_url', 'synced'].forEach(col => {
       try {
-        this.db.run(`ALTER TABLE records ADD COLUMN ${col} ${col === 'synced' ? 'INTEGER DEFAULT 0' : 'TEXT'}`);
+        this.db.run(
+          `ALTER TABLE records ADD COLUMN ${col} ${col === 'synced' ? 'INTEGER DEFAULT 0' : 'TEXT'}`
+        );
       } catch (e) {
         // 列已存在，忽略
       }
@@ -567,7 +591,9 @@ class Database {
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_favorite ON records(favorite)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_created ON records(created_at DESC)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_encrypted ON records(encrypted)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_encryption_algorithm ON records(encryption_algorithm)`);
+    this.db.run(
+      `CREATE INDEX IF NOT EXISTS idx_encryption_algorithm ON records(encryption_algorithm)`
+    );
 
     this.db.run(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
 
@@ -714,7 +740,7 @@ class Database {
       runCount: row[10],
       isDefault: !!row[11],
       createdAt: row[12],
-      updatedAt: row[13],
+      updatedAt: row[13]
     }));
   }
 
@@ -730,11 +756,21 @@ class Database {
       this.db.run(
         `UPDATE triggers SET name=?, description=?, enabled=?, priority=?, conditions=?, actions=?,
          run_once=?, cooldown=?, last_run_at=?, run_count=?, is_default=?, updated_at=? WHERE id=?`,
-        [trigger.name, trigger.description || '', trigger.enabled ? 1 : 0, trigger.priority || 50,
-         JSON.stringify(trigger.conditions || []), JSON.stringify(trigger.actions || []),
-         trigger.runOnce ? 1 : 0, trigger.cooldown || 0,
-         trigger.lastRunAt || null, trigger.runCount || 0,
-         trigger.isDefault ? 1 : 0, now, trigger.id]
+        [
+          trigger.name,
+          trigger.description || '',
+          trigger.enabled ? 1 : 0,
+          trigger.priority || 50,
+          JSON.stringify(trigger.conditions || []),
+          JSON.stringify(trigger.actions || []),
+          trigger.runOnce ? 1 : 0,
+          trigger.cooldown || 0,
+          trigger.lastRunAt || null,
+          trigger.runCount || 0,
+          trigger.isDefault ? 1 : 0,
+          now,
+          trigger.id
+        ]
       );
     } else {
       // 创建
@@ -742,11 +778,22 @@ class Database {
         `INSERT INTO triggers (id, name, description, enabled, priority, conditions, actions,
          run_once, cooldown, last_run_at, run_count, is_default, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [trigger.id, trigger.name, trigger.description || '', trigger.enabled ? 1 : 0, trigger.priority || 50,
-         JSON.stringify(trigger.conditions || []), JSON.stringify(trigger.actions || []),
-         trigger.runOnce ? 1 : 0, trigger.cooldown || 0,
-         trigger.lastRunAt || null, trigger.runCount || 0,
-         trigger.isDefault ? 1 : 0, trigger.createdAt || now, now]
+        [
+          trigger.id,
+          trigger.name,
+          trigger.description || '',
+          trigger.enabled ? 1 : 0,
+          trigger.priority || 50,
+          JSON.stringify(trigger.conditions || []),
+          JSON.stringify(trigger.actions || []),
+          trigger.runOnce ? 1 : 0,
+          trigger.cooldown || 0,
+          trigger.lastRunAt || null,
+          trigger.runCount || 0,
+          trigger.isDefault ? 1 : 0,
+          trigger.createdAt || now,
+          now
+        ]
       );
     }
     this._requestSave();
@@ -765,15 +812,34 @@ class Database {
    * 更新触发器运行状态（lastRunAt, runCount）
    */
   updateTriggerRunState(id, lastRunAt, runCount) {
-    this.db.run(
-      `UPDATE triggers SET last_run_at=?, run_count=?, updated_at=? WHERE id=?`,
-      [lastRunAt || null, runCount || 0, new Date().toISOString(), id]
-    );
+    this.db.run(`UPDATE triggers SET last_run_at=?, run_count=?, updated_at=? WHERE id=?`, [
+      lastRunAt || null,
+      runCount || 0,
+      new Date().toISOString(),
+      id
+    ]);
     // 不调用 _save() 避免高频写盘，状态更新会在下次 saveTrigger 或应用退出时持久化
   }
 
   // 添加记录
-  addRecord({ type, content, summary, source, source_app, source_title, source_url, tags = '[]', ai_summary = null, embedding = null, language = null, encrypted = false, ocr_text = null, merged_from = null, is_merged = false, sensitive_types = '' }) {
+  addRecord({
+    type,
+    content,
+    summary,
+    source,
+    source_app,
+    source_title,
+    source_url,
+    tags = '[]',
+    ai_summary = null,
+    embedding = null,
+    language = null,
+    encrypted = false,
+    ocr_text = null,
+    merged_from = null,
+    is_merged = false,
+    sensitive_types = ''
+  }) {
     let finalContent = content;
     let compressed = 0;
     if (encrypted && this.encryptionKey) {
@@ -795,7 +861,25 @@ class Database {
 
     this.db.run(
       `INSERT INTO records (type, content, compressed, summary, source, source_app, source_title, source_url, tags, ai_summary, embedding, language, encrypted, ocr_text, merged_from, is_merged, sensitive_types) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [type, finalContent, compressed, summary, source || 'clipboard', source_app || null, source_title || null, source_url || null, tags, ai_summary, embedding, language, encrypted ? 1 : 0, ocr_text, merged_from, is_merged ? 1 : 0, sensitive_types]
+      [
+        type,
+        finalContent,
+        compressed,
+        summary,
+        source || 'clipboard',
+        source_app || null,
+        source_title || null,
+        source_url || null,
+        tags,
+        ai_summary,
+        embedding,
+        language,
+        encrypted ? 1 : 0,
+        ocr_text,
+        merged_from,
+        is_merged ? 1 : 0,
+        sensitive_types
+      ]
     );
 
     // 自动清理旧记录（保留收藏）
@@ -804,7 +888,7 @@ class Database {
     // v0.74.0: 数据变更时清除缓存
     this.invalidateSearchCache();
 
-    const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
+    const id = this.db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
     this._requestSave();
     return this.getRecord(id);
   }
@@ -856,10 +940,10 @@ class Database {
 
   // v0.17.0: 更新 OCR 文本
   updateOCRText(id, ocrText) {
-    this.db.run(
-      `UPDATE records SET ocr_text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [ocrText, id]
-    );
+    this.db.run(`UPDATE records SET ocr_text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [
+      ocrText,
+      id
+    ]);
     this._requestSave();
     return true;
   }
@@ -961,14 +1045,15 @@ class Database {
       if (recordContent.length < minAcceptLen || recordContent.length > maxAcceptLen) continue;
 
       const sim = this._similarity(content, recordContent);
-      if (sim >= threshold && sim < 1) { // 排除完全相同
+      if (sim >= threshold && sim < 1) {
+        // 排除完全相同
         similar.push({
           id,
           content: recordContent.substring(0, 200),
           similarity: Math.round(sim * 100),
           created_at: createdAt,
           favorite: favorite === 1,
-          type,
+          type
         });
         if (similar.length >= limit) break;
       }
@@ -1003,7 +1088,7 @@ class Database {
     return result[0].values.map(([content, count, ids]) => ({
       content: content.substring(0, 100),
       count,
-      ids: ids.split(',').map(Number),
+      ids: ids.split(',').map(Number)
     }));
   }
 
@@ -1029,7 +1114,10 @@ class Database {
 
   // 切换锁定状态
   toggleLock(id) {
-    this.db.run(`UPDATE records SET locked = NOT locked, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
+    this.db.run(
+      `UPDATE records SET locked = NOT locked, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [id]
+    );
     this._requestSave();
     return true;
   }
@@ -1047,7 +1135,16 @@ class Database {
   // v0.74.0: 优化 - 添加缓存支持
   getRecords({ type, limit = 50, offset = 0, search, favorite, sourceApp, tag, groupId } = {}) {
     // 对于无搜索条件的列表查询，使用缓存 (5秒过期)
-    const cacheKey = this._cacheKey('records', type, limit, offset, favorite, sourceApp, tag, groupId);
+    const cacheKey = this._cacheKey(
+      'records',
+      type,
+      limit,
+      offset,
+      favorite,
+      sourceApp,
+      tag,
+      groupId
+    );
 
     if (!search && this._searchCache.has(cacheKey) && !this._isCacheExpired(cacheKey, 5000)) {
       return this._searchCache.get(cacheKey);
@@ -1132,7 +1229,9 @@ class Database {
       if (result.length === 0 || result[0].values.length === 0) return [];
       return result[0].values.map(row => {
         const rec = {};
-        result[0].columns.forEach((col, i) => { rec[col] = row[i]; });
+        result[0].columns.forEach((col, i) => {
+          rec[col] = row[i];
+        });
         return rec;
       });
     } catch (e) {
@@ -1169,7 +1268,7 @@ class Database {
           tags.forEach(tag => {
             tagCount[tag] = (tagCount[tag] || 0) + 1;
           });
-        } catch (e) { }
+        } catch (e) {}
       });
     }
 
@@ -1186,7 +1285,7 @@ class Database {
     let tags = [];
     try {
       tags = JSON.parse(record.tags || '[]');
-    } catch (e) { }
+    } catch (e) {}
 
     tag = tag.trim();
     if (!tag || tags.includes(tag)) return true; // 标签已存在
@@ -1205,7 +1304,7 @@ class Database {
     let tags = [];
     try {
       tags = JSON.parse(record.tags || '[]');
-    } catch (e) { }
+    } catch (e) {}
 
     const index = tags.indexOf(tag);
     if (index === -1) return true;
@@ -1216,13 +1315,13 @@ class Database {
     return true;
   }
 
-
-
   // 删除标签（从所有记录中移除）
   deleteTag(tag) {
     // 转义 tag 中的特殊字符，防止破坏 LIKE 模式
     const safeTag = tag.replace(/["'%\\]/g, '\\$&');
-    const result = this.db.exec(`SELECT id, tags FROM records WHERE tags LIKE ?`, [`%"${safeTag}"%`]);
+    const result = this.db.exec(`SELECT id, tags FROM records WHERE tags LIKE ?`, [
+      `%"${safeTag}"%`
+    ]);
     if (result.length === 0) return 0;
 
     let count = 0;
@@ -1235,7 +1334,7 @@ class Database {
           this.db.run(`UPDATE records SET tags = ? WHERE id = ?`, [JSON.stringify(tags), id]);
           count++;
         }
-      } catch (e) { }
+      } catch (e) {}
     });
 
     if (count > 0) this._requestSave();
@@ -1274,29 +1373,36 @@ class Database {
       if (!queryEmbedding) return [];
 
       // 获取所有有 embedding 的记录（v0.40.0: 含 ocr_text）
-      const result = this.db.exec(`SELECT id, content, summary, ocr_text, embedding FROM records WHERE embedding IS NOT NULL`);
+      const result = this.db.exec(
+        `SELECT id, content, summary, ocr_text, embedding FROM records WHERE embedding IS NOT NULL`
+      );
       if (result.length === 0 || result[0].values.length === 0) return [];
 
       // 计算余弦相似度并排序
-      const records = result[0].values.map(row => {
-        const id = row[0];
-        const content = row[1];
-        const summary = row[2];
-        const ocrText = row[3];
-        // embedding 是 base64 编码的 Blob
-        const embedding = row[4] ? this._decodeEmbedding(row[4]) : null;
+      const records = result[0].values
+        .map(row => {
+          const id = row[0];
+          const content = row[1];
+          const summary = row[2];
+          const ocrText = row[3];
+          // embedding 是 base64 编码的 Blob
+          const embedding = row[4] ? this._decodeEmbedding(row[4]) : null;
 
-        if (!embedding) return null;
+          if (!embedding) return null;
 
-        const similarity = this._cosineSimilarity(queryEmbedding, embedding);
-        return { id, content, summary, ocrText, similarity };
-      }).filter(r => r !== null);
+          const similarity = this._cosineSimilarity(queryEmbedding, embedding);
+          return { id, content, summary, ocrText, similarity };
+        })
+        .filter(r => r !== null);
 
       // 按相似度排序
       records.sort((a, b) => b.similarity - a.similarity);
 
       // 返回 top N
-      return records.slice(0, limit).map(r => this.getRecord(r.id)).filter(r => r !== null);
+      return records
+        .slice(0, limit)
+        .map(r => this.getRecord(r.id))
+        .filter(r => r !== null);
     } catch (err) {
       console.error('语义搜索失败:', err);
       return [];
@@ -1340,14 +1446,20 @@ class Database {
 
   // 切换收藏
   toggleFavorite(id) {
-    this.db.run(`UPDATE records SET favorite = NOT favorite, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [id]);
+    this.db.run(
+      `UPDATE records SET favorite = NOT favorite, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [id]
+    );
     this._requestSave();
     return true;
   }
 
   // 更新备注
   updateNote(id, note) {
-    this.db.run(`UPDATE records SET note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [note, id]);
+    this.db.run(`UPDATE records SET note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [
+      note,
+      id
+    ]);
     this._requestSave();
     return true;
   }
@@ -1358,10 +1470,10 @@ class Database {
     if (!record) return null;
     if (record.encrypted) return null; // 加密记录不允许直接编辑
 
-    this.db.run(
-      `UPDATE records SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [newContent, id]
-    );
+    this.db.run(`UPDATE records SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [
+      newContent,
+      id
+    ]);
     this._requestSave();
     return this.getRecord(id);
   }
@@ -1376,15 +1488,34 @@ class Database {
     // 软删除：复制到回收站
     const record = this.getRecord(id);
     if (!record) return false;
-    this.db.run(`
+    this.db.run(
+      `
       INSERT INTO trash (original_id, type, content, summary, source, source_app, source_title, source_url,
         favorite, tags, ai_summary, embedding, language, locked, encrypted, synced, ocr_text, merged_from, is_merged, sensitive_types)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
-      [id, record.type, record.content, record.summary, record.source, record.source_app, record.source_title,
-        record.source_url, record.favorite, record.tags, record.ai_summary, record.embedding,
-        record.language, record.locked, record.encrypted, record.synced, record.ocr_text,
-        record.merged_from, record.is_merged, record.sensitive_types]
+      [
+        id,
+        record.type,
+        record.content,
+        record.summary,
+        record.source,
+        record.source_app,
+        record.source_title,
+        record.source_url,
+        record.favorite,
+        record.tags,
+        record.ai_summary,
+        record.embedding,
+        record.language,
+        record.locked,
+        record.encrypted,
+        record.synced,
+        record.ocr_text,
+        record.merged_from,
+        record.is_merged,
+        record.sensitive_types
+      ]
     );
     this.db.run(`DELETE FROM records WHERE id = ?`, [id]);
 
@@ -1413,16 +1544,33 @@ class Database {
   restoreFromTrash(trashId) {
     const trashRecord = this.getTrashRecord(trashId);
     if (!trashRecord) return false;
-    this.db.run(`
+    this.db.run(
+      `
       INSERT INTO records (type, content, summary, source, source_app, source_title, source_url,
         favorite, tags, ai_summary, embedding, language, locked, encrypted, synced, ocr_text, merged_from, is_merged, sensitive_types)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
-      [trashRecord.type, trashRecord.content, trashRecord.summary, trashRecord.source, trashRecord.source_app,
-      trashRecord.source_title, trashRecord.source_url, trashRecord.favorite, trashRecord.tags,
-      trashRecord.ai_summary, trashRecord.embedding, trashRecord.language, trashRecord.locked,
-      trashRecord.encrypted, trashRecord.synced, trashRecord.ocr_text, trashRecord.merged_from,
-      trashRecord.is_merged, trashRecord.sensitive_types]
+      [
+        trashRecord.type,
+        trashRecord.content,
+        trashRecord.summary,
+        trashRecord.source,
+        trashRecord.source_app,
+        trashRecord.source_title,
+        trashRecord.source_url,
+        trashRecord.favorite,
+        trashRecord.tags,
+        trashRecord.ai_summary,
+        trashRecord.embedding,
+        trashRecord.language,
+        trashRecord.locked,
+        trashRecord.encrypted,
+        trashRecord.synced,
+        trashRecord.ocr_text,
+        trashRecord.merged_from,
+        trashRecord.is_merged,
+        trashRecord.sensitive_types
+      ]
     );
     this.db.run(`DELETE FROM trash WHERE id = ?`, [trashId]);
     this._requestSave();
@@ -1436,21 +1584,25 @@ class Database {
     const cols = result[0].columns;
     const row = result[0].values[0];
     const record = {};
-    cols.forEach((c, i) => { record[c] = row[i]; });
+    cols.forEach((c, i) => {
+      record[c] = row[i];
+    });
     return record;
   }
 
   // v0.72.0: 获取回收站列表
   getTrashRecords(limit = 50, offset = 0) {
-    const result = this.db.exec(
-      `SELECT * FROM trash ORDER BY deleted_at DESC LIMIT ? OFFSET ?`,
-      [limit, offset]
-    );
+    const result = this.db.exec(`SELECT * FROM trash ORDER BY deleted_at DESC LIMIT ? OFFSET ?`, [
+      limit,
+      offset
+    ]);
     if (!result.length) return [];
     const cols = result[0].columns;
     return result[0].values.map(row => {
       const record = {};
-      cols.forEach((c, i) => { record[c] = row[i]; });
+      cols.forEach((c, i) => {
+        record[c] = row[i];
+      });
       return record;
     });
   }
@@ -1477,11 +1629,16 @@ class Database {
   // 获取统计
   getStats() {
     const total = this.db.exec(`SELECT COUNT(*) FROM records`)[0]?.values[0][0] || 0;
-    const text = this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'text'`)[0]?.values[0][0] || 0;
-    const image = this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'image'`)[0]?.values[0][0] || 0;
-    const file = this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'file'`)[0]?.values[0][0] || 0;
-    const code = this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'code'`)[0]?.values[0][0] || 0;
-    const favorite = this.db.exec(`SELECT COUNT(*) FROM records WHERE favorite = 1`)[0]?.values[0][0] || 0;
+    const text =
+      this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'text'`)[0]?.values[0][0] || 0;
+    const image =
+      this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'image'`)[0]?.values[0][0] || 0;
+    const file =
+      this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'file'`)[0]?.values[0][0] || 0;
+    const code =
+      this.db.exec(`SELECT COUNT(*) FROM records WHERE type = 'code'`)[0]?.values[0][0] || 0;
+    const favorite =
+      this.db.exec(`SELECT COUNT(*) FROM records WHERE favorite = 1`)[0]?.values[0][0] || 0;
     return { total, text, image, file, code, favorite };
   }
 
@@ -1492,25 +1649,37 @@ class Database {
     // 今日记录数
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const todayCount = this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at >= ?`, [todayStart.toISOString()])[0]?.values[0][0] || 0;
+    const todayCount =
+      this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at >= ?`, [
+        todayStart.toISOString()
+      ])[0]?.values[0][0] || 0;
 
     // 本周记录数
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     weekStart.setHours(0, 0, 0, 0);
-    const weekCount = this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at >= ?`, [weekStart.toISOString()])[0]?.values[0][0] || 0;
+    const weekCount =
+      this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at >= ?`, [
+        weekStart.toISOString()
+      ])[0]?.values[0][0] || 0;
 
     // 本月记录数
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
-    const monthCount = this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at >= ?`, [monthStart.toISOString()])[0]?.values[0][0] || 0;
+    const monthCount =
+      this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at >= ?`, [
+        monthStart.toISOString()
+      ])[0]?.values[0][0] || 0;
 
     // 平均每日记录数
     const firstRecord = this.db.exec(`SELECT MIN(created_at) FROM records`)[0]?.values[0][0];
     let avgPerDay = 0;
     if (firstRecord) {
-      const days = Math.max(1, Math.ceil((Date.now() - new Date(firstRecord).getTime()) / (1000 * 60 * 60 * 24)));
+      const days = Math.max(
+        1,
+        Math.ceil((Date.now() - new Date(firstRecord).getTime()) / (1000 * 60 * 60 * 24))
+      );
       avgPerDay = Math.round((basic.total / days) * 10) / 10;
     }
 
@@ -1522,9 +1691,10 @@ class Database {
       ORDER BY count DESC
       LIMIT 3
     `);
-    const peakHours = hourlyStats.length > 0
-      ? hourlyStats[0].values.map(([h, c]) => ({ hour: parseInt(h), count: c }))
-      : [];
+    const peakHours =
+      hourlyStats.length > 0
+        ? hourlyStats[0].values.map(([h, c]) => ({ hour: parseInt(h), count: c }))
+        : [];
 
     // 类型占比
     const typePercent = {};
@@ -1543,19 +1713,21 @@ class Database {
       d.setHours(0, 0, 0, 0);
       const nextD = new Date(d);
       nextD.setDate(nextD.getDate() + 1);
-      const count = this.db.exec(
-        `SELECT COUNT(*) FROM records WHERE created_at >= ? AND created_at < ?`,
-        [d.toISOString(), nextD.toISOString()]
-      )[0]?.values[0][0] || 0;
+      const count =
+        this.db.exec(`SELECT COUNT(*) FROM records WHERE created_at >= ? AND created_at < ?`, [
+          d.toISOString(),
+          nextD.toISOString()
+        ])[0]?.values[0][0] || 0;
       trend.push({
         date: d.toISOString().slice(0, 10),
         label: `${d.getMonth() + 1}/${d.getDate()}`,
-        count,
+        count
       });
     }
 
     // 加密记录数
-    const encrypted = this.db.exec(`SELECT COUNT(*) FROM records WHERE encrypted = 1`)[0]?.values[0][0] || 0;
+    const encrypted =
+      this.db.exec(`SELECT COUNT(*) FROM records WHERE encrypted = 1`)[0]?.values[0][0] || 0;
 
     return {
       ...basic,
@@ -1567,7 +1739,7 @@ class Database {
       typePercent,
       trend,
       encrypted,
-      firstRecordDate: firstRecord,
+      firstRecordDate: firstRecord
     };
   }
 
@@ -1589,10 +1761,10 @@ class Database {
   // 保存设置
   saveSettings(settings) {
     for (const [key, value] of Object.entries(settings)) {
-      this.db.run(
-        `INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`,
-        [key, JSON.stringify(value)]
-      );
+      this.db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, [
+        key,
+        JSON.stringify(value)
+      ]);
     }
     this._requestSave();
     return true;
@@ -1603,10 +1775,13 @@ class Database {
     try {
       const totalResult = this.db.exec('SELECT COUNT(*) as count FROM records WHERE encrypted = 1');
       const total = totalResult.length ? totalResult[0].values[0][0] : 0;
-      const byAlgoResult = this.db.exec('SELECT encryption_algorithm, COUNT(*) as count FROM records WHERE encrypted = 1 GROUP BY encryption_algorithm');
-      const byAlgorithm = byAlgoResult.length && byAlgoResult[0].values.length
-        ? byAlgoResult[0].values.map(row => ({ encryption_algorithm: row[0], count: row[1] }))
-        : [];
+      const byAlgoResult = this.db.exec(
+        'SELECT encryption_algorithm, COUNT(*) as count FROM records WHERE encrypted = 1 GROUP BY encryption_algorithm'
+      );
+      const byAlgorithm =
+        byAlgoResult.length && byAlgoResult[0].values.length
+          ? byAlgoResult[0].values.map(row => ({ encryption_algorithm: row[0], count: row[1] }))
+          : [];
       return { total, byAlgorithm };
     } catch (e) {
       return { total: 0, byAlgorithm: [] };
@@ -1623,11 +1798,12 @@ class Database {
 
   // 添加模板
   addTemplate(name, content, category = '默认') {
-    this.db.run(
-      `INSERT INTO templates (name, content, category) VALUES (?, ?, ?)`,
-      [name, content, category]
-    );
-    const id = this.db.exec("SELECT last_insert_rowid() as id")[0].values[0][0];
+    this.db.run(`INSERT INTO templates (name, content, category) VALUES (?, ?, ?)`, [
+      name,
+      content,
+      category
+    ]);
+    const id = this.db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
     this._requestSave();
     return this.getTemplate(id);
   }
@@ -1641,10 +1817,12 @@ class Database {
 
   // 更新模板
   updateTemplate(id, name, content, category) {
-    this.db.run(
-      `UPDATE templates SET name = ?, content = ?, category = ? WHERE id = ?`,
-      [name, content, category, id]
-    );
+    this.db.run(`UPDATE templates SET name = ?, content = ?, category = ? WHERE id = ?`, [
+      name,
+      content,
+      category,
+      id
+    ]);
     this._requestSave();
     return this.getTemplate(id);
   }
@@ -1672,7 +1850,7 @@ class Database {
     if (result.length === 0) return [];
     return result[0].values.map(row => {
       const group = {};
-      result[0].columns.forEach((col, i) => group[col] = row[i]);
+      result[0].columns.forEach((col, i) => (group[col] = row[i]));
       return group;
     });
   }
@@ -1682,10 +1860,12 @@ class Database {
     // 获取最大排序值
     const maxOrder = this.db.exec(`SELECT MAX(sort_order) FROM groups`)[0]?.values[0][0] || 0;
 
-    this.db.run(
-      `INSERT INTO groups (name, color, icon, sort_order) VALUES (?, ?, ?, ?)`,
-      [name, color, icon, maxOrder + 1]
-    );
+    this.db.run(`INSERT INTO groups (name, color, icon, sort_order) VALUES (?, ?, ?, ?)`, [
+      name,
+      color,
+      icon,
+      maxOrder + 1
+    ]);
     const id = this.db.exec(`SELECT last_insert_rowid() as id`)[0].values[0][0];
     this._requestSave();
     return this.getGroup(id);
@@ -1696,7 +1876,7 @@ class Database {
     const result = this.db.exec(`SELECT * FROM groups WHERE id = ?`, [id]);
     if (result.length === 0 || result[0].values.length === 0) return null;
     const group = {};
-    result[0].columns.forEach((col, i) => group[col] = result[0].values[0][i]);
+    result[0].columns.forEach((col, i) => (group[col] = result[0].values[0][i]));
     return group;
   }
 
@@ -1705,11 +1885,26 @@ class Database {
     const updates = [];
     const params = [];
 
-    if (name !== undefined) { updates.push('name = ?'); params.push(name); }
-    if (color !== undefined) { updates.push('color = ?'); params.push(color); }
-    if (icon !== undefined) { updates.push('icon = ?'); params.push(icon); }
-    if (collapsed !== undefined) { updates.push('collapsed = ?'); params.push(collapsed ? 1 : 0); }
-    if (sort_order !== undefined) { updates.push('sort_order = ?'); params.push(sort_order); }
+    if (name !== undefined) {
+      updates.push('name = ?');
+      params.push(name);
+    }
+    if (color !== undefined) {
+      updates.push('color = ?');
+      params.push(color);
+    }
+    if (icon !== undefined) {
+      updates.push('icon = ?');
+      params.push(icon);
+    }
+    if (collapsed !== undefined) {
+      updates.push('collapsed = ?');
+      params.push(collapsed ? 1 : 0);
+    }
+    if (sort_order !== undefined) {
+      updates.push('sort_order = ?');
+      params.push(sort_order);
+    }
 
     if (updates.length === 0) return this.getGroup(id);
 
@@ -1739,22 +1934,18 @@ class Database {
 
   // 移动记录到分组
   moveRecordToGroup(recordId, groupId) {
-    this.db.run(
-      `UPDATE records SET group_id = ? WHERE id = ?`,
-      [groupId, recordId]
-    );
+    this.db.run(`UPDATE records SET group_id = ? WHERE id = ?`, [groupId, recordId]);
     this._requestSave();
     return true;
   }
 
-
-
   // 更新记录排序
   updateRecordSortOrder(recordId, newOrder, newGroupId = null) {
-    this.db.run(
-      `UPDATE records SET sort_order = ?, group_id = ? WHERE id = ?`,
-      [newOrder, newGroupId, recordId]
-    );
+    this.db.run(`UPDATE records SET sort_order = ?, group_id = ? WHERE id = ?`, [
+      newOrder,
+      newGroupId,
+      recordId
+    ]);
     this._requestSave();
     return true;
   }
@@ -1763,10 +1954,11 @@ class Database {
   batchUpdateSortOrder(updates) {
     // updates: [{ id, sort_order, group_id }]
     for (const update of updates) {
-      this.db.run(
-        `UPDATE records SET sort_order = ?, group_id = ? WHERE id = ?`,
-        [update.sort_order, update.group_id, update.id]
-      );
+      this.db.run(`UPDATE records SET sort_order = ?, group_id = ? WHERE id = ?`, [
+        update.sort_order,
+        update.group_id,
+        update.id
+      ]);
     }
     this._requestSave();
     return true;
@@ -1809,7 +2001,9 @@ class Database {
 
     // 按标签统计
     const tagRecords = {};
-    const tagResult = this.db.exec(`SELECT id, tags FROM records WHERE tags IS NOT NULL AND tags != ''`);
+    const tagResult = this.db.exec(
+      `SELECT id, tags FROM records WHERE tags IS NOT NULL AND tags != ''`
+    );
     if (tagResult.length > 0) {
       tagResult[0].values.forEach(row => {
         try {
@@ -1817,7 +2011,7 @@ class Database {
           tags.forEach(tag => {
             tagRecords[tag] = (tagRecords[tag] || 0) + 1;
           });
-        } catch (e) { }
+        } catch (e) {}
       });
     }
 
@@ -1873,7 +2067,16 @@ class Database {
   _recordsToCSV(records) {
     if (records.length === 0) return '';
 
-    const headers = ['id', 'type', 'content', 'created_at', 'favorite', 'source_app', 'language', 'tags'];
+    const headers = [
+      'id',
+      'type',
+      'content',
+      'created_at',
+      'favorite',
+      'source_app',
+      'language',
+      'tags'
+    ];
     const rows = [headers.join(',')];
 
     for (const record of records) {
@@ -1991,16 +2194,25 @@ class Database {
 
     let updated = 0;
     if (favorite !== undefined) {
-      this.db.run(`UPDATE records SET favorite = ? WHERE id IN (${placeholders})`, [favorite ? 1 : 0, ...ids]);
+      this.db.run(`UPDATE records SET favorite = ? WHERE id IN (${placeholders})`, [
+        favorite ? 1 : 0,
+        ...ids
+      ]);
       updated += this.db.getRowsModified();
     }
     if (tags !== undefined) {
       const tagsJson = typeof tags === 'string' ? tags : JSON.stringify(tags);
-      this.db.run(`UPDATE records SET tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, [tagsJson, ...ids]);
+      this.db.run(
+        `UPDATE records SET tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`,
+        [tagsJson, ...ids]
+      );
       updated += this.db.getRowsModified();
     }
     if (groupId !== undefined) {
-      this.db.run(`UPDATE records SET group_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`, [groupId, ...ids]);
+      this.db.run(
+        `UPDATE records SET group_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`,
+        [groupId, ...ids]
+      );
       updated += this.db.getRowsModified();
     }
 
@@ -2010,7 +2222,8 @@ class Database {
 
   // v0.27.0: 获取置顶记录统计
   getPinnedStats() {
-    const total = this.db.exec(`SELECT COUNT(*) FROM records WHERE favorite = 1`)[0]?.values[0][0] || 0;
+    const total =
+      this.db.exec(`SELECT COUNT(*) FROM records WHERE favorite = 1`)[0]?.values[0][0] || 0;
 
     // 按类型分布
     const byType = {};
@@ -2041,7 +2254,8 @@ class Database {
     }
 
     // 带标签的置顶记录数
-    const withTags = this.db.exec(`
+    const withTags =
+      this.db.exec(`
       SELECT COUNT(*) FROM records
       WHERE favorite = 1 AND tags IS NOT NULL AND tags != '[]' AND tags != ''
     `)[0]?.values[0][0] || 0;
@@ -2049,10 +2263,14 @@ class Database {
     // 最近一周新增的置顶记录
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const recentWeek = this.db.exec(`
+    const recentWeek =
+      this.db.exec(
+        `
       SELECT COUNT(*) FROM records
       WHERE favorite = 1 AND updated_at >= ?
-    `, [weekAgo.toISOString()])[0]?.values[0][0] || 0;
+    `,
+        [weekAgo.toISOString()]
+      )[0]?.values[0][0] || 0;
 
     return {
       total,
@@ -2060,7 +2278,7 @@ class Database {
       bySource,
       withTags,
       withoutTags: total - withTags,
-      recentWeek,
+      recentWeek
     };
   }
 
@@ -2085,14 +2303,14 @@ class Database {
       database: {
         path: this.dbPath,
         size: dbSize,
-        sizeFormatted: this._formatBytes(dbSize),
+        sizeFormatted: this._formatBytes(dbSize)
       },
       settings: {
         maxRecords: settings.maxRecords || 1000,
         autoCleanup: settings.autoCleanup !== false,
-        encryption: settings.encryptionPassword ? true : false,
+        encryption: settings.encryptionPassword ? true : false
       },
-      version: 'v0.26.0-dev',
+      version: 'v0.26.0-dev'
     };
   }
 
@@ -2123,7 +2341,7 @@ class Database {
       if (syncInfo.length > 0 && syncInfo[0].values.length > 0) {
         lastSyncTime = syncInfo[0].values[0][0];
       }
-    } catch (e) { }
+    } catch (e) {}
 
     // 获取同步配置
     let syncConfig = null;
@@ -2143,7 +2361,7 @@ class Database {
       totalRecords: stats.total,
       syncedRecords: this._getSyncedCount(),
       pendingRecords: stats.total - this._getSyncedCount(),
-      config: syncConfig,
+      config: syncConfig
     };
   }
 
@@ -2162,9 +2380,12 @@ class Database {
    * 保存同步配置
    */
   saveSyncConfig(config) {
-    this.db.run(`
+    this.db.run(
+      `
       INSERT OR REPLACE INTO settings (key, value) VALUES ('sync_config', ?)
-    `, [JSON.stringify(config)]);
+    `,
+      [JSON.stringify(config)]
+    );
     this._requestSave();
     return true;
   }
@@ -2174,9 +2395,12 @@ class Database {
    */
   updateLastSyncTime() {
     const now = new Date().toISOString();
-    this.db.run(`
+    this.db.run(
+      `
       INSERT OR REPLACE INTO settings (key, value) VALUES ('last_sync_time', ?)
-    `, [now]);
+    `,
+      [now]
+    );
     this._requestSave();
     return now;
   }
@@ -2215,7 +2439,7 @@ class Database {
    * @param {Object} options - 导出选项
    */
   exportForSync({
-    records = null,     // 指定记录，不指定则导出所有
+    records = null, // 指定记录，不指定则导出所有
     includeSettings = true,
     encrypt = false,
     encryptionKey = null
@@ -2231,8 +2455,8 @@ class Database {
       records: recordsToExport.map(r => ({
         ...r,
         // 不包含敏感字段
-        synced: undefined,
-      })),
+        synced: undefined
+      }))
     };
 
     if (includeSettings) {
@@ -2254,13 +2478,13 @@ class Database {
         encrypted: true,
         iv: iv.toString('hex'),
         authTag,
-        data: encrypted,
+        data: encrypted
       };
     }
 
     return {
       encrypted: false,
-      data: exportData,
+      data: exportData
     };
   }
 
@@ -2270,10 +2494,14 @@ class Database {
    * @param {string} encryptionKey - 解密密钥（如果数据加密）
    * @param {Object} options - 导入选项
    */
-  importFromSync(syncData, encryptionKey = null, {
-    conflictMode = 'newer',  // newer: 保留较新的, local: 保留本地, remote: 保留远程
-    skipExisting = true,
-  } = {}) {
+  importFromSync(
+    syncData,
+    encryptionKey = null,
+    {
+      conflictMode = 'newer', // newer: 保留较新的, local: 保留本地, remote: 保留远程
+      skipExisting = true
+    } = {}
+  ) {
     let importData = syncData;
 
     // 如果数据加密，先解密
@@ -2303,9 +2531,12 @@ class Database {
     let conflicts = 0;
 
     for (const record of importData.records) {
-      const existing = this.db.exec(`
+      const existing = this.db.exec(
+        `
         SELECT * FROM records WHERE content = ? AND type = ?
-      `, [record.content, record.type]);
+      `,
+        [record.content, record.type]
+      );
 
       if (existing.length > 0 && existing[0].values.length > 0) {
         if (skipExisting) {
@@ -2320,12 +2551,22 @@ class Database {
 
           if (incomingTime > existingTime) {
             // 更新本地记录
-            this.db.run(`
-              UPDATE records SET 
+            this.db.run(
+              `
+              UPDATE records SET
                 content = ?, summary = ?, tags = ?, favorite = ?,
                 updated_at = ?, synced = 1
               WHERE id = ?
-            `, [record.content, record.summary, record.tags, record.favorite, record.updated_at, existingRecord.id]);
+            `,
+              [
+                record.content,
+                record.summary,
+                record.tags,
+                record.favorite,
+                record.updated_at,
+                existingRecord.id
+              ]
+            );
             imported++;
           } else {
             conflicts++;
@@ -2333,20 +2574,23 @@ class Database {
         }
       } else {
         // 新增记录
-        this.db.run(`
+        this.db.run(
+          `
           INSERT INTO records (content, type, summary, tags, favorite, source_app, encrypted, created_at, updated_at, synced)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-        `, [
-          record.content,
-          record.type,
-          record.summary,
-          record.tags,
-          record.favorite,
-          record.source_app,
-          record.encrypted,
-          record.created_at,
-          record.updated_at
-        ]);
+        `,
+          [
+            record.content,
+            record.type,
+            record.summary,
+            record.tags,
+            record.favorite,
+            record.source_app,
+            record.encrypted,
+            record.created_at,
+            record.updated_at
+          ]
+        );
         imported++;
       }
     }
@@ -2357,7 +2601,7 @@ class Database {
       imported,
       skipped,
       conflicts,
-      total: importData.records.length,
+      total: importData.records.length
     };
   }
 
@@ -2394,7 +2638,7 @@ class Database {
           byType[type] = count;
         });
       }
-    } catch (e) { }
+    } catch (e) {}
 
     // 获取最早和最新的待同步记录时间
     let oldestPending = null;
@@ -2407,7 +2651,7 @@ class Database {
         oldestPending = timeResult[0].values[0][0];
         newestPending = timeResult[0].values[0][1];
       }
-    } catch (e) { }
+    } catch (e) {}
 
     return {
       total,
@@ -2416,7 +2660,7 @@ class Database {
       syncProgress: total > 0 ? Math.round((synced / total) * 100) : 100,
       byType,
       oldestPending,
-      newestPending,
+      newestPending
     };
   }
 
@@ -2430,7 +2674,7 @@ class Database {
         durationSeconds: 3,
         showPreview: true,
         minContentLength: 0,
-        excludedApps: [],
+        excludedApps: []
       };
       if (result.length > 0) {
         for (const row of result[0].values) {
@@ -2442,14 +2686,23 @@ class Database {
           else if (key === 'notify_show_preview') settings.showPreview = value === 'true';
           else if (key === 'notify_min_length') settings.minContentLength = parseInt(value) || 0;
           else if (key === 'notify_excluded_apps') {
-            try { settings.excludedApps = JSON.parse(value); } catch (e) { }
+            try {
+              settings.excludedApps = JSON.parse(value);
+            } catch (e) {}
           }
         }
       }
       return settings;
     } catch (e) {
       console.error('获取通知设置失败:', e);
-      return { enabled: false, soundEnabled: true, durationSeconds: 3, showPreview: true, minContentLength: 0, excludedApps: [] };
+      return {
+        enabled: false,
+        soundEnabled: true,
+        durationSeconds: 3,
+        showPreview: true,
+        minContentLength: 0,
+        excludedApps: []
+      };
     }
   }
 
@@ -2462,7 +2715,7 @@ class Database {
         ['notify_duration', String(settings.durationSeconds || 3)],
         ['notify_show_preview', settings.showPreview ? 'true' : 'false'],
         ['notify_min_length', String(settings.minContentLength || 0)],
-        ['notify_excluded_apps', JSON.stringify(settings.excludedApps || [])],
+        ['notify_excluded_apps', JSON.stringify(settings.excludedApps || [])]
       ];
       for (const [key, value] of updates) {
         this.db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, [key, value]);
@@ -2489,7 +2742,7 @@ class Database {
       return {
         enabled: get('expiry_enabled', 'false') === 'true',
         days: parseInt(get('expiry_days', '30')) || 30,
-        keepFavorites: get('expiry_keep_favorites', 'true') === 'true',
+        keepFavorites: get('expiry_keep_favorites', 'true') === 'true'
       };
     } catch (e) {
       console.error('获取自动过期设置失败:', e);
@@ -2502,7 +2755,7 @@ class Database {
       const updates = [
         ['expiry_enabled', settings.enabled ? 'true' : 'false'],
         ['expiry_days', String(settings.days || 30)],
-        ['expiry_keep_favorites', settings.keepFavorites ? 'true' : 'false'],
+        ['expiry_keep_favorites', settings.keepFavorites ? 'true' : 'false']
       ];
       for (const [key, value] of updates) {
         this.db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, [key, value]);
@@ -2519,7 +2772,7 @@ class Database {
       const settings = this.getAutoExpirySettings();
       if (!settings.enabled || settings.days <= 0) return 0;
       const cutoffDate = new Date(Date.now() - settings.days * 86400000).toISOString();
-      
+
       // 使用参数化查询防止 SQL 注入
       let query, params;
       if (settings.keepFavorites) {
@@ -2529,7 +2782,7 @@ class Database {
         query = 'DELETE FROM records WHERE created_at < ?';
         params = [cutoffDate];
       }
-      
+
       this.db.run(query, params);
       const result = this.db.exec('SELECT changes() as count');
       return result.length > 0 && result[0].values.length > 0 ? result[0].values[0][0] : 0;
@@ -2558,7 +2811,10 @@ class Database {
         return r.length > 0 && r[0].values.length > 0 ? r[0].values[0][0] : 0;
       };
       const getProtected = () => {
-        const r = this.db.exec('SELECT COUNT(*) FROM records WHERE created_at < ? AND favorite = 1', [cutoffDate]);
+        const r = this.db.exec(
+          'SELECT COUNT(*) FROM records WHERE created_at < ? AND favorite = 1',
+          [cutoffDate]
+        );
         return r.length > 0 && r[0].values.length > 0 ? r[0].values[0][0] : 0;
       };
       return { total: getTotal(), expired: getExpired(), protected: getProtected() };
@@ -2621,7 +2877,9 @@ class Database {
     const values = records[0].values;
     return values.map(row => {
       const obj = {};
-      columns.forEach((col, i) => { obj[col] = row[i]; });
+      columns.forEach((col, i) => {
+        obj[col] = row[i];
+      });
       return obj;
     });
   }
@@ -2657,14 +2915,14 @@ class Database {
     if (mode === 'replace') {
       this.db.exec('DELETE FROM records WHERE is_pinned = 0');
     }
-    let imported = 0, skipped = 0;
+    let imported = 0,
+      skipped = 0;
     for (const r of records) {
       if (!r.content) continue;
       // Check duplicate
-      const existing = this.db.exec(
-        `SELECT id FROM records WHERE content = $c LIMIT 1`,
-        { $c: r.content }
-      );
+      const existing = this.db.exec(`SELECT id FROM records WHERE content = $c LIMIT 1`, {
+        $c: r.content
+      });
       if (existing.length && existing[0].values.length) {
         skipped++;
         continue;
@@ -2679,7 +2937,7 @@ class Database {
         sourceApp: r.source_app || '',
         language: r.language || '',
         aiSummary: r.ai_summary || '',
-        encrypted: r.encrypted || 0,
+        encrypted: r.encrypted || 0
       });
       imported++;
     }
@@ -2704,7 +2962,8 @@ class Database {
     const nblocks = Math.floor(len / 4);
 
     for (let i = 0; i < nblocks; i++) {
-      let k1 = (chars[i * 4] & 0xff) |
+      let k1 =
+        (chars[i * 4] & 0xff) |
         ((chars[i * 4 + 1] & 0xff) << 8) |
         ((chars[i * 4 + 2] & 0xff) << 16) |
         ((chars[i * 4 + 3] & 0xff) << 24);
@@ -2719,9 +2978,12 @@ class Database {
     let k1 = 0;
     const tail = nblocks * 4;
     switch (len & 3) {
-      case 3: k1 ^= (chars[tail + 2] & 0xff) << 16;
-      case 2: k1 ^= (chars[tail + 1] & 0xff) << 8;
-      case 1: k1 ^= (chars[tail] & 0xff);
+      case 3:
+        k1 ^= (chars[tail + 2] & 0xff) << 16;
+      case 2:
+        k1 ^= (chars[tail + 1] & 0xff) << 8;
+      case 1:
+        k1 ^= chars[tail] & 0xff;
         k1 = Math.imul(k1, c1);
         k1 = (k1 << 15) | (k1 >>> 17);
         k1 = Math.imul(k1, c2);
@@ -2790,18 +3052,18 @@ class Database {
     const sigs = contents.map(c => this._minhash(c));
     const pairs = [];
 
-    outer:
-    for (let i = 0; i < sigs.length; i++) {
+    outer: for (let i = 0; i < sigs.length; i++) {
       if (!sigs[i]) continue;
       for (let j = i + 1; j < sigs.length; j++) {
         if (!sigs[j]) continue;
         const sim = this._minhashJaccard(sigs[i], sigs[j]);
         if (sim >= threshold) {
           pairs.push({
-            idA: ids[i], idB: ids[j],
+            idA: ids[i],
+            idB: ids[j],
             contentA: contents[i].substring(0, 150),
             contentB: contents[j].substring(0, 150),
-            jaccard: Math.round(sim * 100),
+            jaccard: Math.round(sim * 100)
           });
           if (pairs.length >= 50) break outer;
         }
@@ -2823,10 +3085,7 @@ class Database {
     }
 
     for (const id of toDelete) {
-      this.db.run(
-        'DELETE FROM records WHERE id = ? AND favorite = 0 AND locked = 0',
-        [id]
-      );
+      this.db.run('DELETE FROM records WHERE id = ? AND favorite = 0 AND locked = 0', [id]);
       deletedCount++;
     }
 
@@ -2836,14 +3095,15 @@ class Database {
 
   // 获取模糊去重统计
   getFuzzyStats() {
-    const all = this.db.exec(
-      'SELECT COUNT(*) FROM records WHERE encrypted = 0 AND type IN (\"text\",\"code\")'
-    )[0]?.values[0][0] || 0;
+    const all =
+      this.db.exec(
+        'SELECT COUNT(*) FROM records WHERE encrypted = 0 AND type IN (\"text\",\"code\")'
+      )[0]?.values[0][0] || 0;
     const dups = this._findFuzzyDuplicates(0.75);
     return {
       total: all,
       fuzzyPairsFound: dups.length,
-      samples: dups.slice(0, 3),
+      samples: dups.slice(0, 3)
     };
   }
 
@@ -2878,13 +3138,18 @@ class Database {
           strategy: 'edit',
           created_at: createdAt,
           favorite: favorite === 1,
-          type,
+          type
         });
         continue;
       }
 
       // 策略 2：Token 级重叠（适合长文本有轻微差异的情况）
-      const recTokens = new Set(recordContent.toLowerCase().split(/\s+/).filter(t => t.length > 2));
+      const recTokens = new Set(
+        recordContent
+          .toLowerCase()
+          .split(/\s+/)
+          .filter(t => t.length > 2)
+      );
       let overlap = 0;
       for (const tok of contentTokens) {
         if (recTokens.has(tok)) overlap++;
@@ -2900,7 +3165,7 @@ class Database {
           strategy: 'token',
           created_at: createdAt,
           favorite: favorite === 1,
-          type,
+          type
         });
       }
     }
@@ -2929,14 +3194,17 @@ class Database {
   getStatsByApp(limit) {
     limit = Math.max(1, Math.min(parseInt(limit) || 10, 1000));
     try {
-      const result = this.db.exec(`
+      const result = this.db.exec(
+        `
       SELECT source_app, COUNT(*) as count
       FROM records
       WHERE source_app IS NOT NULL AND source_app != ''
       GROUP BY source_app
       ORDER BY count DESC
       LIMIT ?
-    `, [limit]);
+    `,
+        [limit]
+      );
       if (!result.length || !result[0].values.length) return [];
       return result[0].values.map(row => ({ source_app: row[0], count: row[1] }));
     } catch (e) {
@@ -2948,7 +3216,8 @@ class Database {
   getDailyStats(days) {
     days = Math.max(1, Math.min(parseInt(days) || 30, 3650));
     try {
-      const result = this.db.exec(`
+      const result = this.db.exec(
+        `
       SELECT
         DATE(created_at) as date,
         COUNT(*) as count,
@@ -2960,7 +3229,9 @@ class Database {
       WHERE created_at >= DATE('now', '-' || ? || ' days')
       GROUP BY DATE(created_at)
       ORDER BY date ASC
-    `, [String(days)]);
+    `,
+        [String(days)]
+      );
       if (!result.length || !result[0].values.length) return [];
       return result[0].values.map(row => ({
         date: row[0],
@@ -2989,7 +3260,9 @@ class Database {
     `);
       const hourly = Array(24).fill(0);
       if (result.length > 0 && result[0].values.length > 0) {
-        result[0].values.forEach(row => { hourly[row[0]] = row[1]; });
+        result[0].values.forEach(row => {
+          hourly[row[0]] = row[1];
+        });
       }
       return hourly;
     } catch (e) {
@@ -3002,18 +3275,23 @@ class Database {
   getCalendarData(days) {
     days = Math.max(1, Math.min(parseInt(days) || 365, 3650));
     try {
-      const result = this.db.exec(`
-      SELECT 
+      const result = this.db.exec(
+        `
+      SELECT
         DATE(created_at) as date,
         COUNT(*) as count
-      FROM records 
+      FROM records
       WHERE created_at >= DATE('now', '-' || ? || ' days')
       GROUP BY DATE(created_at)
       ORDER BY date ASC
-    `, [String(days)]);
+    `,
+        [String(days)]
+      );
       const dataMap = {};
       if (result.length && result[0].values.length) {
-        result[0].values.forEach(row => { dataMap[row[0]] = row[1]; });
+        result[0].values.forEach(row => {
+          dataMap[row[0]] = row[1];
+        });
       }
       return { days: days, dataMap: dataMap };
     } catch (e) {

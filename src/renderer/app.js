@@ -1,3 +1,4 @@
+// @ts-nocheck
 ﻿/**
  * ClawBoard - 渲染进程应用
  */

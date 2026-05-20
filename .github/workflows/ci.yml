@@ -6,10 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,11 +35,13 @@ jobs:
 
       - name: Test
         run: pnpm test
-        continue-on-error: false
 
-      - name: Build
-        run: pnpm build
-        continue-on-error: true
+      - name: CLI Smoke Test
+        run: |
+          node src/cli/index.js --help
+          node src/cli/index.js --version
+          node src/cli/index.js list
+          node src/cli/index.js stats
 
       - name: Upload coverage
         if: success()
