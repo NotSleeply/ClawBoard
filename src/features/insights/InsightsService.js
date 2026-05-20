@@ -17,7 +17,7 @@ class Insights {
         const topType = typeStats[0];
         const typeNames = { text: '文字', code: '代码', file: '文件', image: '图片' };
         const total = typeStats.reduce((a, b) => a + b.count, 0);
-        const pct = total > 0 ? Math.round(topType.count / total * 100) : 0;
+        const pct = total > 0 ? Math.round((topType.count / total) * 100) : 0;
         insights.push({
           type: 'type',
           icon: '📊',
@@ -30,7 +30,7 @@ class Insights {
       // Insight 2: 最活跃的星期
       const weekly = this.db.getWeeklyTrend ? this.db.getWeeklyTrend() : [];
       if (weekly.length > 0) {
-        const topDay = weekly.reduce((a, b) => a.count > b.count ? a : b);
+        const topDay = weekly.reduce((a, b) => (a.count > b.count ? a : b));
         insights.push({
           type: 'day',
           icon: '📅',
@@ -52,7 +52,7 @@ class Insights {
         } catch (e) {
           dupes = 0;
         }
-        const dupRate = Math.round(dupes / total * 100);
+        const dupRate = Math.round((dupes / total) * 100);
         if (dupRate > 5) {
           insights.push({
             type: 'duplicate',
@@ -75,7 +75,7 @@ class Insights {
           priority: 'low'
         });
       } else if (total > 0) {
-        const favRate = Math.round(favCount / total * 100);
+        const favRate = Math.round((favCount / total) * 100);
         insights.push({
           type: 'favorite',
           icon: '⭐',

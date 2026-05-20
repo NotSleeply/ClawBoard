@@ -114,7 +114,8 @@ class SnippetsManager {
       {
         group: '开发',
         name: '代码注释头',
-        content: '/**\n * {{description}}\n * @author {{author}}\n * @date {{YYYY}}-{{MM}}-{{DD}}\n */',
+        content:
+          '/**\n * {{description}}\n * @author {{author}}\n * @date {{YYYY}}-{{MM}}-{{DD}}\n */',
         description: 'JSDoc 风格的函数注释',
         icon: '💻',
         tags: ['代码', '注释', 'JavaScript']
@@ -122,7 +123,8 @@ class SnippetsManager {
       {
         group: '开发',
         name: 'TODO 注释',
-        content: '// TODO: {{clipboard}}\n// 创建时间: {{YYYY-MM-DD HH:mm:ss}}\n// 优先级: [高/中/低]',
+        content:
+          '// TODO: {{clipboard}}\n// 创建时间: {{YYYY-MM-DD HH:mm:ss}}\n// 优先级: [高/中/低]',
         description: '创建待办事项注释',
         icon: '📝',
         tags: ['代码', 'TODO', '任务']
@@ -130,7 +132,8 @@ class SnippetsManager {
       {
         group: '办公',
         name: '会议纪要模板',
-        content: '# 会议纪要\n\n**主题**: {{meeting_topic}}\n**日期**: {{YYYY-MM-DD}}\n**参会人员**: {{attendees}}\n\n## 议程\n1. \n2. \n3. \n\n## 决议\n- \n- \n\n## 待办事项\n- [ ] \n- [ ] ',
+        content:
+          '# 会议纪要\n\n**主题**: {{meeting_topic}}\n**日期**: {{YYYY-MM-DD}}\n**参会人员**: {{attendees}}\n\n## 议程\n1. \n2. \n3. \n\n## 决议\n- \n- \n\n## 待办事项\n- [ ] \n- [ ] ',
         description: '标准会议记录格式',
         icon: '📋',
         tags: ['会议', '办公', '模板']
@@ -138,7 +141,8 @@ class SnippetsManager {
       {
         group: '办公',
         name: '周报模板',
-        content: '# 工作周报\n\n**姓名**: {{name}}\n**部门**: {{department}}\n**周期**: {{week_range}}\n\n## 本周完成\n1. \n2. \n3. \n\n## 进行中工作\n- \n- \n\n## 下周计划\n1. \n2. \n\n## 问题与风险\n- \n- ',
+        content:
+          '# 工作周报\n\n**姓名**: {{name}}\n**部门**: {{department}}\n**周期**: {{week_range}}\n\n## 本周完成\n1. \n2. \n3. \n\n## 进行中工作\n- \n- \n\n## 下周计划\n1. \n2. \n\n## 问题与风险\n- \n- ',
         description: '周工作报告模板',
         icon: '📊',
         tags: ['报告', '办公', '周报']
@@ -251,10 +255,11 @@ class SnippetsManager {
     // 搜索关键词
     if (options.search) {
       const keyword = options.search.toLowerCase();
-      snippets = snippets.filter(s =>
-        s.name.toLowerCase().includes(keyword) ||
-        s.content.toLowerCase().includes(keyword) ||
-        s.tags.some(t => t.toLowerCase().includes(keyword))
+      snippets = snippets.filter(
+        s =>
+          s.name.toLowerCase().includes(keyword) ||
+          s.content.toLowerCase().includes(keyword) ||
+          s.tags.some(t => t.toLowerCase().includes(keyword))
       );
     }
 
@@ -269,9 +274,7 @@ class SnippetsManager {
     snippets.sort((a, b) => {
       const valA = a[sortBy] || '';
       const valB = b[sortBy] || '';
-      return sortOrder === 'desc'
-        ? (valB > valA ? 1 : -1)
-        : (valA > valB ? 1 : -1);
+      return sortOrder === 'desc' ? (valB > valA ? 1 : -1) : valA > valB ? 1 : -1;
     });
 
     return snippets;
@@ -287,9 +290,7 @@ class SnippetsManager {
    */
   _extractVariables(content) {
     const matches = content.match(/\{\{([^}]+)\}\}/g);
-    return matches
-      ? [...new Set(matches.map(m => m.replace(/\{\{|\}\}/g, '')))]
-      : [];
+    return matches ? [...new Set(matches.map(m => m.replace(/\{\{|\}\}/g, '')))] : [];
   }
 
   /**
@@ -408,8 +409,10 @@ class SnippetsManager {
    */
   getStats() {
     const totalSnippets = this.snippets.size;
-    const totalUsage = Array.from(this.snippets.values())
-      .reduce((sum, s) => sum + (s.useCount || 0), 0);
+    const totalUsage = Array.from(this.snippets.values()).reduce(
+      (sum, s) => sum + (s.useCount || 0),
+      0
+    );
 
     const topUsed = Array.from(this.snippets.values())
       .sort((a, b) => (b.useCount || 0) - (a.useCount || 0))
@@ -423,7 +426,7 @@ class SnippetsManager {
     return {
       totalSnippets,
       totalUsage,
-      averageUsage: totalSnippets > 0 ? Math.round(totalUsage / totalSnippets * 10) / 10 : 0,
+      averageUsage: totalSnippets > 0 ? Math.round((totalUsage / totalSnippets) * 10) / 10 : 0,
       groups: this.getGroups(),
       topUsed: topUsed.map(s => ({
         id: s.id,

@@ -38,7 +38,7 @@ class HotkeyTemplates {
    */
   renderTemplate(content) {
     const now = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
+    const pad = n => String(n).padStart(2, '0');
     const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     const datetime = `${date} ${time}`;
@@ -53,9 +53,9 @@ class HotkeyTemplates {
   /**
    * 注册所有已保存的快捷键
    * 注意：CLI 版本不支持真正的全局快捷键，仅作数据管理
-   * @param {Function} onTrigger - 触发回调 (accelerator, content, label)
+   * @param {Function} _onTrigger - 触发回调 (accelerator, content, label)
    */
-  registerAll(onTrigger) {
+  registerAll(_onTrigger) {
     const templates = this.getAll();
     console.log(`[HotkeyTemplates] CLI 版本不支持全局快捷键，已加载 ${templates.length} 个模板`);
     return { registered: 0, failed: 0, templates };
@@ -87,10 +87,13 @@ class HotkeyTemplates {
     this.unbindSlot(slot);
 
     // 写入数据库
-    this.db.db.run(`
+    this.db.db.run(
+      `
       INSERT OR REPLACE INTO hotkey_templates (accelerator, slot, label, content, is_template, updated_at)
       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `, [accelerator, slot, label, content, isTemplate ? 1 : 0]);
+    `,
+      [accelerator, slot, label, content, isTemplate ? 1 : 0]
+    );
 
     return { success: true, accelerator, slot };
   }
@@ -119,7 +122,9 @@ class HotkeyTemplates {
     const columns = result[0].columns;
     return result[0].values.map(row => {
       const obj = {};
-      columns.forEach((col, i) => { obj[col] = row[i]; });
+      columns.forEach((col, i) => {
+        obj[col] = row[i];
+      });
       return obj;
     });
   }
@@ -135,7 +140,9 @@ class HotkeyTemplates {
     const columns = result[0].columns;
     const row = result[0].values[0];
     const obj = {};
-    columns.forEach((col, i) => { obj[col] = row[i]; });
+    columns.forEach((col, i) => {
+      obj[col] = row[i];
+    });
     return obj;
   }
 
@@ -157,7 +164,9 @@ class HotkeyTemplates {
         label: binding?.label || null,
         content: binding?.content || null,
         is_template: binding?.is_template || false,
-        preview: binding ? binding.content.substring(0, 50) + (binding.content.length > 50 ? '...' : '') : null,
+        preview: binding
+          ? binding.content.substring(0, 50) + (binding.content.length > 50 ? '...' : '')
+          : null
       };
     });
   }
@@ -168,7 +177,8 @@ class HotkeyTemplates {
    * @param {object} clipboardItem - 剪贴板记录对象 { content, id }
    */
   bindFromClipboardItem(slot, clipboardItem) {
-    const label = clipboardItem.content.substring(0, 20) + (clipboardItem.content.length > 20 ? '...' : '');
+    const label =
+      clipboardItem.content.substring(0, 20) + (clipboardItem.content.length > 20 ? '...' : '');
     return this.bind(slot, label, clipboardItem.content, false);
   }
 }

@@ -15,27 +15,38 @@ class IgnoreRules {
         { pattern: 'KeePass', enabled: true },
         { pattern: 'LastPass', enabled: true },
         { pattern: '密码', enabled: true },
-        { pattern: 'Password', enabled: true },
+        { pattern: 'Password', enabled: true }
       ],
       // 按内容正则忽略
       ignoredPatterns: [
-        { pattern: '^\s*$', enabled: true, description: '空内容' },
-        { pattern: '^[\s\n\r]*$', enabled: true, description: '仅空白字符' },
+        { pattern: '^\\s*$', enabled: true, description: '空内容' },
+        { pattern: '^[\\s\\n\\r]*$', enabled: true, description: '仅空白字符' }
       ],
       // 长度限制
       lengthLimits: {
-        min: 1,      // 最小长度
+        min: 1, // 最小长度
         max: 100000, // 最大长度（约 100KB）
-        enabled: true,
+        enabled: true
       },
       // 敏感信息检测
       sensitiveDetection: {
         enabled: true,
         patterns: [
-          { name: '信用卡号', pattern: '\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12})\b' },
-          { name: '身份证号', pattern: '\b[1-9]\d{5}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b' },
-          { name: 'API 密钥', pattern: '(?:api[_-]?key|apikey|token)\s*[:=]\s*["\']?[a-zA-Z0-9_-]{16,}["\']?' },
-        ],
+          {
+            name: '信用卡号',
+            pattern:
+              '\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12})\\b'
+          },
+          {
+            name: '身份证号',
+            pattern:
+              '\\b[1-9]\\d{5}(?:18|19|20)\\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\\d|3[01])\\d{3}[\\dXx]\\b'
+          },
+          {
+            name: 'API 密钥',
+            pattern: '(?:api[_-]?key|apikey|token)\\s*[:=]\\s*["\']?[a-zA-Z0-9_-]{16,}["\']?'
+          }
+        ]
       },
       // v0.45.0: 自动加密规则
       autoEncrypt: {
@@ -44,11 +55,11 @@ class IgnoreRules {
           { name: '信用卡号', enabled: true, type: 'credit_card' },
           { name: '身份证号', enabled: true, type: 'id_card' },
           { name: 'API 密钥', enabled: true, type: 'api_key' },
-          { name: '手机号', enabled: false, type: 'phone' },
+          { name: '手机号', enabled: false, type: 'phone' }
         ],
         // 自定义规则（用户可添加正则表达式）
-        customRules: [],
-      },
+        customRules: []
+      }
     };
 
     // 忽略的剪贴板内容缓存（用于去重）
@@ -108,7 +119,7 @@ class IgnoreRules {
               reason: `检测到敏感信息，将自动加密: ${autoEncryptTypes.join(', ')}`,
               sensitive: true,
               types: autoEncryptTypes,
-              autoEncrypt: true,
+              autoEncrypt: true
             };
           }
         }
@@ -117,7 +128,7 @@ class IgnoreRules {
           shouldIgnore: true,
           reason: `检测到敏感信息: ${sensitiveInfo.types.join(', ')}`,
           sensitive: true,
-          types: sensitiveInfo.types,
+          types: sensitiveInfo.types
         };
       }
     }
@@ -210,7 +221,7 @@ class IgnoreRules {
 
     return {
       found: foundTypes.length > 0,
-      types: foundTypes,
+      types: foundTypes
     };
   }
 
@@ -221,7 +232,7 @@ class IgnoreRules {
     let hash = 0;
     for (let i = 0; i < content.length; i++) {
       const char = content.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash;
     }
     return hash.toString();
@@ -307,7 +318,9 @@ class IgnoreRules {
    * 移除自定义自动加密规则
    */
   removeCustomAutoEncryptRule(name) {
-    this.rules.autoEncrypt.customRules = this.rules.autoEncrypt.customRules.filter(r => r.name !== name);
+    this.rules.autoEncrypt.customRules = this.rules.autoEncrypt.customRules.filter(
+      r => r.name !== name
+    );
   }
 
   /**

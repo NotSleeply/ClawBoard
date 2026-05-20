@@ -14,17 +14,17 @@ class SessionManager {
     this.db = database;
 
     // 会话状态
-    this._isLocked = true;           // 默认锁定
-    this._sessionStart = null;       // 会话开始时间
-    this._lastActivity = null;       // 最后活动时间
+    this._isLocked = true; // 默认锁定
+    this._sessionStart = null; // 会话开始时间
+    this._lastActivity = null; // 最后活动时间
     this._masterPasswordHash = null; // 主密码哈希 (不存储明文)
-    this._sessionKey = null;         // 当前会话的加密密钥
+    this._sessionKey = null; // 当前会话的加密密钥
 
     // 配置
     this.config = {
-      sessionTimeout: 30 * 60 * 1000,  // 默认30分钟无操作自动锁定
-      maxAttempts: 5,                   // 最大尝试次数
-      lockoutTime: 5 * 60 * 1000,       // 锁定时间 (5分钟)
+      sessionTimeout: 30 * 60 * 1000, // 默认30分钟无操作自动锁定
+      maxAttempts: 5, // 最大尝试次数
+      lockoutTime: 5 * 60 * 1000 // 锁定时间 (5分钟)
     };
 
     // 尝试计数器
@@ -138,7 +138,9 @@ class SessionManager {
         this._lockoutUntil = Date.now() + this.config.lockoutTime;
         this._failedAttempts = 0;
 
-        console.error(`[Session] 连续${this.config.maxAttempts}次错误,已锁定 ${this.config.lockoutTime / 1000}秒`);
+        console.error(
+          `[Session] 连续${this.config.maxAttempts}次错误,已锁定 ${this.config.lockoutTime / 1000}秒`
+        );
         return {
           success: false,
           locked: true,
@@ -222,7 +224,7 @@ class SessionManager {
       lastActivity: this._lastActivity,
       idleTime: this._lastActivity ? Date.now() - this._lastActivity : Infinity,
       failedAttempts: this._failedAttempts,
-      isLockout: this._lockoutUntil && Date.now() < this._lockoutUntil,
+      isLockout: this._lockoutUntil && Date.now() < this._lockoutUntil
     };
   }
 

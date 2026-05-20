@@ -75,19 +75,19 @@
 ```javascript
 _isFilePath(text) {
   const trimmed = text.trim();
-  
+
   // Windows 路径
   const windowsPath = /^[a-zA-Z]:\\[\s\S]*$/;
   const uncPath = /^\\\\[\s\S]+$/;
-  
+
   // Unix 路径 (macOS/Linux)
   // 绝对路径：以 / 开头，且包含 /
   const unixAbsolutePath = /^\/(Users|home|tmp|var|etc|opt|usr|root)(\/[\w.-]+)+$/;
   // 相对路径：包含 ~ 开头
   const homePath = /^~\/[\w.-]+(\/[\w.-]+)*(\.\w+)?$/;
-  
-  return windowsPath.test(trimmed) || 
-         uncPath.test(trimmed) || 
+
+  return windowsPath.test(trimmed) ||
+         uncPath.test(trimmed) ||
          unixAbsolutePath.test(trimmed) ||
          homePath.test(trimmed);
 }
@@ -105,20 +105,22 @@ ipcMain.on('quick-paste-select', (event, item) => {
   const record = db.getRecord(item.id);
   if (record && record.content) {
     clipboard.writeText(record.content);
-    
+
     // 模拟粘贴操作（跨平台）
     setTimeout(() => {
       const { exec } = require('child_process');
       const pasteCmd = Platform.getQuickPasteCommand();
-      
+
       if (pasteCmd) {
         exec(pasteCmd, { windowsHide: true });
       } else {
         // macOS/Linux fallback: 使用 xdotool 或 AppleScript
         if (process.platform === 'darwin') {
-          exec(`osascript -e 'tell application "System Events" to keystroke "v" using command down'`);
+          exec(
+            `osascript -e 'tell application "System Events" to keystroke "v" using command down'`
+          );
         } else if (process.platform === 'linux') {
-          exec('xdotool key ctrl+v', (err) => {
+          exec('xdotool key ctrl+v', err => {
             if (err) log.warn('快速粘贴失败: xdotool 不可用');
           });
         }
@@ -129,6 +131,7 @@ ipcMain.on('quick-paste-select', (event, item) => {
 ```
 
 **扩展 Platform 类**:
+
 ```javascript
 // Platform.js 新增方法
 static getQuickPasteCommand() {
@@ -206,6 +209,7 @@ deb:
 #### 2.2 图标资源准备
 
 需要生成以下图标：
+
 - `assets/icon.png` (256x256, 已有)
 - `assets/icon.ico` (Windows, 多尺寸)
 - `assets/icon.icns` (macOS, 多尺寸)
@@ -223,9 +227,7 @@ deb:
 let shortcutsConfig = {
   cyclePaste: process.platform === 'darwin' ? 'Option+V' : 'Alt+V',
   quickPaste: process.platform === 'darwin' ? 'Option+Q' : 'Alt+Q',
-  toggleMonitoring: process.platform === 'darwin' 
-    ? 'Option+Ctrl+P' 
-    : 'Alt+Ctrl+P'
+  toggleMonitoring: process.platform === 'darwin' ? 'Option+Ctrl+P' : 'Alt+Ctrl+P'
 };
 ```
 
@@ -233,26 +235,29 @@ let shortcutsConfig = {
 
 在 README.md 中新增章节：
 
-```markdown
+````markdown
 ## 🌍 多平台支持
 
 ### 支持的平台
 
-| 平台 | 状态 | 备注 |
-|------|------|------|
-| Windows 10/11 | ✅ 官方支持 | 主力开发平台 |
-| macOS 12+ | ⚠️ 实验性支持 | Apple Silicon + Intel |
-| Ubuntu 20.04+ | ⚠️ 实验性支持 | 需要安装依赖 |
+| 平台          | 状态          | 备注                  |
+| ------------- | ------------- | --------------------- |
+| Windows 10/11 | ✅ 官方支持   | 主力开发平台          |
+| macOS 12+     | ⚠️ 实验性支持 | Apple Silicon + Intel |
+| Ubuntu 20.04+ | ⚠️ 实验性支持 | 需要安装依赖          |
 
 ### 安装方式
 
 #### Windows
+
 ```bash
 # 下载 .exe 安装包或便携版
 npm run build:win
 ```
+````
 
 #### macOS
+
 ```bash
 # 下载 .dmg 安装包
 npm run build:mac
@@ -261,6 +266,7 @@ npm install && npm run dev
 ```
 
 #### Linux (Ubuntu/Debian)
+
 ```bash
 # 下载 .deb 包
 sudo dpkg -i clawboard_*.deb
@@ -275,7 +281,6 @@ chmod +x clawboard.AppImage
   - 需要在"系统偏好设置 > 安全性与隐私"中允许应用
   - 首次运行需要授予"辅助功能"权限（用于全局快捷键）
   - 剪贴板监控需要"完全磁盘访问权限"
-  
 - **Linux**:
   - 快速粘贴功能需要安装 `xdotool`: `sudo apt install xdotool`
   - 通知功能需要 `libnotify` 和 `canberra-gtk-play`
@@ -284,17 +289,21 @@ chmod +x clawboard.AppImage
 ### 运行时依赖
 
 #### Windows
+
 - 无额外依赖（Electron 内置）
 
 #### macOS
+
 - macOS 12 (Monterey) 或更高版本
 - Xcode Command Line Tools（仅开发时需要）
 
 #### Linux
+
 - libnss3
 - libxtst6
 - libnotify4 (可选，用于系统通知)
 - xdotool (可选，用于快速粘贴)
+
 ```
 
 ---
@@ -393,3 +402,4 @@ chmod +x clawboard.AppImage
 **最后更新**: 2026-05-07
 **维护者**: NotSleeply
 **状态**: 进行中
+```

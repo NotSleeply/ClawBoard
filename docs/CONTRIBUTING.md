@@ -26,26 +26,67 @@ npm install -g pnpm
 pnpm install
 ```
 
-### 开发模式
+### 开发命令
 
 ```bash
-# 启动开发服务器 (带热重载)
-pnpm dev
+# 查看 CLI 帮助
+node src/cli/index.js --help
 
-# 或者直接启动 Electron
-pnpm start
+# 运行本地 CLI 命令
+node src/cli/index.js list
 ```
 
 ---
 
+## 🔧 Issue Driven Development
+
+每次开始新任务前必须先创建 GitHub Issue，并在 Issue 中说明：
+
+- 本次任务目标是什么。
+- 具体实现思路是什么。
+- 做到什么程度算达到阶段性 Definition of Done (DoD)。
+
+针对每个 Issue 创建独立分支，例如 `feature/issue-207-ci-tests-jsdoc-structure`。开发完成后创建 PR，PR 描述必须包含：
+
+- 具体的实现逻辑。
+- 开发中遇到的困难及解决思路。
+- 合并后项目的整体形态。
+
+合并前必须通过 GitHub Actions CI：`pnpm lint`、`pnpm format:check`、`pnpm typecheck`、`pnpm test:coverage` 和 CLI smoke test。
+
 ## 🔧 开发流程
+
+### 0. JSDoc 类型约束
+
+项目保持 JavaScript + CommonJS，不引入 TypeScript 源码。新增或重构模块时使用 JSDoc 提供类型信息：
+
+```javascript
+// @ts-check
+
+/**
+ * @typedef {Object} ClipboardRecord
+ * @property {string} id
+ * @property {string} content
+ * @property {'text'|'code'|'file'|'image'} type
+ */
+
+/**
+ * @param {ClipboardRecord} record
+ * @returns {string}
+ */
+function formatRecord(record) {
+  return `${record.id}: ${record.content}`;
+}
+```
+
+`// @ts-check` 可以按文件渐进启用。不要为了类型化一次性重写大模块；优先在新模块、测试覆盖较好的模块和正在重构的模块中补 JSDoc。
 
 ### 1. 代码规范
 
 在开始编码前,请确保你的开发环境配置正确:
 
 ```bash
-# 运行 lint 检查 (应该没有 error, warning <100)
+# 运行 lint 检查 (不允许 error 或 warning)
 pnpm lint
 
 # 自动修复可修复的问题
@@ -53,9 +94,16 @@ pnpm lint:fix
 
 # 格式化代码
 pnpm format
+
+# 检查格式
+pnpm format:check
+
+# JSDoc/JavaScript 类型检查
+pnpm typecheck
 ```
 
 **推荐 VS Code 扩展**:
+
 - ESLint - 实时显示代码问题
 - Prettier - 保存时自动格式化
 - Jest - 测试结果内联显示
@@ -67,6 +115,9 @@ pnpm format
 ```bash
 # 运行所有测试
 pnpm test
+
+# 运行测试并生成覆盖率，CI 使用该命令
+pnpm test:coverage
 
 # 运行特定测试文件
 pnpm test -- src/utils/__tests__/LRUCache.test.js
@@ -106,10 +157,10 @@ describe('ModuleName', () => {
     it('should do something expected', () => {
       // Arrange (准备数据)
       const input = 'test';
-      
+
       // Act (执行操作)
       const result = module.methodName(input);
-      
+
       // Assert (验证结果)
       expect(result).toBe('expected output');
     });
@@ -125,8 +176,8 @@ describe('ModuleName', () => {
 ### 3. 提交代码
 
 ```bash
-# 创建特性分支
-git checkout -b feature/your-feature-name
+# 创建 Issue 对应的特性分支
+git checkout -b feature/issue-123-short-description
 
 # 添加更改
 git add .
@@ -142,18 +193,19 @@ git push origin feature/your-feature-name
 
 我们使用 [Conventional Commits](https://www.conventionalcommits.org/) 规范:
 
-| 类型 | 描述 |
-|------|------|
-| `feat` | 新功能 |
-| `fix` | Bug 修复 |
-| `docs` | 文档变更 |
-| `style` | 代码格式 (不影响逻辑) |
+| 类型       | 描述                          |
+| ---------- | ----------------------------- |
+| `feat`     | 新功能                        |
+| `fix`      | Bug 修复                      |
+| `docs`     | 文档变更                      |
+| `style`    | 代码格式 (不影响逻辑)         |
 | `refactor` | 重构 (既不是新功能也不是修复) |
-| `perf` | 性能优化 |
-| `test` | 测试相关 |
-| `chore` | 构建/工具/辅助工具的变动 |
+| `perf`     | 性能优化                      |
+| `test`     | 测试相关                      |
+| `chore`    | 构建/工具/辅助工具的变动      |
 
 **示例**:
+
 ```
 feat: 添加文本格式清理器功能
 fix: 修复 CSV 导出时返回错误数据的问题
@@ -170,27 +222,27 @@ docs: 更新 README 添加安全指南链接
 #### PR 模板
 
 ```markdown
-## 📋 变更概述
-简要描述这个 PR 做了什么
+## Implementation Logic
 
-## 🔧 变更类型
-- [ ] Bug 修复
-- [ ] 新功能
-- [ ] 性能优化
-- [ ] 文档更新
-- [ ] 重构
+具体实现逻辑。
 
-## 📝 详细说明
-详细描述你的改动...
+## Difficulties And Resolutions
 
-## 🧪 测试
-- [ ] 已添加/更新单元测试
-- [ ] 所有测试通过 (`pnpm test`)
-- [ ] 覆盖率未下降
+开发中遇到的困难及解决思路。
 
-## 📸 截图 (如果适用 UI 变更)
+## Project Shape After Merge
 
-## 🔗 关联 Issue
+合并后项目的整体形态。
+
+## Verification
+
+- [ ] `pnpm lint`
+- [ ] `pnpm format:check`
+- [ ] `pnpm typecheck`
+- [ ] `pnpm test` or `pnpm test:coverage`
+
+## Linked Issue
+
 Fixes #issue-number
 ```
 
@@ -210,6 +262,7 @@ Fixes #issue-number
    - ClawBoard 版本: 在关于页面查看
 
 2. **复现步骤**
+
    ```markdown
    1. 打开应用
    2. 复制一段文字
@@ -233,13 +286,13 @@ Fixes #issue-number
 
 **标题**: 清晰简洁的功能名称
 
-**问题描述**: 
+**问题描述**:
 当前缺少什么?为什么需要这个功能?
 
-**解决方案建议**: 
+**解决方案建议**:
 你希望如何实现?有没有参考实现?
 
-**替代方案**: 
+**替代方案**:
 你考虑过哪些其他方案?
 
 **附加信息**:
@@ -288,9 +341,10 @@ Fixes #issue-number
 - 函数使用命名函数表达式或箭头函数
 
 **示例**:
+
 ```javascript
 // Good ✅
-const fetchData = async (url) => {
+const fetchData = async url => {
   try {
     const response = await fetch(url);
     return await response.json();
@@ -301,21 +355,21 @@ const fetchData = async (url) => {
 };
 
 // Bad ❌
-var fetchData = function(url) {
+var fetchData = function (url) {
   var response = fetch(url); // missing await
   return response.json();
-}
+};
 ```
 
 ### 命名约定
 
-| 类型 | 规范 | 示例 |
-|------|------|------|
-| 变量/函数 | camelCase | `getUserData`, `isLoading` |
-| 类/构造器 | PascalCase | `DatabaseManager`, `LRUCache` |
-| 常量 | UPPER_SNAKE_CASE | `MAX_CACHE_SIZE`, `API_BASE_URL` |
-| 私有属性 | 下划线前缀 | `_cache`, `_isLocked` |
-| 文件名 | PascalCase | `TextFormatter.js`, `SecureUtils.js` |
+| 类型      | 规范             | 示例                                 |
+| --------- | ---------------- | ------------------------------------ |
+| 变量/函数 | camelCase        | `getUserData`, `isLoading`           |
+| 类/构造器 | PascalCase       | `DatabaseManager`, `LRUCache`        |
+| 常量      | UPPER_SNAKE_CASE | `MAX_CACHE_SIZE`, `API_BASE_URL`     |
+| 私有属性  | 下划线前缀       | `_cache`, `_isLocked`                |
+| 文件名    | PascalCase       | `TextFormatter.js`, `SecureUtils.js` |
 
 ### 注释规范
 
@@ -324,6 +378,7 @@ var fetchData = function(url) {
 - TODO 标记待完成的工作
 
 **示例**:
+
 ```javascript
 /**
  * 加密文本内容
@@ -348,18 +403,23 @@ function encrypt(plaintext, key) {
 # ADR-001: 选择 sql.js 作为数据库引擎
 
 ## 状态
+
 已接受
 
 ## 背景
+
 我们需要一个嵌入式数据库来存储剪贴板历史。
 
 ## 决策
+
 选择 sql.js (SQLite 的 WebAssembly 构建),原因:
+
 1. 无需原生编译,跨平台兼容性好
 2. 支持浏览器端和 Node.js 环境
 3. 成熟稳定,文档完善
 
 ## 后果
+
 - 正面: 简化构建流程,无需平台特定依赖
 - 负面: 性能略逊于原生 SQLite (但足够用)
 ```

@@ -79,7 +79,7 @@ describe('LRUCache', () => {
     test('如果键不存在应调用工厂函数', () => {
       const factory = jest.fn().mockReturnValue('computed');
       const result = cache.getOrSet('newKey', factory);
-      
+
       expect(factory).toHaveBeenCalledTimes(1);
       expect(result).toBe('computed');
       expect(cache.get('newKey')).toBe('computed');
@@ -89,7 +89,7 @@ describe('LRUCache', () => {
       cache.set('existingKey', 'cached');
       const factory = jest.fn().mockReturnValue('should-not-be-called');
       const result = cache.getOrSet('existingKey', factory);
-      
+
       expect(factory).not.toHaveBeenCalled();
       expect(result).toBe('cached');
     });

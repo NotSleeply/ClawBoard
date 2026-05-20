@@ -202,7 +202,7 @@ class Snippets {
       '{{year}}': String(now.getFullYear()),
       '{{month}}': String(now.getMonth() + 1).padStart(2, '0'),
       '{{day}}': String(now.getDate()).padStart(2, '0'),
-      '{{clipboard}}': '', // 需要在 IPC 层动态获取
+      '{{clipboard}}': '' // 需要在 IPC 层动态获取
     };
 
     let rendered = content;
@@ -220,7 +220,7 @@ class Snippets {
       title: title || record.content.substring(0, 50),
       content: record.content,
       category: category || '从剪贴板',
-      icon: this._typeToIcon(record.type),
+      icon: this._typeToIcon(record.type)
     });
   }
 
@@ -236,7 +236,7 @@ class Snippets {
           content: s.content,
           category: s.category || '导入',
           shortcut: s.shortcut || '',
-          icon: s.icon || '📝',
+          icon: s.icon || '📝'
         });
         results.push({ success: true, snippet: created });
       } catch (e) {
@@ -255,7 +255,7 @@ class Snippets {
       content: s.content,
       category: s.category,
       shortcut: s.shortcut,
-      icon: s.icon,
+      icon: s.icon
     }));
   }
 
@@ -276,7 +276,9 @@ class Snippets {
       total: total[0] ? total[0].values[0][0] : 0,
       categories: categories[0] ? categories[0].values[0][0] : 0,
       mostUsed: mostUsed[0] ? mostUsed[0].values.map(r => ({ title: r[0], count: r[1] })) : [],
-      recentUsed: recentUsed[0] ? recentUsed[0].values.map(r => ({ title: r[0], lastUsed: r[1] })) : [],
+      recentUsed: recentUsed[0]
+        ? recentUsed[0].values.map(r => ({ title: r[0], lastUsed: r[1] }))
+        : []
     };
   }
 
@@ -299,7 +301,7 @@ class Snippets {
       text: '📝',
       code: '💻',
       image: '🖼️',
-      file: '📂',
+      file: '📂'
     };
     return icons[type] || '📝';
   }

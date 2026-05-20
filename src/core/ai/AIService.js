@@ -7,10 +7,10 @@ const http = require('http');
 
 // Simple logger
 const log = {
-    info: (...args) => console.log('[AI]', ...args),
-    warn: (...args) => console.warn('[AI]', ...args),
-    error: (...args) => console.error('[AI]', ...args),
-    debug: (...args) => console.log('[AI:DEBUG]', ...args),
+  info: (...args) => console.log('[AI]', ...args),
+  warn: (...args) => console.warn('[AI]', ...args),
+  error: (...args) => console.error('[AI]', ...args),
+  debug: (...args) => console.log('[AI:DEBUG]', ...args)
 };
 
 const OLLAMA_HOST = 'http://localhost:11434';
@@ -18,21 +18,22 @@ const DEFAULT_MODEL = 'qwen2.5:3b';
 const DEFAULT_EMBED_MODEL = 'nomic-embed-text';
 
 // 可从设置覆盖
-let config = {
+const config = {
   chatModel: DEFAULT_MODEL,
   embedModel: DEFAULT_EMBED_MODEL,
   ollamaUrl: OLLAMA_HOST,
   autoSummary: true,
   autoTag: true,
   autoEmbed: true,
-  enabled: true,
+  enabled: true
 };
 
 // v0.58.0: 提示词模板
-let prompts = {
+const prompts = {
   summary: '请为以下内容生成一个简短的中文摘要（不超过50字）：\n\n{{content}}',
   tag: '请为以下内容生成3-5个中文标签（用逗号分隔）：\n\n{{content}}\n\n类型：{{type}}\n来源：{{source}}',
-  search: '将以下搜索query转换为一个更适合搜索的关键词短句（保留核心语义，去除口语化表达）：\n\n搜索: {{query}}\n\n只输出转换后的关键词，不要其他解释。',
+  search:
+    '将以下搜索query转换为一个更适合搜索的关键词短句（保留核心语义，去除口语化表达）：\n\n搜索: {{query}}\n\n只输出转换后的关键词，不要其他解释。'
 };
 
 // 保存默认值用于一键重置
@@ -41,9 +42,11 @@ const _defaultPrompts = JSON.parse(JSON.stringify(prompts));
 
 // 兼容旧接口
 function setConfig(newConfig) {
-  if (newConfig.chatModel || newConfig.model) config.chatModel = newConfig.chatModel || newConfig.model;
+  if (newConfig.chatModel || newConfig.model)
+    config.chatModel = newConfig.chatModel || newConfig.model;
   if (newConfig.embedModel) config.embedModel = newConfig.embedModel;
-  if (newConfig.ollamaUrl || newConfig.host) config.ollamaUrl = newConfig.ollamaUrl || newConfig.host;
+  if (newConfig.ollamaUrl || newConfig.host)
+    config.ollamaUrl = newConfig.ollamaUrl || newConfig.host;
   if (newConfig.summarizePrompt) prompts.summary = newConfig.summarizePrompt;
   if (newConfig.tagsPrompt) prompts.tag = newConfig.tagsPrompt;
   if (newConfig.searchPrompt) prompts.search = newConfig.searchPrompt;
@@ -76,7 +79,7 @@ function updateConfig(updates) {
 }
 
 function updatePrompt(key, template) {
-  if (prompts.hasOwnProperty(key)) {
+  if (Object.prototype.hasOwnProperty.call(prompts, key)) {
     prompts[key] = template;
     return true;
   }
@@ -123,7 +126,11 @@ async function generateTags(text) {
     const prompt = renderPrompt('tag', { content: text.substring(0, 500) });
     const result = await _chat(prompt);
     if (result) {
-      return result.split(/[,，、]/).map(t => t.trim()).filter(t => t.length > 0).slice(0, 5);
+      return result
+        .split(/[,，、]/)
+        .map(t => t.trim())
+        .filter(t => t.length > 0)
+        .slice(0, 5);
     }
     return [];
   } catch (err) {
@@ -154,7 +161,7 @@ async function getEmbedding(text) {
   try {
     const body = JSON.stringify({
       model: config.embedModel,
-      input: text.substring(0, 2000),
+      input: text.substring(0, 2000)
     });
 
     const result = await _request('POST', '/api/embeddings', body);
@@ -198,7 +205,7 @@ async function _chat(prompt, model = config.chatModel) {
     stream: false,
     options: {
       temperature: 0.7,
-      num_predict: 200,
+      num_predict: 200
     }
   });
 
@@ -215,14 +222,14 @@ function _request(method, path, body = null) {
       path: url.pathname,
       method,
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      timeout: 30000,
+      timeout: 30000
     };
 
-    const req = http.request(options, (res) => {
+    const req = http.request(options, res => {
       let data = '';
-      res.on('data', chunk => data += chunk);
+      res.on('data', chunk => (data += chunk));
       res.on('end', () => {
         try {
           resolve(JSON.parse(data));
@@ -261,5 +268,5 @@ module.exports = {
   updateConfig,
   updatePrompt,
   resetToDefaults,
-  renderPrompt,
+  renderPrompt
 };

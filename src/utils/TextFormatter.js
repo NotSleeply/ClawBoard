@@ -48,18 +48,18 @@ class TextFormatter {
     if (!html) return '';
 
     // 使用正则表达式移除标签 (简单但有效)
-    let text = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')  // 移除脚本
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')     // 移除样式
-      .replace(/<[^>]+>/g, '')                               // 移除所有标签
-      .replace(/&nbsp;/g, ' ')                               // 空格实体
-      .replace(/&amp;/g, '&')                                // & 符号
-      .replace(/&lt;/g, '<')                                 // < 符号
-      .replace(/&gt;/g, '>')                                 // > 符号
-      .replace(/&quot;/g, '"')                               // 引号
-      .replace(/&#39;/g, "'")                                // 单引号
-      .replace(/&#\d+;/g, '')                                // 其他数字实体
-      .replace(/&[a-zA-Z]+;/g, '');                          // 其他命名实体
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // 移除脚本
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // 移除样式
+      .replace(/<[^>]+>/g, '') // 移除所有标签
+      .replace(/&nbsp;/g, ' ') // 空格实体
+      .replace(/&amp;/g, '&') // & 符号
+      .replace(/&lt;/g, '<') // < 符号
+      .replace(/&gt;/g, '>') // > 符号
+      .replace(/&quot;/g, '"') // 引号
+      .replace(/&#39;/g, "'") // 单引号
+      .replace(/&#\d+;/g, '') // 其他数字实体
+      .replace(/&[a-zA-Z]+;/g, ''); // 其他命名实体
 
     return text;
   }
@@ -73,16 +73,16 @@ class TextFormatter {
     if (!md) return '';
 
     return md
-      .replace(/^#{1,6}\s+/gm, '')           // 移除标题标记
-      .replace(/\*\*([^*]+)\*\*/g, '$1')     // 移除粗体
-      .replace(/\*([^*]+)\*/g, '$1')         // 移除斜体
-      .replace(/`([^`]+)`/g, '$1')           // 移除行内代码
-      .replace(/```[\s\S]*?```/g, '')        // 移除代码块
+      .replace(/^#{1,6}\s+/gm, '') // 移除标题标记
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // 移除粗体
+      .replace(/\*([^*]+)\*/g, '$1') // 移除斜体
+      .replace(/`([^`]+)`/g, '$1') // 移除行内代码
+      .replace(/```[\s\S]*?```/g, '') // 移除代码块
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // 移除链接,保留文字
       .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1') // 移除图片
-      .replace(/^[-*+]\s+/gm, '')            // 移除无序列表
-      .replace(/^\d+\.\s+/gm, '')            // 移除有序列表
-      .replace(/^>\s+/gm, '');               // 移除引用
+      .replace(/^[-*+]\s+/gm, '') // 移除无序列表
+      .replace(/^\d+\.\s+/gm, '') // 移除有序列表
+      .replace(/^>\s+/gm, ''); // 移除引用
   }
 
   /**
@@ -103,8 +103,8 @@ class TextFormatter {
   static normalizeWhitespace(text) {
     if (!text) return '';
     return text
-      .replace(/[ \t]+/g, ' ')                    // 多个空格/制表符 → 单个空格
-      .replace(/\n{3,}/g, '\n\n');                // 多于2个连续换行 → 2个
+      .replace(/[ \t]+/g, ' ') // 多个空格/制表符 → 单个空格
+      .replace(/\n{3,}/g, '\n\n'); // 多于2个连续换行 → 2个
   }
 
   /**
@@ -145,10 +145,7 @@ class TextFormatter {
    */
   static toTitleCase(text) {
     if (!text) return '';
-    return text.replace(
-      /\w\S*/g,
-      (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
-    );
+    return text.replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
   }
 
   /**
@@ -158,7 +155,7 @@ class TextFormatter {
    */
   static toSentenceCase(text) {
     if (!text) return '';
-    return text.toLowerCase().replace(/(^\w|[.!?]\s+\w)/g, (char) => char.toUpperCase());
+    return text.toLowerCase().replace(/(^\w|[.!?]\s+\w)/g, char => char.toUpperCase());
   }
 
   /**
@@ -168,9 +165,10 @@ class TextFormatter {
    */
   static toggleCase(text) {
     if (!text) return '';
-    return text.split('').map(char =>
-      char === char.toUpperCase() ? char.toLowerCase() : char.toUpperCase()
-    ).join('');
+    return text
+      .split('')
+      .map(char => (char === char.toUpperCase() ? char.toLowerCase() : char.toUpperCase()))
+      .join('');
   }
 
   /**
@@ -190,7 +188,7 @@ class TextFormatter {
    */
   static snakeToCamel(text) {
     if (!text) return '';
-    return text.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+    return text.toLowerCase().replace(/_([a-z])/g, g => g[1].toUpperCase());
   }
 
   // ==================== 编码转换 ====================
@@ -306,11 +304,16 @@ class TextFormatter {
       lines: text.split('\n').length,
       bytes: Buffer.byteLength(text, 'utf8'),
       hasHTML: /<[a-z][\s\S]*>/i.test(text),
-      hasEmoji: /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(text),
+      hasEmoji:
+        /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(
+          text
+        )
     };
 
     // 简单语言检测 (基于字符分布)
-    const chineseRatio = (/[\u4e00-\u9fa5]/g.test(text) ? text.match(/[\u4e00-\u9fa5]/g).length : 0) / stats.characters;
+    const chineseRatio =
+      (/[\u4e00-\u9fa5]/g.test(text) ? text.match(/[\u4e00-\u9fa5]/g).length : 0) /
+      stats.characters;
     stats.language = chineseRatio > 0.3 ? 'zh' : 'en';
 
     return stats;

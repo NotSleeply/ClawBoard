@@ -7,9 +7,15 @@ const path = require('path');
 const os = require('os');
 
 class Platform {
-  static get isWindows() { return process.platform === 'win32'; }
-  static get isMac() { return process.platform === 'darwin'; }
-  static get isLinux() { return process.platform === 'linux'; }
+  static get isWindows() {
+    return process.platform === 'win32';
+  }
+  static get isMac() {
+    return process.platform === 'darwin';
+  }
+  static get isLinux() {
+    return process.platform === 'linux';
+  }
 
   // Default terminal commands per platform
   static get terminalCommands() {
@@ -18,7 +24,7 @@ class Platform {
         open: 'start cmd /k',
         openWT: 'wt.exe',
         checkWT: 'where wt',
-        wtPrefix: 'wt -d',
+        wtPrefix: 'wt -d'
       };
     }
     if (this.isMac) {
@@ -26,7 +32,7 @@ class Platform {
         open: 'open -a Terminal',
         openWT: null,
         checkWT: null,
-        wtPrefix: 'open -a Terminal',
+        wtPrefix: 'open -a Terminal'
       };
     }
     // Linux
@@ -34,7 +40,7 @@ class Platform {
       open: 'gnome-terminal',
       openWT: null,
       checkWT: null,
-      wtPrefix: 'gnome-terminal --working-directory=',
+      wtPrefix: 'gnome-terminal --working-directory='
     };
   }
 
@@ -114,8 +120,8 @@ class Platform {
         title: 'macOS 权限要求',
         requirements: [
           '系统偏好设置 > 安全性与隐私 > 完全磁盘访问权限',
-          '系统偏好设置 > 安全性与隐私 > 辅助功能（全局快捷键）',
-        ],
+          '系统偏好设置 > 安全性与隐私 > 辅助功能（全局快捷键）'
+        ]
       };
     }
     if (this.isLinux) {
@@ -123,8 +129,8 @@ class Platform {
         title: 'Linux 依赖说明',
         requirements: [
           '快速粘贴功能需要 xclip: sudo apt install xclip',
-          '通知功能需要 libnotify: sudo apt install libnotify4',
-        ],
+          '通知功能需要 libnotify: sudo apt install libnotify4'
+        ]
       };
     }
     return null; // Windows 无需特殊权限
@@ -134,7 +140,7 @@ class Platform {
   static getAppConfig() {
     const config = {
       platform: process.platform,
-      arch: process.arch,
+      arch: process.arch
     };
 
     if (this.isWindows) {

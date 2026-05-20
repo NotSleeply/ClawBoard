@@ -1,5 +1,4 @@
 const ClipboardWatcher = require('../ClipboardWatcher');
-const { EventEmitter } = require('events');
 
 describe('ClipboardWatcher', () => {
   let watcher;

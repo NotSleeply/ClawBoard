@@ -19,15 +19,15 @@ class SecureUtils {
    */
   static async deriveKey(password, salt, options = {}) {
     const {
-      memoryCost = 65536,    // 64 MB (推荐值)
-      timeCost = 3,          // 迭代次数
-      parallelism = 4,       // 并行线程数
-      keyLen = 32            // 输出密钥长度 (AES-256)
+      memoryCost = 65536, // 64 MB (推荐值)
+      timeCost = 3, // 迭代次数
+      parallelism = 4, // 并行线程数
+      keyLen = 32 // 输出密钥长度 (AES-256)
     } = options;
 
     // Node.js 原生支持 argon2 (v15+)
     try {
-      return new Promise((resolve, reject) => {
+      return new Promise(resolve => {
         try {
           const hash = crypto.hash('argon2id', password, {
             salt,
@@ -75,13 +75,19 @@ class SecureUtils {
       iv
     );
 
-    let encrypted = cipher.update(typeof plaintext === 'string' ? plaintext : String(plaintext), 'utf8', 'hex');
+    let encrypted = cipher.update(
+      typeof plaintext === 'string' ? plaintext : String(plaintext),
+      'utf8',
+      'hex'
+    );
     encrypted += cipher.final('hex');
 
     const authTag = cipher.getAuthTag();
 
     // 格式: base64(iv:authTag:ciphertext)
-    return Buffer.from(`${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`).toString('base64');
+    return Buffer.from(`${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`).toString(
+      'base64'
+    );
   }
 
   /**
@@ -146,18 +152,18 @@ class SecureUtils {
 
       // Pass 1: 全零 (0x00)
       this._overwriteFile(fd, fileSize, 0x00);
-      
+
       // Pass 2: 全一 (0xFF)
-      this._overwriteFile(fd, fileSize, 0xFF);
-      
+      this._overwriteFile(fd, fileSize, 0xff);
+
       // Pass 3: 随机数据
       this._randomOverwrite(fd, fileSize);
-      
+
       // Pass 4-6: 重复随机模式
       for (let i = 0; i < 3; i++) {
         this._randomOverwrite(fd, fileSize);
       }
-      
+
       // Pass 7: 最终全零
       this._overwriteFile(fd, fileSize, 0x00);
 
@@ -270,10 +276,10 @@ class SecureUtils {
    */
   static checkPasswordStrength(password) {
     const result = {
-      score: 0,           // 0-4
-      strength: '',       // very_weak / weak / fair / strong / very_strong
-      suggestions: [],    // 改进建议
-      crackTime: ''       // 预估破解时间
+      score: 0, // 0-4
+      strength: '', // very_weak / weak / fair / strong / very_strong
+      suggestions: [], // 改进建议
+      crackTime: '' // 预估破解时间
     };
 
     if (!password || password.length === 0) {
@@ -298,7 +304,6 @@ class SecureUtils {
 
     // 强度等级
     const levels = ['very_weak', 'weak', 'fair', 'strong', 'very_strong'];
-    const levelNames = ['非常弱', '弱', '一般', '强', '非常强'];
     result.strength = levels[result.score];
 
     // 改进建议
@@ -314,7 +319,7 @@ class SecureUtils {
     // 破解时间估算 (粗略)
     const combinations = Math.pow(password.length > 10 ? 94 : 52, password.length);
     const seconds = combinations / 1e9; // 假设每秒10亿次尝试
-    
+
     if (seconds < 3600) result.crackTime = '瞬间';
     else if (seconds < 86400) result.crackTime = `${Math.floor(seconds / 3600)}小时`;
     else if (seconds < 31536000) result.crackTime = `${Math.floor(seconds / 86400)}天`;
@@ -336,7 +341,7 @@ class SecureUtils {
       const hash = crypto.createHash('sha256');
       const stream = fs.createReadStream(filePath);
 
-      stream.on('data', (data) => hash.update(data));
+      stream.on('data', data => hash.update(data));
       stream.on('end', () => resolve(hash.digest('hex')));
       stream.on('error', reject);
     });
@@ -349,10 +354,7 @@ class SecureUtils {
    * @returns {string} - 十六进制签名
    */
   static hmacSHA256(data, key) {
-    return crypto
-      .createHmac('sha256', key)
-      .update(data)
-      .digest('hex');
+    return crypto.createHmac('sha256', key).update(data).digest('hex');
   }
 }
 

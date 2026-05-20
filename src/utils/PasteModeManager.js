@@ -36,7 +36,7 @@ class PasteModeManager {
       icon: '📝',
       shortcut: 'Ctrl+Shift+V',
       hotkey: 'CommandOrControl+Shift+V',
-      transform: (text) => TextFormatter.toPlainText(text)
+      transform: text => TextFormatter.toPlainText(text)
     });
 
     // 大写模式
@@ -45,7 +45,7 @@ class PasteModeManager {
       description: '转换为大写字母',
       icon: '🔠',
       shortcut: 'Ctrl+Shift+U',
-      transform: (text) => TextFormatter.toUpperCase(text)
+      transform: text => TextFormatter.toUpperCase(text)
     });
 
     // 小写模式
@@ -54,7 +54,7 @@ class PasteModeManager {
       description: '转换为小写字母',
       icon: '🔡',
       shortcut: 'Ctrl+Shift+L',
-      transform: (text) => TextFormatter.toLowerCase(text)
+      transform: text => TextFormatter.toLowerCase(text)
     });
 
     // 标题模式
@@ -63,7 +63,7 @@ class PasteModeManager {
       description: '每个单词首字母大写',
       icon: '📌',
       shortcut: 'Ctrl+Shift+T',
-      transform: (text) => TextFormatter.toTitleCase(text)
+      transform: text => TextFormatter.toTitleCase(text)
     });
 
     // 句子模式
@@ -71,7 +71,7 @@ class PasteModeManager {
       name: '句子格式',
       description: '仅句首字母大写',
       icon: '📄',
-      transform: (text) => TextFormatter.toSentenceCase(text)
+      transform: text => TextFormatter.toSentenceCase(text)
     });
 
     // 反转大小写
@@ -79,7 +79,7 @@ class PasteModeManager {
       name: '反转大小写',
       description: '大小写互换',
       icon: '🔄',
-      transform: (text) => TextFormatter.toggleCase(text)
+      transform: text => TextFormatter.toggleCase(text)
     });
 
     // 驼峰命名
@@ -87,7 +87,7 @@ class PasteModeManager {
       name: '驼峰命名',
       description: '下划线 → 驼峰 (user_name → userName)',
       icon: '🐪',
-      transform: (text) => TextFormatter.snakeToCamel(text)
+      transform: text => TextFormatter.snakeToCamel(text)
     });
 
     // 下划线命名
@@ -95,7 +95,7 @@ class PasteModeManager {
       name: '下划线命名',
       description: '驼峰 → 下划线 (userName → user_name)',
       icon: '🐍',
-      transform: (text) => TextFormatter.camelToSnake(text)
+      transform: text => TextFormatter.camelToSnake(text)
     });
 
     // URL 编码
@@ -103,7 +103,7 @@ class PasteModeManager {
       name: 'URL 编码',
       description: '编码为 URL 安全格式',
       icon: '🔗',
-      transform: (text) => TextFormatter.encodeURL(text)
+      transform: text => TextFormatter.encodeURL(text)
     });
 
     // URL 解码
@@ -111,7 +111,7 @@ class PasteModeManager {
       name: 'URL 解码',
       description: '解码 URL 编码文本',
       icon: '🔓',
-      transform: (text) => TextFormatter.decodeURL(text)
+      transform: text => TextFormatter.decodeURL(text)
     });
 
     // Base64 编码
@@ -119,7 +119,7 @@ class PasteModeManager {
       name: 'Base64 编码',
       description: '编码为 Base64',
       icon: '🔐',
-      transform: (text) => TextFormatter.encodeBase64(text)
+      transform: text => TextFormatter.encodeBase64(text)
     });
 
     // Base64 解码
@@ -127,7 +127,7 @@ class PasteModeManager {
       name: 'Base64 解码',
       description: '解码 Base64 文本',
       icon: '🔓',
-      transform: (text) => TextFormatter.decodeBase64(text)
+      transform: text => TextFormatter.decodeBase64(text)
     });
   }
 

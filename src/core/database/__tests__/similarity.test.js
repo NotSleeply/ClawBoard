@@ -32,7 +32,7 @@ const SIMILARITY_MAX_LEN = 256;
 
 // 带预过滤和截断的相似度计算
 function similarity(a, b) {
-  if (a == null || b == null) return 0;
+  if (a === null || a === undefined || b === null || b === undefined) return 0;
 
   const maxLen = Math.max(a.length, b.length);
   const minLen = Math.min(a.length, b.length);
@@ -88,7 +88,7 @@ describe('相似度算法优化', () => {
         ['abc', 'def', 3],
         ['kitten', 'sitting', 3],
         ['flaw', 'lawn', 2],
-        ['intention', 'execution', 5],
+        ['intention', 'execution', 5]
       ];
       for (const [a, b, expected] of pairs) {
         expect(levenshteinDistance(a, b)).toBe(expected);

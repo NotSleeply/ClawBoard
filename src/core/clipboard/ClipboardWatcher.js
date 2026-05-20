@@ -115,7 +115,10 @@ class ClipboardWatcher {
    * @param {boolean} options.encrypted - 是否自动加密
    * @param {string[]} options.sensitive_types - 敏感信息类型列表
    */
-  _processText(text, options = /** @type {{encrypted?: boolean, sensitive_types?: string[]}} */ ({})) {
+  _processText(
+    text,
+    options = /** @type {{encrypted?: boolean, sensitive_types?: string[]}} */ ({})
+  ) {
     // 判断类型
     let type = 'text';
     if (this._isFilePath(text)) {
@@ -138,47 +141,53 @@ class ClipboardWatcher {
     const logPrefix = isEncrypted ? `自动加密记录` : '新记录';
 
     // 异步生成 AI 摘要和嵌入向量
-    this._generateAI(text).then(aiResult => {
-      const record = this.db.addRecord({
-        type,
-        content: text,
-        summary: (aiResult && aiResult.summary) || this._generateSummary(text),
-        ai_summary: aiResult && aiResult.summary,
-        embedding: aiResult && aiResult.embedding,
-        language,
-        source: 'clipboard',
-        ...(isEncrypted ? { encrypted: true, sensitive_types: sensitiveTypesStr } : {}),
+    this._generateAI(text)
+      .then(aiResult => {
+        const record = this.db.addRecord({
+          type,
+          content: text,
+          summary: (aiResult && aiResult.summary) || this._generateSummary(text),
+          ai_summary: aiResult && aiResult.summary,
+          embedding: aiResult && aiResult.embedding,
+          language,
+          source: 'clipboard',
+          ...(isEncrypted ? { encrypted: true, sensitive_types: sensitiveTypesStr } : {})
+        });
+
+        this.log.info(
+          `${logPrefix}: [${type}] ${isEncrypted ? sensitiveTypesStr + ' → ' : ''}${text.substring(0, 50)}...`
+        );
+
+        // v0.29.0: 触发系统通知
+        if (global.showClipboardNotification) {
+          const notificationData = isEncrypted
+            ? { ...record, _autoEncrypted: true, _sensitiveTypes: options.sensitive_types }
+            : record;
+          global.showClipboardNotification(notificationData);
+        }
+      })
+      .catch(err => {
+        this.log.warn('AI 处理失败，使用默认摘要:', err.message);
+        // 降级处理
+        const record = this.db.addRecord({
+          type,
+          content: text,
+          summary: this._generateSummary(text),
+          source: 'clipboard',
+          ...(isEncrypted ? { encrypted: true, sensitive_types: sensitiveTypesStr } : {})
+        });
+
+        this.log.info(
+          `${logPrefix}: [${type}] ${isEncrypted ? sensitiveTypesStr + ' → ' : ''}${text.substring(0, 50)}...`
+        );
+
+        if (global.showClipboardNotification) {
+          const notificationData = isEncrypted
+            ? { ...record, _autoEncrypted: true, _sensitiveTypes: options.sensitive_types }
+            : record;
+          global.showClipboardNotification(notificationData);
+        }
       });
-
-      this.log.info(`${logPrefix}: [${type}] ${isEncrypted ? sensitiveTypesStr + ' → ' : ''}${text.substring(0, 50)}...`);
-
-      // v0.29.0: 触发系统通知
-      if (global.showClipboardNotification) {
-        const notificationData = isEncrypted
-          ? { ...record, _autoEncrypted: true, _sensitiveTypes: options.sensitive_types }
-          : record;
-        global.showClipboardNotification(notificationData);
-      }
-    }).catch(err => {
-      this.log.warn('AI 处理失败，使用默认摘要:', err.message);
-      // 降级处理
-      const record = this.db.addRecord({
-        type,
-        content: text,
-        summary: this._generateSummary(text),
-        source: 'clipboard',
-        ...(isEncrypted ? { encrypted: true, sensitive_types: sensitiveTypesStr } : {}),
-      });
-
-      this.log.info(`${logPrefix}: [${type}] ${isEncrypted ? sensitiveTypesStr + ' → ' : ''}${text.substring(0, 50)}...`);
-
-      if (global.showClipboardNotification) {
-        const notificationData = isEncrypted
-          ? { ...record, _autoEncrypted: true, _sensitiveTypes: options.sensitive_types }
-          : record;
-        global.showClipboardNotification(notificationData);
-      }
-    });
   }
 
   // 异步生成 AI 摘要和嵌入向量
@@ -227,19 +236,22 @@ class ClipboardWatcher {
         content: filepath,
         summary: '[图片]',
         source: 'clipboard',
-        ocr_text: null, // OCR 完成后更新
+        ocr_text: null // OCR 完成后更新
       });
 
       // v0.17.0: 异步进行 OCR 识别（record 已声明，闭包安全）
       if (this.ocr) {
-        this.ocr.recognizeClipboardImage(imageBuffer).then(ocrResult => {
-          if (ocrResult.success && ocrResult.text) {
-            this.db.updateOCRText(record.id, ocrResult.text);
-            this.log.info(`图片 OCR 完成: ${ocrResult.text.substring(0, 50)}...`);
-          }
-        }).catch(err => {
-          this.log.warn('OCR 识别失败:', err.message);
-        });
+        this.ocr
+          .recognizeClipboardImage(imageBuffer)
+          .then(ocrResult => {
+            if (ocrResult.success && ocrResult.text) {
+              this.db.updateOCRText(record.id, ocrResult.text);
+              this.log.info(`图片 OCR 完成: ${ocrResult.text.substring(0, 50)}...`);
+            }
+          })
+          .catch(err => {
+            this.log.warn('OCR 识别失败:', err.message);
+          });
       }
 
       this.log.info(`新图片记录: ${filename}`);
@@ -271,29 +283,32 @@ class ClipboardWatcher {
 
     // Unix 路径 (macOS/Linux) - v0.74.0: 跨平台适配
     // 绝对路径：以 / 开头，包含常见根目录
-    const unixAbsolutePath = /^\/(Users|home|tmp|var|etc|opt|usr|root|srv|mnt|media)(\/[\w.\-+]+)+(\.\w+)?$/;
+    const unixAbsolutePath =
+      /^\/(Users|home|tmp|var|etc|opt|usr|root|srv|mnt|media)(\/[\w.\-+]+)+(\.\w+)?$/;
     // Home 目录缩写：~ 开头
     const homePath = /^~\/[\w.\-+]+(\/[\w.\-+]+)*(\.\w+)?$/;
     // 其他绝对路径（以 / 开头且包含多个层级）
     const otherAbsolutePath = /^\/[\w.\-+]+\/[\w./\-+]+(\.\w+)?$/;
 
-    return windowsPath.test(trimmed) ||
+    return (
+      windowsPath.test(trimmed) ||
       uncPath.test(trimmed) ||
       unixAbsolutePath.test(trimmed) ||
       homePath.test(trimmed) ||
-      otherAbsolutePath.test(trimmed);
+      otherAbsolutePath.test(trimmed)
+    );
   }
 
   _isCode(text) {
     // 简单代码检测：包含常见代码关键词
     const codePatterns = [
       /^(const|let|var|function|class|import|export|def|public|private|if|for|while)\s/m,
-      /[{\}\[\]()].*[{\}\[\]()]/,
-      /<\/?[a-zA-Z][^>]*>/,  // HTML/XML 标签
+      /(?:[{}()]|\[|\]).*(?:[{}()]|\[|\])/,
+      /<\/?[a-zA-Z][^>]*>/, // HTML/XML 标签
       /^\s*(import|from|require)\s/m,
       /^\s*#include\s/m,
       /^\s*using\s+\w+/m,
-      /=>|->|::|\.{3}/,
+      /=>|->|::|\.{3}/
     ];
     return codePatterns.some(p => p.test(text));
   }
@@ -302,8 +317,11 @@ class ClipboardWatcher {
     const trimmed = text.trim();
 
     // JavaScript/TypeScript
-    if (/^(const|let|var|function|class|import|export|async|await)\s/.test(trimmed) ||
-      /=>\s*{/.test(trimmed) || /\(.*\)\s*=>/.test(trimmed)) {
+    if (
+      /^(const|let|var|function|class|import|export|async|await)\s/.test(trimmed) ||
+      /=>\s*{/.test(trimmed) ||
+      /\(.*\)\s*=>/.test(trimmed)
+    ) {
       return 'javascript';
     }
     // Python
@@ -315,8 +333,10 @@ class ClipboardWatcher {
       return 'html';
     }
     // CSS
-    if (/^(\.|#)[\w-]+\s*{/.test(trimmed) ||
-      /(margin|padding|color|background):\s*/.test(trimmed)) {
+    if (
+      /^(\.|#)[\w-]+\s*{/.test(trimmed) ||
+      /(margin|padding|color|background):\s*/.test(trimmed)
+    ) {
       return 'css';
     }
     // Java
@@ -366,7 +386,7 @@ class ClipboardWatcher {
       const partial = buffer.slice(0, 1024);
       let hash = 0;
       for (let i = 0; i < partial.length; i++) {
-        hash = ((hash << 5) - hash) + partial[i];
+        hash = (hash << 5) - hash + partial[i];
         hash |= 0;
       }
       return hash.toString(16);

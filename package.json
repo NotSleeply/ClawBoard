@@ -13,11 +13,12 @@
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
-    "lint": "eslint src/ --ext .js,.jsx --max-warnings 100",
-    "lint:fix": "eslint src/ --ext .js,.jsx --fix",
-    "format": "prettier --write \"src/**/*.{js,jsx,json}\"",
-    "format:check": "prettier --check \"src/**/*.{js,jsx,json}\"",
-    "test": "jest --coverage",
+    "lint": "eslint src tests --ext .js,.jsx --max-warnings 0",
+    "lint:fix": "eslint src tests --ext .js,.jsx --fix",
+    "format": "prettier --write \"{src,tests}/**/*.{js,jsx,json}\" \"*.{js,json}\" \"docs/**/*.md\"",
+    "format:check": "prettier --check \"{src,tests}/**/*.{js,jsx,json}\" \"*.{js,json}\" \"docs/**/*.md\"",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --coverage --runInBand",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit"
   },
