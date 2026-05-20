@@ -57,9 +57,12 @@ class AutoCategorize {
       if (!rule.enabled) continue;
 
       let matched = false;
-      const target = rule.field === 'content' ? content :
-        rule.field === 'source' ? (sourceApp || '') :
-          (content || '');
+      const target =
+        rule.field === 'content'
+          ? content
+          : rule.field === 'source'
+            ? sourceApp || ''
+            : content || '';
 
       if (rule.matchType === 'contains') {
         matched = target.toLowerCase().includes(rule.pattern.toLowerCase());
@@ -67,7 +70,9 @@ class AutoCategorize {
         try {
           const regex = new RegExp(rule.pattern, 'i');
           matched = regex.test(target);
-        } catch (e) { /* invalid regex */ }
+        } catch (e) {
+          /* invalid regex */
+        }
       } else if (rule.matchType === 'startsWith') {
         matched = target.toLowerCase().startsWith(rule.pattern.toLowerCase());
       }
@@ -96,7 +101,7 @@ class AutoCategorize {
       action: rule.action || 'tag',
       tag: rule.tag || null,
       groupId: rule.groupId || null,
-      stopOnMatch: rule.stopOnMatch || false,
+      stopOnMatch: rule.stopOnMatch || false
     });
     this.saveRules();
     return true;

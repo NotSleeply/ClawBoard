@@ -1,7 +1,7 @@
 /**
  * RuleEngine - 剪贴板规则引擎 v0.73.0
  * 支持基于条件的自动处理规则（格式化、打标签、添加备注等）
- * 
+ *
  * 规则类型:
  * - condition: 触发条件（正则匹配、内容类型、来源应用等）
  * - action: 执行动作（格式化、打标签、添加备注、加密等）
@@ -263,9 +263,7 @@ class RuleEngine {
     };
 
     // 按优先级排序的启用规则
-    const enabledRules = this.rules
-      .filter(r => r.enabled)
-      .sort((a, b) => b.priority - a.priority);
+    const enabledRules = this.rules.filter(r => r.enabled).sort((a, b) => b.priority - a.priority);
 
     for (const rule of enabledRules) {
       if (this._matchCondition(record, rule.condition)) {
@@ -425,12 +423,15 @@ class RuleEngine {
    */
   _updateExecutionStats(ruleId) {
     try {
-      this.db.db.run(`
+      this.db.db.run(
+        `
         UPDATE rules 
         SET execution_count = execution_count + 1,
             last_executed_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `, ruleId);
+      `,
+        ruleId
+      );
     } catch (e) {
       console.error('_updateExecutionStats error:', e);
     }

@@ -7,14 +7,14 @@ class SmartPaste {
   constructor() {
     // 预设转换规则
     this.transformers = {
-      'plain': this.toPlainText.bind(this),
-      'markdown': this.toMarkdown.bind(this),
-      'codeblock': this.toCodeBlock.bind(this),
-      'lowercase': this.toLowerCase.bind(this),
-      'uppercase': this.toUpperCase.bind(this),
+      plain: this.toPlainText.bind(this),
+      markdown: this.toMarkdown.bind(this),
+      codeblock: this.toCodeBlock.bind(this),
+      lowercase: this.toLowerCase.bind(this),
+      uppercase: this.toUpperCase.bind(this),
       'url-clean': this.cleanUrl.bind(this),
       'json-format': this.formatJson.bind(this),
-      'phone-mask': this.maskPhone.bind(this),
+      'phone-mask': this.maskPhone.bind(this)
     };
 
     // 用户自定义脚本存储
@@ -58,13 +58,13 @@ class SmartPaste {
   /**
    * 转换为 Markdown 格式
    */
-  toMarkdown(content, options = {}) {
+  toMarkdown(content, _options = {}) {
     // 检测 URL 并转换为 Markdown 链接
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     let markdown = content;
 
     // 转换 URL
-    markdown = markdown.replace(urlRegex, (url) => {
+    markdown = markdown.replace(urlRegex, url => {
       // 尝试提取标题（简化版）
       try {
         const urlObj = new URL(url);
@@ -130,11 +130,20 @@ class SmartPaste {
    */
   cleanUrl(content) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
-    return content.replace(urlRegex, (url) => {
+    return content.replace(urlRegex, url => {
       try {
         const urlObj = new URL(url);
         // 移除常见跟踪参数
-        const trackingParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'ref'];
+        const trackingParams = [
+          'utm_source',
+          'utm_medium',
+          'utm_campaign',
+          'utm_term',
+          'utm_content',
+          'fbclid',
+          'gclid',
+          'ref'
+        ];
         trackingParams.forEach(param => urlObj.searchParams.delete(param));
         return urlObj.toString();
       } catch {
@@ -202,7 +211,7 @@ class SmartPaste {
       { id: 'uppercase', name: '大写', description: '转换为大写字母' },
       { id: 'url-clean', name: '清理 URL', description: '移除跟踪参数' },
       { id: 'json-format', name: '格式化 JSON', description: '美化 JSON 格式' },
-      { id: 'phone-mask', name: '手机号脱敏', description: '隐藏手机号中间四位' },
+      { id: 'phone-mask', name: '手机号脱敏', description: '隐藏手机号中间四位' }
     ];
   }
 

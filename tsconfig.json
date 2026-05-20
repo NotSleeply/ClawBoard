@@ -1,26 +1,16 @@
 {
   "compilerOptions": {
     "target": "es2022",
-    "module": "esnext",
-    "lib": [
-      "es2022",
-      "dom"
-    ],
+    "module": "Node16",
+    "lib": ["es2022", "dom"],
     "allowJs": true,
-    "checkJs": true,
+    "checkJs": false,
     "noEmit": true,
     "strict": false,
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true
+    "moduleResolution": "node16",
+    "resolveJsonModule": true,
+    "types": ["node", "jest"]
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "build",
-    "src/renderer/app.js",
-    "src/main/index.js"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "build", "src/renderer/app.js", "src/main/index.js"]
 }

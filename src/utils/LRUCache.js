@@ -1,18 +1,26 @@
+// @ts-check
+
 /**
  * ClawBoard - LRU (Least Recently Used) Cache 实现
  * 用于缓存频繁访问的数据，提升性能
+ *
+ * @template K
+ * @template V
  */
-
 class LRUCache {
+  /**
+   * @param {number} [maxSize=100] - 缓存容量上限
+   */
   constructor(maxSize = 100) {
     this.maxSize = maxSize;
+    /** @type {Map<K, V>} */
     this.cache = new Map(); // Map 保持插入顺序，便于实现LRU
   }
 
   /**
    * 获取缓存值
-   * @param {string} key - 缓存键
-   * @returns {*} - 缓存值，不存在返回 undefined
+   * @param {K} key - 缓存键
+   * @returns {V | undefined} - 缓存值，不存在返回 undefined
    */
   get(key) {
     if (!this.cache.has(key)) return undefined;
@@ -27,8 +35,9 @@ class LRUCache {
 
   /**
    * 设置缓存值
-   * @param {string} key - 缓存键
-   * @param {*} value - 缓存值
+   * @param {K} key - 缓存键
+   * @param {V} value - 缓存值
+   * @returns {void}
    */
   set(key, value) {
     if (this.cache.has(key)) {
@@ -36,7 +45,9 @@ class LRUCache {
     } else if (this.cache.size >= this.maxSize) {
       // 删除最久未使用的项（Map的第一个元素）
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
     }
 
     this.cache.set(key, value);
@@ -44,7 +55,7 @@ class LRUCache {
 
   /**
    * 检查键是否存在
-   * @param {string} key - 缓存键
+   * @param {K} key - 缓存键
    * @returns {boolean}
    */
   has(key) {
@@ -53,7 +64,7 @@ class LRUCache {
 
   /**
    * 删除缓存项
-   * @param {string} key - 缓存键
+   * @param {K} key - 缓存键
    * @returns {boolean} - 是否删除成功
    */
   delete(key) {
@@ -62,6 +73,7 @@ class LRUCache {
 
   /**
    * 清空缓存
+   * @returns {void}
    */
   clear() {
     this.cache.clear();
@@ -77,9 +89,9 @@ class LRUCache {
 
   /**
    * 获取或设置（如果不存在则调用工厂函数）
-   * @param {string} key - 缓存键
-   * @param {Function} factory - 值工厂函数
-   * @returns {*}
+   * @param {K} key - 缓存键
+   * @param {() => V} factory - 值工厂函数
+   * @returns {V}
    */
   getOrSet(key, factory) {
     if (this.has(key)) {

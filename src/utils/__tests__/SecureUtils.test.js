@@ -53,7 +53,7 @@ describe('SecureUtils', () => {
     test('使用错误密钥解密应该返回错误信息', () => {
       const crypto = require('crypto');
       const wrongKey = crypto.randomBytes(32);
-      
+
       const plaintext = 'Secret message';
       const encrypted = SecureUtils.encryptGCM(plaintext, key);
       const decrypted = SecureUtils.decryptGCM(encrypted, wrongKey);
@@ -99,7 +99,7 @@ describe('SecureUtils', () => {
     test('应该估算破解时间', () => {
       const weak = SecureUtils.checkPasswordStrength('123456');
       const strong = SecureUtils.checkPasswordStrength('MyStr0ng@Passw0rd!');
-      
+
       expect(weak.crackTime).toBeTruthy();
       expect(strong.crackTime).toBeTruthy();
       // 强密码的破解时间应该更长
@@ -112,7 +112,7 @@ describe('SecureUtils', () => {
       // 合法标签
       expect(/^[\w\u4e00-\u9fa5\s-]+$/.test('工作')).toBe(true);
       expect(/^[\w\u4e00-\u9fa5\s-]+$/.test('dev-tag')).toBe(true);
-      
+
       // 非法标签
       expect(/^[\w\u4e00-\u9fa5\s-]+$/.test('<script>')).toBe(false);
       expect(/^[\w\u4e00-\u9fa5\s-]+$/.test('tag with space and special!')).toBe(false);
@@ -122,7 +122,7 @@ describe('SecureUtils', () => {
       // 合法键名
       expect(/^[a-zA-Z0-9_.-]+$/.test('theme.dark-mode')).toBe(true);
       expect(/^[a-zA-Z0-9_.-]+$/.test('auto-sync.interval')).toBe(true);
-      
+
       // 非法键名
       expect(/^[a-zA-Z0-9_.-]+$/.test('../../etc/passwd')).toBe(false);
     });
@@ -132,19 +132,19 @@ describe('SecureUtils', () => {
     test('相同输入应该产生相同的签名', () => {
       const data = 'test data';
       const key = 'secret-key';
-      
+
       const sig1 = SecureUtils.hmacSHA256(data, key);
       const sig2 = SecureUtils.hmacSHA256(data, key);
-      
+
       expect(sig1).toBe(sig2);
     });
 
     test('不同数据应该产生不同的签名', () => {
       const key = 'secret-key';
-      
+
       const sig1 = SecureUtils.hmacSHA256('data1', key);
       const sig2 = SecureUtils.hmacSHA256('data2', key);
-      
+
       expect(sig1).not.toBe(sig2);
     });
   });

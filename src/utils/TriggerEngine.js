@@ -287,8 +287,7 @@ class TriggerEngine {
    * @returns {Array}
    */
   getAllTriggers() {
-    return Array.from(this.triggers.values())
-      .sort((a, b) => a.priority - b.priority);
+    return Array.from(this.triggers.values()).sort((a, b) => a.priority - b.priority);
   }
 
   // ==================== v0.78.0: 日志和调试功能 ====================
@@ -348,12 +347,12 @@ class TriggerEngine {
     }
 
     console.log(`[Trigger] 测试触发器: ${trigger.name}`);
-    
+
     const conditionResult = this._evaluateConditions(trigger.conditions, testContent, {});
-    
+
     if (conditionResult.matched) {
       const actionResult = this._executeActions(trigger.actions, testContent, {});
-      
+
       const result = {
         matched: true,
         conditions: conditionResult.details || [],
@@ -362,14 +361,14 @@ class TriggerEngine {
         originalContent: testContent,
         finalContent: actionResult.content
       };
-      
+
       if (this.debugMode) {
         console.debug('[Trigger] 测试结果:', JSON.stringify(result, null, 2));
       }
-      
+
       return result;
     }
-    
+
     return {
       matched: false,
       conditions: conditionResult.details || [],
@@ -394,7 +393,6 @@ class TriggerEngine {
     this._isProcessing = true;
     let finalContent = content;
     const results = [];
-    const startTime = Date.now();
 
     try {
       // 按优先级排序后执行
@@ -408,7 +406,9 @@ class TriggerEngine {
           const elapsed = Date.now() - new Date(trigger.lastRunAt).getTime();
           if (elapsed < trigger.cooldown) {
             if (this.debugMode) {
-              console.debug(`[Trigger] 跳过 ${trigger.name}: 冷却中 (${Math.round(elapsed)}ms/${trigger.cooldown}ms)`);
+              console.debug(
+                `[Trigger] 跳过 ${trigger.name}: 冷却中 (${Math.round(elapsed)}ms/${trigger.cooldown}ms)`
+              );
             }
             continue;
           }
@@ -418,7 +418,11 @@ class TriggerEngine {
         if (trigger.runOnce && trigger.runCount > 0) continue;
 
         // 评估条件
-        const conditionResult = this._evaluateConditions(trigger.conditions, finalContent, metadata);
+        const conditionResult = this._evaluateConditions(
+          trigger.conditions,
+          finalContent,
+          metadata
+        );
 
         if (conditionResult.matched) {
           console.log(`[Trigger] 匹配: ${trigger.name}`);
@@ -434,12 +438,12 @@ class TriggerEngine {
           trigger.lastRunAt = new Date().toISOString();
           trigger.runCount++;
           this.triggers.set(trigger.id, trigger);
-          
+
           // v0.78.0: 记录执行日志
           this.executionCount++;
           this.lastExecutedAt = new Date().toISOString();
           const executionTime = Date.now() - triggerStartTime;
-          
+
           const logEntry = {
             timestamp: new Date().toISOString(),
             triggerId: trigger.id,
@@ -451,12 +455,12 @@ class TriggerEngine {
             executionTime,
             contentPreview: finalContent.substring(0, 100)
           };
-          
+
           this.executionLog.unshift(logEntry);
           if (this.executionLog.length > this.maxLogSize) {
             this.executionLog.pop();
           }
-          
+
           if (this.debugMode) {
             console.debug(`[Trigger] 执行详情:`, JSON.stringify(logEntry, null, 2));
           }
@@ -530,7 +534,7 @@ class TriggerEngine {
           break;
 
         case 'notContains':
-          matched = !(value.includes(condition.value || ''));
+          matched = !value.includes(condition.value || '');
           break;
 
         case 'equals':
@@ -594,10 +598,7 @@ class TriggerEngine {
             break;
 
           case 'replace':
-            result = currentContent.replace(
-              action.search || '',
-              action.replace || ''
-            );
+            result = currentContent.replace(action.search || '', action.replace || '');
             if (result !== currentContent) modified = true;
             break;
 
@@ -677,9 +678,21 @@ class TriggerEngine {
 
       // 要移除的常见追踪参数
       const trackingParams = [
-        'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-        'fbclid', 'gclid', '_ga', '_gl', 'ref', 'source',
-        'clickid', 'mc_eid', 'trk', 'elq'
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_term',
+        'utm_content',
+        'fbclid',
+        'gclid',
+        '_ga',
+        '_gl',
+        'ref',
+        'source',
+        'clickid',
+        'mc_eid',
+        'trk',
+        'elq'
       ];
 
       trackingParams.forEach(param => {
@@ -703,10 +716,14 @@ class TriggerEngine {
   _executeScript(script, content, context) {
     try {
       // 安全限制: 只允许纯函数操作
-      const fn = new Function('input', 'context', `
+      const fn = new Function(
+        'input',
+        'context',
+        `
         "use strict";
         ${script}
-      `);
+      `
+      );
 
       const result = fn(content, context);
 
@@ -742,7 +759,8 @@ class TriggerEngine {
       totalTriggers: triggers.length,
       enabledTriggers: enabledCount,
       totalRuns,
-      averageRunsPerTrigger: triggers.length > 0 ? Math.round(totalRuns / triggers.length * 100) / 100 : 0
+      averageRunsPerTrigger:
+        triggers.length > 0 ? Math.round((totalRuns / triggers.length) * 100) / 100 : 0
     };
   }
 }

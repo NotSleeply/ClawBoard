@@ -998,7 +998,7 @@ class Database {
 
   // 计算相似度（0-1），带长度预过滤和截断优化
   _similarity(a, b) {
-    if (a == null || b == null) return 0;
+    if (a === null || a === undefined || b === null || b === undefined) return 0;
 
     const maxLen = Math.max(a.length, b.length);
     const minLen = Math.min(a.length, b.length);
@@ -1017,49 +1017,6 @@ class Database {
     const dist = this._levenshteinDistance(ta, tb);
     const truncMax = Math.max(ta.length, tb.length);
     return truncMax === 0 ? 1 : 1 - dist / truncMax;
-  }
-
-  // 查找相似记录
-  findSimilar(content, threshold = 0.8, limit = 5) {
-    if (!content || content.length < 10) return [];
-
-    const result = this.db.exec(`
-      SELECT id, content, created_at, favorite, type
-      FROM records
-      WHERE encrypted = 0 AND type = 'text'
-      ORDER BY created_at DESC
-      LIMIT 100
-    `);
-
-    if (result.length === 0 || result[0].values.length === 0) return [];
-
-    const maxLen = content.length;
-    const minAcceptLen = Math.floor(maxLen * threshold);
-    const maxAcceptLen = Math.ceil(maxLen / threshold);
-
-    const similar = [];
-    for (const row of result[0].values) {
-      const [id, recordContent, createdAt, favorite, type] = row;
-
-      // 长度预过滤：长度差异过大直接跳过
-      if (recordContent.length < minAcceptLen || recordContent.length > maxAcceptLen) continue;
-
-      const sim = this._similarity(content, recordContent);
-      if (sim >= threshold && sim < 1) {
-        // 排除完全相同
-        similar.push({
-          id,
-          content: recordContent.substring(0, 200),
-          similarity: Math.round(sim * 100),
-          created_at: createdAt,
-          favorite: favorite === 1,
-          type
-        });
-        if (similar.length >= limit) break;
-      }
-    }
-
-    return similar.sort((a, b) => b.similarity - a.similarity);
   }
 
   // 检查完全重复
@@ -1336,7 +1293,7 @@ class Database {
     let count = 0;
     result[0].values.forEach(([id, tagsJson]) => {
       try {
-        let tags = JSON.parse(tagsJson || '[]');
+        const tags = JSON.parse(tagsJson || '[]');
         const index = tags.indexOf(tag);
         if (index !== -1) {
           tags.splice(index, 1);
@@ -2339,7 +2296,6 @@ class Database {
    */
   getSyncMetadata() {
     const stats = this.getStats();
-    const settings = this.getSettings();
 
     // 获取上次同步时间
     let lastSyncTime = null;
@@ -2989,8 +2945,10 @@ class Database {
     switch (len & 3) {
       case 3:
         k1 ^= (chars[tail + 2] & 0xff) << 16;
+      // break omitted
       case 2:
         k1 ^= (chars[tail + 1] & 0xff) << 8;
+      // break omitted
       case 1:
         k1 ^= chars[tail] & 0xff;
         k1 = Math.imul(k1, c1);
@@ -3024,13 +2982,11 @@ class Database {
     if (tokens.size === 0) return null;
     const sig = new Int32Array(MH_NUM_HASHES);
     sig.fill(0x7fffffff);
-    let pairIdx = 0;
     for (let i = 0; i < MH_NUM_HASHES; i++) {
       for (const tok of tokens) {
         const h = this._murmurHash3_32(tok + '#' + i, i + 1) >>> 0;
         if (h < sig[i]) sig[i] = h;
       }
-      pairIdx++;
     }
     return sig;
   }
@@ -3049,14 +3005,13 @@ class Database {
   // 返回 [{idA, idB, contentA, contentB, jaccard}]
   _findFuzzyDuplicates(threshold = 0.75, limit = 200) {
     const rows = this.db.exec(
-      'SELECT id, content, type FROM records WHERE encrypted = 0 AND type IN (\"text\",\"code\") ORDER BY created_at DESC LIMIT ?',
+      'SELECT id, content, type FROM records WHERE encrypted = 0 AND type IN ("text","code") ORDER BY created_at DESC LIMIT ?',
       [limit]
     );
     if (!rows[0] || rows[0].values.length === 0) return [];
 
     const ids = rows[0].values.map(v => v[0]);
     const contents = rows[0].values.map(v => v[1]);
-    const types = rows[0].values.map(v => v[2]);
 
     const sigs = contents.map(c => this._minhash(c));
     const pairs = [];
@@ -3106,7 +3061,7 @@ class Database {
   getFuzzyStats() {
     const all =
       this.db.exec(
-        'SELECT COUNT(*) FROM records WHERE encrypted = 0 AND type IN (\"text\",\"code\")'
+        'SELECT COUNT(*) FROM records WHERE encrypted = 0 AND type IN ("text","code")'
       )[0]?.values[0][0] || 0;
     const dups = this._findFuzzyDuplicates(0.75);
     return {

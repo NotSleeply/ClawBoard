@@ -131,7 +131,7 @@ describe('PasteModeManager', () => {
         name: '反转',
         description: '反转字符串',
         icon: '🔄',
-        transform: (text) => text.split('').reverse().join('')
+        transform: text => text.split('').reverse().join('')
       });
 
       const mode = manager.getMode('reverse');
@@ -158,9 +158,9 @@ describe('PasteModeManager', () => {
   describe('previewAllModes - 批量预览', () => {
     test('应该返回所有模式的预览结果', () => {
       const previews = manager.previewAllModes('Hello World');
-      
+
       expect(previews.length).toBeGreaterThan(0);
-      
+
       // 每个预览应该包含必要字段
       previews.forEach(preview => {
         expect(preview).toHaveProperty('id');
@@ -172,7 +172,7 @@ describe('PasteModeManager', () => {
 
     test('原始文本和转换后不同的模式 should mark isDifferent as true', () => {
       const previews = manager.previewAllModes('hello');
-      
+
       const uppercase = previews.find(p => p.id === 'uppercase');
       expect(uppercase.isDifferent).toBe(true); // hello → HELLO (不同)
     });
@@ -180,7 +180,7 @@ describe('PasteModeManager', () => {
     test('plain 模式通常会产生不同结果 (去除格式)', () => {
       const htmlText = '<b>bold</b>';
       const previews = manager.previewAllModes(htmlText);
-      
+
       const plain = previews.find(p => p.id === 'plain');
       expect(plain.isDifferent).toBe(true); // 去除 HTML 标签
     });

@@ -175,11 +175,13 @@ class SyncService extends EventEmitter {
     const targets = Array.from(this.pairedDevices.keys());
 
     if (this.ws && this.ws.readyState === 1) {
-      this.ws.send(JSON.stringify({
-        action: 'broadcast',
-        targets,
-        payload: encrypted
-      }));
+      this.ws.send(
+        JSON.stringify({
+          action: 'broadcast',
+          targets,
+          payload: encrypted
+        })
+      );
     } else {
       // 离线，加入队列
       this.offlineQueue.push(syncData);
@@ -199,16 +201,18 @@ class SyncService extends EventEmitter {
           this.log.info('已连接到中继服务器');
 
           // 发送设备注册信息
-          this.ws.send(JSON.stringify({
-            action: 'register',
-            deviceId: this.deviceId,
-            deviceName: this.deviceName
-          }));
+          this.ws.send(
+            JSON.stringify({
+              action: 'register',
+              deviceId: this.deviceId,
+              deviceName: this.deviceName
+            })
+          );
 
           resolve(true);
         });
 
-        this.ws.on('message', (data) => {
+        this.ws.on('message', data => {
           this._handleMessage(data);
         });
 
@@ -219,12 +223,12 @@ class SyncService extends EventEmitter {
           // 5秒后重连
           setTimeout(() => {
             if (this.syncEnabled) {
-              this._connectRelay().catch(() => { });
+              this._connectRelay().catch(() => {});
             }
           }, 5000);
         });
 
-        this.ws.on('error', (err) => {
+        this.ws.on('error', err => {
           this.log.error('WebSocket 错误:', err);
           reject(err);
         });

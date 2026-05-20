@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
+
 - UI 设置面板 (快捷键配置、主题切换)
 - 插件系统 (API 设计 + 沙箱)
 - 多语言支持 (i18n, 中英日文)
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🎨 新增 - 竞品特性集成
 
 #### 文本格式清理器 (来自 ClipboardFusion)
+
 - `toPlainText()` - 去除 HTML/Markdown/Word 格式
 - 8 种大小写转换模式
 - URL/Base64/HTML 实体编码转换
@@ -25,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 文本统计信息 (字数/行数/语言检测)
 
 #### 特殊粘贴模式 (来自 Ditto)
+
 - 12 种预设粘贴模式:
   - 纯文本、大写、小写、标题格式、句子格式
   - 反转大小写、驼峰命名、下划线命名
@@ -33,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 批量预览所有转换结果
 
 #### 快捷短语/模板系统 (来自 CopyQ)
+
 - 变量模板引擎 (`{{date}}`, `{{clipboard}}`, `{{user_name}}`)
 - 分组管理 (通用/开发/办公)
 - 6 个默认实用模板:
@@ -46,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 导入导出功能 (JSON)
 
 #### 自动触发器引擎 (来自 ClipboardFusion)
+
 - 条件系统: 正则/关键词/长度/来源应用
 - 动作系统: 格式化/替换/标记/通知/脚本执行
 - 4 个智能默认规则:
@@ -58,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🔒 安全增强
 
 #### 企业级安全工具集 (SecureUtils)
+
 - Argon2id 密钥派生 (抗 GPU/ASIC 攻击)
 - AES-256-GCM 认证加密 (防篡改)
 - DoD 5220.22-M 安全删除标准 (7次覆写)
@@ -65,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - HMAC-SHA256 签名验证
 
 #### 会话管理器 (SessionManager)
+
 - 主密码设置与验证
 - 会话超时自动锁定 (默认30分钟)
 - 暴力破解防护 (5次失败=锁定5分钟)
@@ -74,12 +81,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚡ 性能优化
 
 #### LRU 缓存系统
+
 - 列表加载: ~200ms → ~60ms (**3.3x** 提升)
 - 搜索响应: ~500ms → ~150ms (**3.3x** 提升)
 - 统计查询: ~100ms → ~20ms (**5x** 提升)
 - 内存占用 <5MB (50条缓存对象)
 
 #### 数据库安全加固
+
 - SQL 注入防护: 参数化查询替代字符串拼接
 - 输入验证和清理方法 (`_sanitizeString`, `_isValidTag`)
 - 自动备份机制 (每小时备份,保留30天)
@@ -88,6 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🧪 质量保证
 
 #### 测试框架
+
 - Jest 单元测试框架集成
 - 90+ 核心模块测试用例:
   - LRUCache (15 用例)
@@ -98,6 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 覆盖率阈值: 70% 行覆盖
 
 #### 代码质量工具
+
 - ESLint 配置 (严格代码规范)
 - Prettier 配置 (统一代码风格)
 - CI/CD 流水线 (GitHub Actions):
