@@ -52,22 +52,37 @@ function truncate(str, maxLen) {
 const typeIcons = { text: '📝', code: '💻', file: '📁', image: '🖼️' };
 
 function copyToClipboard(text) {
-  const { execSync } = require('child_process');
+  const { spawnSync } = require('child_process');
+  let result;
+
   if (process.platform === 'win32') {
-    const tmpFile = path.join(os.tmpdir(), `clawboard-clip-${Date.now()}.txt`);
-    fs.writeFileSync(tmpFile, text, 'utf8');
-    execSync(`powershell -Command "Get-Content '${tmpFile}' | Set-Clipboard"`, {
-      windowsHide: true
-    });
-    try {
-      fs.unlinkSync(tmpFile);
-    } catch {
-      // Temporary clipboard files are best-effort cleanup only.
-    }
+    result = spawnSync(
+      'powershell',
+      ['-NoProfile', '-Command', '[Console]::In.ReadToEnd() | Set-Clipboard'],
+      {
+        input: text,
+        encoding: 'utf8',
+        windowsHide: true
+      }
+    );
   } else if (process.platform === 'darwin') {
-    execSync(`echo -n ${JSON.stringify(text)} | pbcopy`);
+    result = spawnSync('pbcopy', [], {
+      input: text,
+      encoding: 'utf8'
+    });
   } else {
-    execSync(`echo -n ${JSON.stringify(text)} | xclip -selection clipboard`);
+    result = spawnSync('xclip', ['-selection', 'clipboard'], {
+      input: text,
+      encoding: 'utf8'
+    });
+  }
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    throw new Error(result.stderr || 'Failed to copy text to clipboard.');
   }
 }
 
