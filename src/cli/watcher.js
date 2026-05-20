@@ -1,10 +1,40 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const log = require('electron-log');
 
-log.transports.file.resolvePathFn = () =>
-    path.join(os.homedir(), '.clawboard', 'logs', 'watcher.log');
+// Simple logger replacement for electron-log
+const log = {
+    info: (...args) => console.log('[INFO]', ...args),
+    warn: (...args) => console.warn('[WARN]', ...args),
+    error: (...args) => console.error('[ERROR]', ...args),
+    debug: (...args) => console.log('[DEBUG]', ...args),
+};
+
+// Ensure log directory exists
+const logDir = path.join(os.homedir(), '.clawboard', 'logs');
+if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+}
+
+// Log to file as well
+const logFile = path.join(logDir, 'watcher.log');
+const originalLog = { ...log };
+log.info = (...args) => {
+    const msg = `[INFO] ${args.join(' ')}`;
+    console.log(msg);
+    fs.appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`);
+};
+log.warn = (...args) => {
+    const msg = `[WARN] ${args.join(' ')}`;
+    console.warn(msg);
+    fs.appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`);
+};
+log.error = (...args) => {
+    const msg = `[ERROR] ${args.join(' ')}`;
+    console.error(msg);
+    fs.appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`);
+};
+
 log.info('[Watcher] 剪贴板监控守护进程启动');
 
 const Database = require('../core/database/Database');

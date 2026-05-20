@@ -1,14 +1,12 @@
 /**
  * ClawBoard - 会话安全管理器
- * v0.75.0: 主密码 + 会话超时 + 自动锁定
+ * v0.75.0: 主密码 + 会话超时 + 自动锁定 (CLI version)
  */
 
-const { ipcMain } = require('electron');
 const SecureUtils = require('./SecureUtils');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const log = require('electron-log');
 
 class SessionManager {
   constructor(userDataPath, database) {
@@ -42,61 +40,21 @@ class SessionManager {
    * @private
    */
   _init() {
-    log.info('[Session] 会话管理器初始化');
+    console.log('[Session] 会话管理器初始化');
 
     // 加载保存的密码哈希
     const hashFile = path.join(this.userDataPath, 'master-password.hash');
     if (fs.existsSync(hashFile)) {
       try {
         this._masterPasswordHash = JSON.parse(fs.readFileSync(hashFile, 'utf8'));
-        log.info('[Session] 已加载主密码哈希');
+        console.log('[Session] 已加载主密码哈希');
       } catch (err) {
-        log.error('[Session] 加载密码哈希失败:', err);
+        console.error('[Session] 加载密码哈希失败:', err);
       }
     }
 
-    // 注册 IPC 处理程序
-    this._registerIPC();
-
     // 启动活动监控
     this._startActivityMonitor();
-  }
-
-  /**
-   * 注册 IPC 接口
-   * @private
-   */
-  _registerIPC() {
-    // 设置主密码
-    ipcMain.handle('set-master-password', async (_, password) => {
-      return this.setMasterPassword(password);
-    });
-
-    // 验证主密码 (解锁)
-    ipcMain.handle('verify-master-password', async (_, password) => {
-      return this.verifyPassword(password);
-    });
-
-    // 检查会话状态
-    ipcMain.handle('get-session-status', async () => {
-      return this.getStatus();
-    });
-
-    // 手动锁定
-    ipcMain.handle('lock-session', async () => {
-      return this.lock();
-    });
-
-    // 更新活动时间 (用户交互时调用)
-    ipcMain.handle('update-activity', async () => {
-      this._updateActivity();
-      return { success: true };
-    });
-
-    // 更改主密码
-    ipcMain.handle('change-master-password', async (_, oldPassword, newPassword) => {
-      return this.changePassword(oldPassword, newPassword);
-    });
   }
 
   /**
@@ -130,7 +88,7 @@ class SessionManager {
     // 派生会话密钥
     this._deriveSessionKey(password);
 
-    log.info('[Session] 主密码设置成功');
+    console.log('[Session] 主密码设置成功');
     return { success: true };
   }
 
@@ -168,19 +126,19 @@ class SessionManager {
       this._lockoutUntil = null;
 
       this.unlock(password);
-      log.info('[Session] 密码验证成功,会话已解锁');
+      console.log('[Session] 密码验证成功,会话已解锁');
 
       return { success: true };
     } else {
       // 密码错误
       this._failedAttempts++;
-      log.warn(`[Session] 密码错误 (第${this._failedAttempts}次)`);
+      console.warn(`[Session] 密码错误 (第${this._failedAttempts}次)`);
 
       if (this._failedAttempts >= this.config.maxAttempts) {
         this._lockoutUntil = Date.now() + this.config.lockoutTime;
         this._failedAttempts = 0;
 
-        log.error(`[Session] 连续${this.config.maxAttempts}次错误,已锁定 ${this.config.lockoutTime / 1000}秒`);
+        console.error(`[Session] 连续${this.config.maxAttempts}次错误,已锁定 ${this.config.lockoutTime / 1000}秒`);
         return {
           success: false,
           locked: true,
@@ -221,7 +179,7 @@ class SessionManager {
     this._sessionStart = null;
     this._lastActivity = null;
 
-    log.info('[Session] 会话已锁定');
+    console.log('[Session] 会话已锁定');
     return { success: true, locked: true };
   }
 
@@ -291,17 +249,8 @@ class SessionManager {
         const idleTime = Date.now() - this._lastActivity;
 
         if (idleTime >= this.config.sessionTimeout) {
-          log.info(`[Session] 无操作超时 (${Math.round(idleTime / 1000)}s),自动锁定`);
+          console.log(`[Session] 无操作超时 (${Math.round(idleTime / 1000)}s),自动锁定`);
           this.lock();
-
-          // 通知渲染进程
-          const { BrowserWindow } = require('electron');
-          const windows = BrowserWindow.getAllWindows();
-          windows.forEach(win => {
-            if (!win.isDestroyed()) {
-              win.webContents.send('session-locked', { reason: 'timeout' });
-            }
-          });
         }
       }
     }, 5000); // 每5秒检查一次
@@ -336,10 +285,10 @@ class SessionManager {
     if (this._activityMonitor) {
       clearInterval(this._activityMonitor);
       this._activityMonitor = null;
-      log.info('[Session] 活动监控定时器已清理');
+      console.log('[Session] 活动监控定时器已清理');
     }
 
-    log.info('[Session] 会话管理器已销毁');
+    console.log('[Session] 会话管理器已销毁');
   }
 }
 

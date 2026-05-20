@@ -4,7 +4,14 @@
  */
 
 const http = require('http');
-const log = require('electron-log');
+
+// Simple logger
+const log = {
+    info: (...args) => console.log('[AI]', ...args),
+    warn: (...args) => console.warn('[AI]', ...args),
+    error: (...args) => console.error('[AI]', ...args),
+    debug: (...args) => console.log('[AI:DEBUG]', ...args),
+};
 
 const OLLAMA_HOST = 'http://localhost:11434';
 const DEFAULT_MODEL = 'qwen2.5:3b';

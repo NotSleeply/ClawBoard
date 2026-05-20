@@ -1,19 +1,29 @@
 /**
  * Auto-categorize rules engine
- * v0.65.0
+ * v0.65.0 (CLI version)
  */
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
+
 class AutoCategorize {
-  constructor() {
+  constructor(userDataPath) {
     this.rules = [];
+    this.userDataPath = userDataPath || this._getDefaultDataDir();
     this.loadRules();
+  }
+
+  _getDefaultDataDir() {
+    const homeDir = os.homedir();
+    if (process.platform === 'win32') {
+      return path.join(homeDir, 'AppData', 'Roaming', 'ClawBoard');
+    }
+    return path.join(homeDir, '.config', 'clawboard');
   }
 
   loadRules() {
     try {
-      const fs = require('fs');
-      const path = require('path');
-      const userData = require('electron').app.getPath('userData');
-      const rulesPath = path.join(userData, 'auto-cat-rules.json');
+      const rulesPath = path.join(this.userDataPath, 'auto-cat-rules.json');
       if (fs.existsSync(rulesPath)) {
         this.rules = JSON.parse(fs.readFileSync(rulesPath, 'utf8'));
       }
@@ -25,10 +35,11 @@ class AutoCategorize {
 
   saveRules() {
     try {
-      const fs = require('fs');
-      const path = require('path');
-      const userData = require('electron').app.getPath('userData');
-      const rulesPath = path.join(userData, 'auto-cat-rules.json');
+      // Ensure directory exists
+      if (!fs.existsSync(this.userDataPath)) {
+        fs.mkdirSync(this.userDataPath, { recursive: true });
+      }
+      const rulesPath = path.join(this.userDataPath, 'auto-cat-rules.json');
       fs.writeFileSync(rulesPath, JSON.stringify(this.rules, null, 2), 'utf8');
       return true;
     } catch (e) {

@@ -1,9 +1,7 @@
 /**
- * SmartPaste - 智能粘贴模块 v0.31.0
+ * SmartPaste - 智能粘贴模块 v0.31.0 (CLI version)
  * 支持多种粘贴格式转换和工作流自动化
  */
-
-const { clipboard } = require('electron');
 
 class SmartPaste {
   constructor() {

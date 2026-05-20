@@ -1,6 +1,6 @@
 /**
  * ClawBoard - 自动触发器/规则引擎
- * v0.76.0: 借鉴 ClipboardFusion 的 Triggers 功能
+ * v0.76.0: 借鉴 ClipboardFusion 的 Triggers 功能 (CLI version)
  *
  * 功能:
  * - 监听剪贴板变化
@@ -9,9 +9,7 @@
  * - 支持多种动作 (格式化、替换、通知、执行命令)
  */
 
-const { ipcMain } = require('electron');
 const TextFormatter = require('./TextFormatter');
-const log = require('electron-log');
 
 class TriggerEngine {
   constructor(database, clipboardWatcher) {
@@ -36,7 +34,7 @@ class TriggerEngine {
    * @private
    */
   _init() {
-    log.info('[Trigger] 触发器引擎初始化');
+    console.log('[Trigger] 触发器引擎初始化');
 
     // 加载已保存的规则
     this._loadTriggers();
@@ -45,9 +43,6 @@ class TriggerEngine {
     if (this.triggers.size === 0) {
       this._createDefaultTriggers();
     }
-
-    // 注册 IPC 接口
-    this._registerIPC();
   }
 
   /**
@@ -62,11 +57,11 @@ class TriggerEngine {
           saved.forEach(trigger => {
             this.triggers.set(trigger.id, trigger);
           });
-          log.info(`[Trigger] 从数据库加载了 ${saved.length} 个触发器`);
+          console.log(`[Trigger] 从数据库加载了 ${saved.length} 个触发器`);
         }
       }
     } catch (err) {
-      log.error('[Trigger] 加载失败:', err);
+      console.error('[Trigger] 加载失败:', err);
     }
   }
 
@@ -186,54 +181,7 @@ class TriggerEngine {
       this.createTrigger(trigger);
     });
 
-    log.info(`[Trigger] 已创建 ${defaults.length} 个默认触发器`);
-  }
-
-  // ==================== IPC 注册 ====================
-
-  /**
-   * 注册 IPC 接口
-   * @private
-   */
-  _registerIPC() {
-    // 获取所有触发器
-    ipcMain.handle('get-triggers', async () => {
-      return this.getAllTriggers();
-    });
-
-    // 创建触发器
-    ipcMain.handle('create-trigger', async (_, triggerData) => {
-      return this.createTrigger(triggerData);
-    });
-
-    // 更新触发器
-    ipcMain.handle('update-trigger', async (_, id, updates) => {
-      return this.updateTrigger(id, updates);
-    });
-
-    // 删除触发器
-    ipcMain.handle('delete-trigger', async (_, id) => {
-      return this.deleteTrigger(id);
-    });
-
-    // 启用/禁用触发器
-    ipcMain.handle('toggle-trigger', async (_, id, enabled) => {
-      return this.toggleTrigger(id, enabled);
-    });
-
-    // 测试触发器（调试模式，模拟执行但不写入数据库）
-    ipcMain.handle('test-trigger', async (_, id, testContent) => {
-      try {
-        return { success: true, ...await this.testTrigger(id, testContent) };
-      } catch (err) {
-        return { success: false, error: err.message };
-      }
-    });
-
-    // 手动运行所有触发器
-    ipcMain.handle('run-triggers', async (_, content, metadata = {}) => {
-      return this.processContent(content, metadata);
-    });
+    console.log(`[Trigger] 已创建 ${defaults.length} 个默认触发器`);
   }
 
   // ==================== CRUD 操作 ====================
@@ -269,7 +217,7 @@ class TriggerEngine {
       this.db.saveTrigger(trigger);
     }
 
-    log.info(`[Trigger] 创建成功: ${trigger.name} (${id})`);
+    console.log(`[Trigger] 创建成功: ${trigger.name} (${id})`);
 
     return trigger;
   }
@@ -298,7 +246,7 @@ class TriggerEngine {
       this.db.saveTrigger(updated);
     }
 
-    log.info(`[Trigger] 更新成功: ${updated.name}`);
+    console.log(`[Trigger] 更新成功: ${updated.name}`);
 
     return updated;
   }
@@ -319,7 +267,7 @@ class TriggerEngine {
       this.db.deleteTrigger(id);
     }
 
-    log.info(`[Trigger] 删除成功: ${trigger.name}`);
+    console.log(`[Trigger] 删除成功: ${trigger.name}`);
 
     return true;
   }
@@ -359,7 +307,7 @@ class TriggerEngine {
    */
   clearExecutionLog() {
     this.executionLog = [];
-    log.info('[Trigger] 执行日志已清空');
+    console.log('[Trigger] 执行日志已清空');
   }
 
   /**
@@ -384,14 +332,14 @@ class TriggerEngine {
    */
   setDebugMode(enabled) {
     this.debugMode = enabled;
-    log.info(`[Trigger] 调试模式: ${enabled ? '开启' : '关闭'}`);
+    console.log(`[Trigger] 调试模式: ${enabled ? '开启' : '关闭'}`);
   }
 
   /**
    * 手动触发规则测试（用于调试）
    * @param {string} triggerId - 触发器ID
    * @param {string} testContent - 测试内容
-   * @returns {Object} 执行结果
+   * @returns {Promise<Object>} 执行结果
    */
   async testTrigger(triggerId, testContent) {
     const trigger = this.triggers.get(triggerId);
@@ -399,7 +347,7 @@ class TriggerEngine {
       throw new Error(`触发器不存在: ${triggerId}`);
     }
 
-    log.info(`[Trigger] 测试触发器: ${trigger.name}`);
+    console.log(`[Trigger] 测试触发器: ${trigger.name}`);
     
     const conditionResult = this._evaluateConditions(trigger.conditions, testContent, {});
     
@@ -416,7 +364,7 @@ class TriggerEngine {
       };
       
       if (this.debugMode) {
-        log.debug('[Trigger] 测试结果:', JSON.stringify(result, null, 2));
+        console.debug('[Trigger] 测试结果:', JSON.stringify(result, null, 2));
       }
       
       return result;
@@ -460,7 +408,7 @@ class TriggerEngine {
           const elapsed = Date.now() - new Date(trigger.lastRunAt).getTime();
           if (elapsed < trigger.cooldown) {
             if (this.debugMode) {
-              log.debug(`[Trigger] 跳过 ${trigger.name}: 冷却中 (${Math.round(elapsed)}ms/${trigger.cooldown}ms)`);
+              console.debug(`[Trigger] 跳过 ${trigger.name}: 冷却中 (${Math.round(elapsed)}ms/${trigger.cooldown}ms)`);
             }
             continue;
           }
@@ -473,7 +421,7 @@ class TriggerEngine {
         const conditionResult = this._evaluateConditions(trigger.conditions, finalContent, metadata);
 
         if (conditionResult.matched) {
-          log.info(`[Trigger] 匹配: ${trigger.name}`);
+          console.log(`[Trigger] 匹配: ${trigger.name}`);
 
           // 执行动作
           const actionResult = this._executeActions(trigger.actions, finalContent, metadata);
@@ -510,7 +458,7 @@ class TriggerEngine {
           }
           
           if (this.debugMode) {
-            log.debug(`[Trigger] 执行详情:`, JSON.stringify(logEntry, null, 2));
+            console.debug(`[Trigger] 执行详情:`, JSON.stringify(logEntry, null, 2));
           }
 
           results.push({
@@ -522,12 +470,12 @@ class TriggerEngine {
           });
         } else {
           if (this.debugMode) {
-            log.debug(`[Trigger] 未匹配: ${trigger.name}`);
+            console.debug(`[Trigger] 未匹配: ${trigger.name}`);
           }
         }
       }
     } catch (err) {
-      log.error('[Trigger] 处理错误:', err);
+      console.error('[Trigger] 处理错误:', err);
     } finally {
       this._isProcessing = false;
     }
@@ -572,7 +520,7 @@ class TriggerEngine {
             const regex = new RegExp(condition.pattern, condition.flags || '');
             matched = regex.test(value);
           } catch (e) {
-            log.warn(`[Trigger] 正则表达式错误: ${condition.pattern}`);
+            console.warn(`[Trigger] 正则表达式错误: ${condition.pattern}`);
             matched = false;
           }
           break;
@@ -606,7 +554,7 @@ class TriggerEngine {
           break;
 
         default:
-          log.warn(`[Trigger] 未知的条件类型: ${condition.type}`);
+          console.warn(`[Trigger] 未知的条件类型: ${condition.type}`);
           matched = false;
       }
 
@@ -673,13 +621,13 @@ class TriggerEngine {
             break;
 
           default:
-            log.warn(`[Trigger] 未知的动作类型: ${action.type}`);
+            console.warn(`[Trigger] 未知的动作类型: ${action.type}`);
         }
 
         currentContent = result;
         executedActions.push({ type: action.type, success: true });
       } catch (err) {
-        log.error(`[Trigger] 动作执行失败 (${action.type}):`, err);
+        console.error(`[Trigger] 动作执行失败 (${action.type}):`, err);
         executedActions.push({ type: action.type, success: false, error: err.message });
       }
     }
@@ -710,7 +658,7 @@ class TriggerEngine {
 
     const transformFn = transforms[method];
     if (!transformFn) {
-      log.warn(`[Trigger] 未知的转换方法: ${method}`);
+      console.warn(`[Trigger] 未知的转换方法: ${method}`);
       return content;
     }
 
@@ -765,7 +713,7 @@ class TriggerEngine {
       // 确保返回字符串
       return typeof result === 'string' ? result : String(result || content);
     } catch (err) {
-      log.error('[Trigger] 脚本执行失败:', err);
+      console.error('[Trigger] 脚本执行失败:', err);
       return content;
     }
   }
@@ -778,7 +726,7 @@ class TriggerEngine {
    */
   setEnabled(enabled) {
     this._isEnabled = enabled;
-    log.info(`[Trigger] 引擎${enabled ? '已启用' : '已禁用'}`);
+    console.log(`[Trigger] 引擎${enabled ? '已启用' : '已禁用'}`);
   }
 
   /**

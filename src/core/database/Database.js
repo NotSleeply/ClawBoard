@@ -1129,10 +1129,19 @@ class Database {
     return this._rowToRecord(result[0].columns, result[0].values[0]);
   }
 
-  // 获取记录列表 — 合并版 (fix #159)
-  // 原先 getRecords 被定义了 3 次，JS 后定义覆盖前定义导致功能丢失
-  // 现在合并为一个完整方法，支持所有参数
-  // v0.74.0: 优化 - 添加缓存支持
+  /**
+   * 获取记录列表 — 合并版 (fix #159)
+   * @param {object} [options]
+   * @param {string} [options.type] - 按类型过滤 (text/code/file/image)
+   * @param {number} [options.limit=50] - 返回条数
+   * @param {number} [options.offset=0] - 偏移量
+   * @param {string} [options.search] - 搜索关键词
+   * @param {boolean} [options.favorite] - 仅收藏
+   * @param {string} [options.sourceApp] - 来源应用
+   * @param {string} [options.tag] - 按标签过滤
+   * @param {string} [options.groupId] - 按分组过滤
+   * @returns {Array<object>}
+   */
   getRecords({ type, limit = 50, offset = 0, search, favorite, sourceApp, tag, groupId } = {}) {
     // 对于无搜索条件的列表查询，使用缓存 (5秒过期)
     const cacheKey = this._cacheKey(

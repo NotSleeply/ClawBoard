@@ -312,7 +312,7 @@ program
             }
             console.log(chalk.bold('\n🏷️ 标签列表\n'));
             for (const t of tags) {
-                console.log(`  🏷️ ${chalk.bold(t.name || t)}  ${chalk.gray(`(${t.count || 0} 条记录)`)}`);
+                console.log(`  🏷️ ${chalk.bold(t.tag || t)}  ${chalk.gray(`(${t.count || 0} 条记录)`)}`);
             }
             console.log();
         } finally {

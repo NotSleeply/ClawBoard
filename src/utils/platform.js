@@ -1,10 +1,9 @@
 /**
  * Platform detection and platform-specific utilities
- * v0.60.0 - Cross-platform abstraction layer
+ * v0.60.0 - Cross-platform abstraction layer (CLI version)
  */
 
 const path = require('path');
-const { app } = require('electron');
 const os = require('os');
 
 class Platform {
@@ -49,10 +48,11 @@ class Platform {
 
   // Path to config directory
   static getConfigDir() {
-    if (this.isWindows) return path.join(app.getPath('appData'), 'ClawBoard');
-    if (this.isMac) return path.join(app.getPath('home'), '.config', 'clawboard');
+    const homeDir = os.homedir();
+    if (this.isWindows) return path.join(homeDir, 'AppData', 'Roaming', 'ClawBoard');
+    if (this.isMac) return path.join(homeDir, '.config', 'clawboard');
     // Linux
-    return path.join(app.getPath('home'), '.config', 'clawboard');
+    return path.join(homeDir, '.config', 'clawboard');
   }
 
   // Default hotkey modifiers
@@ -85,7 +85,7 @@ class Platform {
     if (this.isWindows) {
       return 'powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(\'^v\')"';
     }
-    // macOS and Linux handled separately in main.js
+    // macOS and Linux handled separately
     return null;
   }
 
@@ -122,7 +122,7 @@ class Platform {
       return {
         title: 'Linux 依赖说明',
         requirements: [
-          '快速粘贴功能需要 xdotool: sudo apt install xdotool',
+          '快速粘贴功能需要 xclip: sudo apt install xclip',
           '通知功能需要 libnotify: sudo apt install libnotify4',
         ],
       };

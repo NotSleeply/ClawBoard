@@ -1,23 +1,10 @@
 /**
- * ClawBoard - 剪贴板监控核心
+ * ClawBoard - 剪贴板监控核心 (CLI version)
  */
 
 const path = require('path');
 const fs = require('fs');
-
-let app;
-try {
-  app = require('electron').app;
-} catch {
-  app = {
-    getPath: (name) => {
-      const os = require('os');
-      const map = { userData: os.homedir(), temp: os.tmpdir() };
-      return map[name] || os.tmpdir();
-    },
-    getVersion: () => '0.0.0',
-  };
-}
+const os = require('os');
 
 class ClipboardWatcher {
   constructor(db, clipboard, log, ai, ocr) {
@@ -109,7 +96,9 @@ class ClipboardWatcher {
       }
     }
 
-    this._processText(trimmed, {});
+    /** @type {{encrypted?: boolean, sensitive_types?: string[]}} */
+    const defaultOptions = {};
+    this._processText(trimmed, defaultOptions);
   }
 
   /**
@@ -126,7 +115,7 @@ class ClipboardWatcher {
    * @param {boolean} options.encrypted - 是否自动加密
    * @param {string[]} options.sensitive_types - 敏感信息类型列表
    */
-  _processText(text, options = {}) {
+  _processText(text, options = /** @type {{encrypted?: boolean, sensitive_types?: string[]}} */ ({})) {
     // 判断类型
     let type = 'text';
     if (this._isFilePath(text)) {
@@ -163,11 +152,6 @@ class ClipboardWatcher {
 
       this.log.info(`${logPrefix}: [${type}] ${isEncrypted ? sensitiveTypesStr + ' → ' : ''}${text.substring(0, 50)}...`);
 
-      // 通知渲染进程
-      if (global.mainWindow && !global.mainWindow.isDestroyed()) {
-        global.mainWindow.webContents.send('new-record', record);
-      }
-
       // v0.29.0: 触发系统通知
       if (global.showClipboardNotification) {
         const notificationData = isEncrypted
@@ -187,10 +171,6 @@ class ClipboardWatcher {
       });
 
       this.log.info(`${logPrefix}: [${type}] ${isEncrypted ? sensitiveTypesStr + ' → ' : ''}${text.substring(0, 50)}...`);
-
-      if (global.mainWindow && !global.mainWindow.isDestroyed()) {
-        global.mainWindow.webContents.send('new-record', record);
-      }
 
       if (global.showClipboardNotification) {
         const notificationData = isEncrypted
@@ -230,7 +210,7 @@ class ClipboardWatcher {
   _handleImage(image) {
     try {
       // 保存图片
-      const dataDir = path.join(app.getPath('userData'), 'images');
+      const dataDir = this._getDataDir();
       if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
       }
@@ -256,10 +236,6 @@ class ClipboardWatcher {
           if (ocrResult.success && ocrResult.text) {
             this.db.updateOCRText(record.id, ocrResult.text);
             this.log.info(`图片 OCR 完成: ${ocrResult.text.substring(0, 50)}...`);
-
-            if (global.mainWindow && !global.mainWindow.isDestroyed()) {
-              global.mainWindow.webContents.send('ocr-complete', { id: record.id, text: ocrResult.text });
-            }
           }
         }).catch(err => {
           this.log.warn('OCR 识别失败:', err.message);
@@ -275,6 +251,14 @@ class ClipboardWatcher {
     } catch (err) {
       this.log.error('保存图片失败:', err);
     }
+  }
+
+  _getDataDir() {
+    const homeDir = os.homedir();
+    if (process.platform === 'win32') {
+      return path.join(homeDir, 'AppData', 'Roaming', 'ClawBoard', 'images');
+    }
+    return path.join(homeDir, '.config', 'clawboard', 'images');
   }
 
   _isFilePath(text) {
@@ -304,12 +288,12 @@ class ClipboardWatcher {
     // 简单代码检测：包含常见代码关键词
     const codePatterns = [
       /^(const|let|var|function|class|import|export|def|public|private|if|for|while)\s/m,
-      /[{}\[\]()].*[{}\[\]()]/,
+      /[{\}\[\]()].*[{\}\[\]()]/,
       /<\/?[a-zA-Z][^>]*>/,  // HTML/XML 标签
       /^\s*(import|from|require)\s/m,
       /^\s*#include\s/m,
       /^\s*using\s+\w+/m,
-      /=>|->|::|\.\.\./,
+      /=>|->|::|\.{3}/,
     ];
     return codePatterns.some(p => p.test(text));
   }
@@ -377,7 +361,6 @@ class ClipboardWatcher {
   _getImageHash(image) {
     if (image.isEmpty()) return '';
     try {
-      const { nativeImage } = require('electron');
       const buffer = image.toPNG();
       // 简单哈希：取前1KB的CRC
       const partial = buffer.slice(0, 1024);
@@ -388,7 +371,7 @@ class ClipboardWatcher {
       }
       return hash.toString(16);
     } catch {
-      return image.toDataURL().substring(0, 100);
+      return '';
     }
   }
 }
