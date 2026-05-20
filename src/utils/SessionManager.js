@@ -14,7 +14,7 @@ class SessionManager {
   constructor(userDataPath, database) {
     this.userDataPath = userDataPath;
     this.db = database;
-    
+
     // 会话状态
     this._isLocked = true;           // 默认锁定
     this._sessionStart = null;       // 会话开始时间
@@ -93,11 +93,6 @@ class SessionManager {
       return { success: true };
     });
 
-    // 获取密码强度
-    ipcMain.handle('check-password-strength', async (_, password) => {
-      return SecureUtils.checkPasswordStrength(password);
-    });
-
     // 更改主密码
     ipcMain.handle('change-master-password', async (_, oldPassword, newPassword) => {
       return this.changePassword(oldPassword, newPassword);
@@ -174,7 +169,7 @@ class SessionManager {
 
       this.unlock(password);
       log.info('[Session] 密码验证成功,会话已解锁');
-      
+
       return { success: true };
     } else {
       // 密码错误
@@ -184,7 +179,7 @@ class SessionManager {
       if (this._failedAttempts >= this.config.maxAttempts) {
         this._lockoutUntil = Date.now() + this.config.lockoutTime;
         this._failedAttempts = 0;
-        
+
         log.error(`[Session] 连续${this.config.maxAttempts}次错误,已锁定 ${this.config.lockoutTime / 1000}秒`);
         return {
           success: false,

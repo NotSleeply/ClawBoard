@@ -20,58 +20,55 @@ const path = require("path");
 const fs = require("fs");
 const log = require("electron-log");
 const { autoUpdater } = require("electron-updater");
-const SecureUtils = require("../utils/SecureUtils"); // v0.75.0: 安全工具
-const SessionManager = require("../utils/SessionManager"); // v0.75.0: 会话管理
-const TextFormatter = require("../utils/TextFormatter"); // v0.76.0: 文本格式清理
-const PasteModeManager = require("../utils/PasteModeManager"); // v0.76.0: 特殊粘贴模式
-const SnippetsManager = require("../utils/SnippetsManager"); // v0.76.0: 快捷短语管理
-const TriggerEngine = require("../utils/TriggerEngine"); // v0.76.0: 自动触发器引擎
+const SecureUtils = require("../utils/SecureUtils");
+const SessionManager = require("../utils/SessionManager");
+const TextFormatter = require("../utils/TextFormatter");
+const PasteModeManager = require("../utils/PasteModeManager");
+const SnippetsManager = require("../utils/SnippetsManager");
+const TriggerEngine = require("../utils/TriggerEngine");
 
-// 配置日志
 log.transports.file.level = "info";
 log.transports.file.resolvePathFn = () =>
   path.join(app.getPath("userData"), "logs", "clawboard.log");
 log.info("ClawBoard 启动...");
 
-// 核心模块
 const ClipboardWatcher = require("../core/clipboard/ClipboardWatcher");
 const Database = require("../core/database/Database");
 const AI = require("../core/ai/AIService");
 
-// 功能模块
-const OCRService = require("../features/ocr/OCRService"); // v0.17.0 OCR服务
-const Insights = require("../features/insights/InsightsService"); // v0.69.0 智能洞察
-const RuleEngine = require("../features/rules/RuleEngine"); // v0.73.0 规则引擎
+const OCRService = require("../features/ocr/OCRService");
+const Insights = require("../features/insights/InsightsService");
+const RuleEngine = require("../features/rules/RuleEngine");
 
-// 工具模块
-const Platform = require("../utils/platform"); // v0.60.0 跨平台抽象
-const SmartPaste = require("../utils/smart-paste"); // v0.31.0 智能粘贴
-const IgnoreRules = require("../utils/ignore-rules"); // v0.31.0 忽略规则
-const HotkeyTemplates = require("../utils/hotkey-templates"); // v0.32.0 快捷键模板
-const TextTransform = require("../utils/text-transform"); // v0.33.0 格式转换
-const AutoCategorize = require("../utils/auto-categorize"); // v0.65.0 自动分类
+const Platform = require("../utils/platform");
+const SmartPaste = require("../utils/smart-paste");
+const IgnoreRules = require("../utils/ignore-rules");
+const HotkeyTemplates = require("../utils/hotkey-templates");
+const AutoCategorize = require("../utils/auto-categorize");
+
+const Snippets = require("../features/snippets/SnippetsManager");
 
 let mainWindow = null;
-let cycleWindow = null; // v0.39.0: Cycle mode window
-let quickPasteWindow = null; // v0.57.0: Quick paste floating menu
+let cycleWindow = null;
+let quickPasteWindow = null;
 let tray = null;
 let db = null;
-let sessionManager = null; // v0.75.0: 会话安全管理器
-let pasteModeManager = null; // v0.76.0: 特殊粘贴模式管理器
-let snippetsManager = null; // v0.76.0: 快捷短语管理器
-let triggerEngine = null; // v0.76.0: 自动触发器引擎
+let sessionManager = null;
+let pasteModeManager = null;
+let snippetsManager = null;
+let triggerEngine = null;
 let clipboardWatcher = null;
-let ocrService = null; // v0.17.0 OCR服务实例
-let smartPaste = null; // v0.31.0 智能粘贴实例
-let ignoreRules = null; // v0.31.0
-let autoExpiryTimer = null; // v0.31.0 忽略规则实例
-let hotkeyTemplates = null; // v0.32.0 快捷键模板实例
-let autoCat = null; // v0.65.0 自动分类实例
-let insightsEngine = null; // v0.69.0 智能洞察实例
-let ruleEngine = null; // v0.73.0 规则引擎实例
-let monitoringPaused = false; // v0.66.0: 监控控制状态
+let ocrService = null;
+let smartPaste = null;
+let ignoreRules = null;
+let autoExpiryTimer = null;
+let hotkeyTemplates = null;
+let autoCat = null;
+let insightsEngine = null;
+let ruleEngine = null;
+let monitoringPaused = false;
+let snippets = null;
 
-// v0.67.0: 全局快捷键自定义配置（跨平台适配 v0.74.0）
 let shortcutsConfig = {
   cyclePaste: Platform.getDefaultCyclePasteShortcut(),
   quickPaste: Platform.getDefaultQuickPasteShortcut(),
@@ -109,25 +106,20 @@ function saveShortcutsConfig() {
   }
 }
 
-// v0.29.0: 通知与声音设置
-// v0.64.0: 通知合并增强
 let notificationSettings = {
   enabled: false,
   soundEnabled: false,
   showPreview: true,
   ignoreLargeText: true,
   largeTextThreshold: 1000,
-  // v0.64.0: 通知合并
   mergeEnabled: true,
-  mergeWindow: 5000, // 合并时间窗口（毫秒）
-  position: "bottom-right", // 通知位置
+  mergeWindow: 5000,
+  position: "bottom-right",
 };
 
-// v0.64.0: 通知合并队列
 let notificationQueue = [];
 let notificationTimer = null;
 
-// 单实例锁
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
@@ -141,242 +133,18 @@ app.on("second-instance", () => {
   }
 });
 
-// ==================== v0.76.0: 竞品特性功能接口 ====================
+require('./ipc/formatIpc')(ipcMain, log, TextFormatter, () => pasteModeManager);
+require('./ipc/snippetIpc')(ipcMain, snippetsManager, () => snippets, () => db, log);
 
-// 文本格式清理
-ipcMain.handle("format-text", async (_, text, formatType) => {
-  try {
-    let result = '';
-    switch (formatType) {
-      case 'plain':
-        result = TextFormatter.toPlainText(text);
-        break;
-      case 'uppercase':
-        result = TextFormatter.toUpperCase(text);
-        break;
-      case 'lowercase':
-        result = TextFormatter.toLowerCase(text);
-        break;
-      case 'titlecase':
-        result = TextFormatter.toTitleCase(text);
-        break;
-      case 'sentencecase':
-        result = TextFormatter.toSentenceCase(text);
-        break;
-      case 'togglecase':
-        result = TextFormatter.toggleCase(text);
-        break;
-      case 'strip-html':
-        result = TextFormatter.stripHTML(text);
-        break;
-      case 'strip-markdown':
-        result = TextFormatter.stripMarkdown(text);
-        break;
-      default:
-        result = text;
-    }
-
-    return { success: true, data: result, originalLength: text.length, newLength: result.length };
-  } catch (err) {
-    log.error("format-text error:", err);
-    return { success: false, error: err.message };
+function ensureSnippets() {
+  if (!snippets && db) {
+    snippets = new Snippets(db.db || db);
   }
-});
+  return snippets;
+}
 
-// 获取文本统计信息
-ipcMain.handle("get-text-stats", async (_, text) => {
-  try {
-    const stats = TextFormatter.getStats(text);
-    return { success: true, stats };
-  } catch (err) {
-    log.error("get-text-stats error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 特殊粘贴模式
-ipcMain.handle("paste-with-mode", async (_, text, modeId) => {
-  try {
-    if (!pasteModeManager) {
-      return { success: false, error: '粘贴模式管理器未初始化' };
-    }
-
-    const result = pasteModeManager.paste(text, modeId);
-    return result;
-  } catch (err) {
-    log.error("paste-with-mode error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 预览所有粘贴模式
-ipcMain.handle("preview-paste-modes", async (_, text) => {
-  try {
-    if (!pasteModeManager) {
-      return { success: false, error: '粘贴模式管理器未初始化', modes: [] };
-    }
-
-    const previews = pasteModeManager.previewAllModes(text);
-    return { success: true, modes: previews };
-  } catch (err) {
-    log.error("preview-paste-modes error:", err);
-    return { success: false, error: err.message, modes: [] };
-  }
-});
-
-// 获取所有可用粘贴模式
-ipcMain.handle("get-paste-modes", async () => {
-  try {
-    if (!pasteModeManager) {
-      return { success: false, error: '未初始化', modes: [] };
-    }
-
-    const modes = pasteModeManager.getModes();
-    return { success: true, modes };
-  } catch (err) {
-    log.error("get-paste-modes error:", err);
-    return { success: false, error: err.message, modes: [] };
-  }
-});
-
-// 快捷短语管理
-ipcMain.handle("get-snippets", async (_, options) => {
-  try {
-    if (!snippetsManager) {
-      return { success: false, error: '未初始化', snippets: [] };
-    }
-
-    const snippets = snippetsManager.getAllSnippets(options || {});
-    return { success: true, snippets };
-  } catch (err) {
-    log.error("get-snippets error:", err);
-    return { success: false, error: err.message, snippets: [] };
-  }
-});
-
-// 渲染短语模板
-ipcMain.handle("render-snippet", async (_, snippetId, context) => {
-  try {
-    if (!snippetsManager) {
-      return { success: false, error: '未初始化' };
-    }
-
-    const result = snippetsManager.renderSnippet(snippetId, context || {});
-    return result;
-  } catch (err) {
-    log.error("render-snippet error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 创建新短语
-ipcMain.handle("create-snippet", async (_, snippetData) => {
-  try {
-    if (!snippetsManager) {
-      return { success: false, error: '未初始化' };
-    }
-
-    const snippet = snippetsManager.createSnippet(snippetData);
-    return { success: true, snippet };
-  } catch (err) {
-    log.error("create-snippet error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 更新短语
-ipcMain.handle("update-snippet", async (_, id, updates) => {
-  try {
-    if (!snippetsManager) {
-      return { success: false, error: '未初始化' };
-    }
-
-    const snippet = snippetsManager.updateSnippet(id, updates);
-    return { success: !!snippet, snippet };
-  } catch (err) {
-    log.error("update-snippet error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 删除短语
-ipcMain.handle("delete-snippet", async (_, id) => {
-  try {
-    if (!snippetsManager) {
-      return { success: false, error: '未初始化' };
-    }
-
-    const deleted = snippetsManager.deleteSnippet(id);
-    return { success: deleted };
-  } catch (err) {
-    log.error("delete-snippet error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 获取短语分组
-ipcMain.handle("get-snippet-groups", async () => {
-  try {
-    if (!snippetsManager) {
-      return { success: false, error: '未初始化', groups: [] };
-    }
-
-    const groups = snippetsManager.getGroups();
-    return { success: true, groups };
-  } catch (err) {
-    log.error("get-snippet-groups error:", err);
-    return { success: false, error: err.message, groups: [] };
-  }
-});
-
-// 获取短语使用统计
-ipcMain.handle("get-snippet-stats", async () => {
-  try {
-    if (!snippetsManager) {
-      return { success: false, error: '未初始化', stats: {} };
-    }
-
-    const stats = snippetsManager.getStats();
-    return { success: true, stats };
-  } catch (err) {
-    log.error("get-snippet-stats error:", err);
-    return { success: false, error: err.message, stats: {} };
-  }
-});
-
-// 导出短语为 JSON
-ipcMain.handle("export-snippets", async () => {
-  try {
-    if (!snippetsManager) {
-      return { success: false, error: '未初始化', json: '' };
-    }
-
-    const json = snippetsManager.exportJSON();
-    return { success: true, json };
-  } catch (err) {
-    log.error("export-snippets error:", err);
-    return { success: false, error: err.message, json: '' };
-  }
-});
-
-// 从 JSON 导入短语
-ipcMain.handle("import-snippets", async (_, jsonString) => {
-  try {
-    if (!snippetsManager) {
-      return { success: false, error: '未初始化' };
-    }
-
-    const result = snippetsManager.importJSON(jsonString);
-    return { success: true, ...result };
-  } catch (err) {
-    log.error("import-snippets error:", err);
-    return { success: false, error: err.message };
-  }
-});
-// v0.39.0: Cycle mode window
 function createCycleWindow() {
   if (cycleWindow && !cycleWindow.isDestroyed()) {
-    // v0.42.0: Reposition cycle window near current cursor on repeated trigger
     try {
       const { screen: scr } = require("electron");
       const pos = scr.getCursorScreenPoint();
@@ -399,21 +167,15 @@ function createCycleWindow() {
     return cycleWindow;
   }
 
-  // Get mouse position to show near cursor
   const { screen } = require("electron");
   const cursorPos = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursorPos);
   const bounds = display.workArea;
   const scaleFactor = display.scaleFactor;
 
-  // v0.42.0: Account for DPI scaling in multi-monitor setups
-  // cursorPos is in logical pixels; on high-DPI secondary monitors,
-  // the workArea coordinates may differ from raw cursor coordinates.
-  // We use logical coordinates consistently.
   let x = cursorPos.x + 10;
   let y = cursorPos.y - 100;
 
-  // Keep within the target display's work area
   const w = 420,
     h = 380;
   if (x + w > bounds.x + bounds.width) x = bounds.x + bounds.width - w - 10;
@@ -449,9 +211,7 @@ function createCycleWindow() {
     cycleWindow = null;
   });
 
-  // Close cycle window when it loses focus
   cycleWindow.on("blur", () => {
-    // Paste the selected item when window loses focus
     if (cycleWindow && !cycleWindow.isDestroyed()) {
       cycleWindow.webContents.send("cycle-paste-now");
       setTimeout(() => {
@@ -465,7 +225,6 @@ function createCycleWindow() {
   return cycleWindow;
 }
 
-// v0.57.0: Quick paste floating window
 function createQuickPasteWindow() {
   if (quickPasteWindow && !quickPasteWindow.isDestroyed()) {
     quickPasteWindow.close();
@@ -506,7 +265,6 @@ function createQuickPasteWindow() {
 
   quickPasteWindow.loadFile(path.join(__dirname, "windows/quick-paste.html"));
 
-  // Send recent records after load
   quickPasteWindow.webContents.on("did-finish-load", () => {
     const recent = db.searchRecords({ limit: 30 });
     quickPasteWindow.webContents.send(
@@ -571,7 +329,6 @@ function createWindow() {
 function createTray() {
   const iconPath = path.join(__dirname, "../assets/tray-icon.png");
 
-  // 如果没有图标文件，创建一个简单的默认图标
   let trayIcon;
   try {
     trayIcon = nativeImage.createFromPath(iconPath);
@@ -695,1377 +452,28 @@ function createTray() {
 }
 
 function setupIPC() {
-  // 获取所有记录
-  ipcMain.handle(
-    "get-records",
-    async (event, { type, limit, offset, search, favorite }) => {
-      try {
-        return db.getRecords({ type, limit, offset, search, favorite });
-      } catch (err) {
-        log.error("get-records error:", err);
-        return [];
-      }
-    },
-  );
-
-  // 获取单条记录
-  ipcMain.handle("get-record", async (event, id) => {
-    try {
-      return db.getRecord(id);
-    } catch (err) {
-      log.error("get-record error:", err);
-      return null;
-    }
-  });
-
-  // 切换收藏状态
-  ipcMain.handle("toggle-favorite", async (event, id) => {
-    try {
-      return db.toggleFavorite(id);
-    } catch (err) {
-      log.error("toggle-favorite error:", err);
-      return false;
-    }
-  });
-
-  // 更新备注
-  ipcMain.handle("update-note", async (event, { id, note }) => {
-    try {
-      return db.updateNote(id, note);
-    } catch (err) {
-      log.error("update-note error:", err);
-      return false;
-    }
-  });
-
-  // v0.38.0: 更新条目内容（内容编辑器）
-  ipcMain.handle("update-item-content", async (event, { id, content }) => {
-    try {
-      return db.updateItemContent(id, content);
-    } catch (err) {
-      log.error("update-item-content error:", err);
-      return null;
-    }
-  });
-
-  // v0.72.0: 删除记录（支持软删除/永久删除）
-  ipcMain.handle("delete-record", async (event, id, permanent = false) => {
-    try {
-      return db.deleteRecord(id, permanent);
-    } catch (err) {
-      log.error("delete-record error:", err);
-      return false;
-    }
-  });
-
-  // v0.72.0: 获取回收站列表
-  ipcMain.handle("get-trash-records", async (_, limit = 50, offset = 0) => {
-    try {
-      return db.getTrashRecords(limit, offset);
-    } catch (err) {
-      log.error("get-trash-records error:", err);
-      return [];
-    }
-  });
-
-  // v0.72.0: 获取回收站统计
-  ipcMain.handle("get-trash-stats", async () => {
-    try {
-      return db.getTrashStats();
-    } catch (err) {
-      log.error("get-trash-stats error:", err);
-      return { total: 0 };
-    }
-  });
-
-  // v0.72.0: 恢复回收站记录
-  ipcMain.handle("restore-from-trash", async (_, trashId) => {
-    try {
-      return db.restoreFromTrash(trashId);
-    } catch (err) {
-      log.error("restore-from-trash error:", err);
-      return false;
-    }
-  });
-
-  // v0.72.0: 永久删除回收站记录
-  ipcMain.handle("delete-trash-record", async (_, trashId) => {
-    try {
-      return db.deleteTrashRecord(trashId);
-    } catch (err) {
-      log.error("delete-trash-record error:", err);
-      return false;
-    }
-  });
-
-  // v0.72.0: 清空回收站
-  ipcMain.handle("empty-trash", async () => {
-    try {
-      return db.emptyTrash();
-    } catch (err) {
-      log.error("empty-trash error:", err);
-      return false;
-    }
-  });
-
-  // 清空历史
-  ipcMain.handle("clear-history", async () => {
-    try {
-      return db.clearHistory();
-    } catch (err) {
-      log.error("clear-history error:", err);
-      return false;
-    }
-  });
-
-  // v0.66.0: 监控控制 — 暂停/恢复
-  ipcMain.handle("toggle-monitoring", async () => {
-    try {
-      if (monitoringPaused) {
-        clipboardWatcher.start();
-        monitoringPaused = false;
-        if (tray)
-          tray.setImage(path.join(__dirname, "../assets/tray-icon.png"));
-        return { success: true, paused: false };
-      } else {
-        clipboardWatcher.stop();
-        monitoringPaused = true;
-        if (tray)
-          tray.setImage(path.join(__dirname, "../assets/tray-icon.png"));
-        return { success: true, paused: true };
-      }
-    } catch (e) {
-      log.error("toggle-monitoring error:", e);
-      return { success: false, error: e.message };
-    }
-  });
-
-  ipcMain.handle("get-monitoring-status", async () => {
-    return { paused: monitoringPaused };
-  });
-
-  // v0.66.0: 条件清空历史
-  ipcMain.handle(
-    "clear-records-filtered",
-    async (_, { range, type, favorite }) => {
-      try {
-        let query = "DELETE FROM records WHERE 1=1";
-        const params = [];
-
-        const now = new Date();
-        if (range === "today") {
-          const today = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate(),
-          );
-          query += " AND created_at >= ?";
-          params.push(today.toISOString());
-        } else if (range === "week") {
-          const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-          query += " AND created_at >= ?";
-          params.push(weekAgo.toISOString());
-        } else if (range === "month") {
-          const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
-          query += " AND created_at >= ?";
-          params.push(monthAgo.toISOString());
-        }
-
-        if (type !== "all") {
-          query += " AND type = ?";
-          params.push(type);
-        }
-
-        if (favorite) {
-          query += " AND favorite = 1";
-        }
-
-        const stmt = db.db.prepare(query);
-        const result = stmt.run(...params);
-
-        return { success: true, deleted: result.changes };
-      } catch (e) {
-        log.error("clear-records-filtered error:", e);
-        return { success: false, error: e.message };
-      }
-    },
-  );
-
-  // 复制到剪贴板
-  ipcMain.handle("copy-to-clipboard", async (event, text) => {
-    try {
-      clipboard.writeText(text);
-      return true;
-    } catch (err) {
-      log.error("copy-to-clipboard error:", err);
-      return false;
-    }
-  });
-
-  // 获取统计
-  ipcMain.handle("get-stats", async () => {
-    try {
-      return db.getStats();
-    } catch (err) {
-      log.error("get-stats error:", err);
-      return { total: 0, text: 0, image: 0, file: 0, favorite: 0 };
-    }
-  });
-
-  // 获取详细统计
-  ipcMain.handle("get-detailed-stats", async () => {
-    try {
-      return db.getDetailedStats();
-    } catch (err) {
-      log.error("get-detailed-stats error:", err);
-      return null;
-    }
-  });
-
-  // v0.61.0: 统计与可视化
-  ipcMain.handle("get-stats-by-type", async () => {
-    try {
-      return db.getStatsByType();
-    } catch (e) {
-      log.error("get-stats-by-type error:", e);
-      return [];
-    }
-  });
-
-  ipcMain.handle("get-stats-by-app", async (_, limit) => {
-    try {
-      return db.getStatsByApp(limit || 10);
-    } catch (e) {
-      log.error("get-stats-by-app error:", e);
-      return [];
-    }
-  });
-
-  ipcMain.handle("get-daily-stats", async (_, days) => {
-    try {
-      return db.getDailyStats(days || 30);
-    } catch (e) {
-      log.error("get-daily-stats error:", e);
-      return [];
-    }
-  });
-
-  ipcMain.handle("get-hourly-stats", async () => {
-    try {
-      return db.getHourlyStats();
-    } catch (e) {
-      log.error("get-hourly-stats error:", e);
-      return Array(24).fill(0);
-    }
-  });
-
-  ipcMain.handle("get-weekly-trend", async () => {
-    try {
-      return db.getWeeklyTrend();
-    } catch (e) {
-      log.error("get-weekly-trend error:", e);
-      return [];
-    }
-  });
-
-  // v0.69.0: 智能洞察
-  ipcMain.handle("get-insights", async () => {
-    try {
-      if (!insightsEngine) return [];
-      return insightsEngine.generateInsights();
-    } catch (e) {
-      log.error("get-insights error:", e);
-      return [];
-    }
-  });
-
-  // ==================== v0.73.0: 规则引擎 ====================
-  ipcMain.handle("get-rules", async () => {
-    try {
-      if (!ruleEngine) ruleEngine = new RuleEngine(db);
-      return ruleEngine.getRules();
-    } catch (e) {
-      log.error("get-rules error:", e);
-      return [];
-    }
-  });
-
-  ipcMain.handle("add-rule", async (_, rule) => {
-    try {
-      if (!ruleEngine) ruleEngine = new RuleEngine(db);
-      return ruleEngine.addRule(rule);
-    } catch (e) {
-      log.error("add-rule error:", e);
-      return { success: false, error: e.message };
-    }
-  });
-
-  ipcMain.handle("update-rule", async (_, { id, ...updates }) => {
-    try {
-      if (!ruleEngine) ruleEngine = new RuleEngine(db);
-      return ruleEngine.updateRule(id, updates);
-    } catch (e) {
-      log.error("update-rule error:", e);
-      return { success: false, error: e.message };
-    }
-  });
-
-  ipcMain.handle("delete-rule", async (_, id) => {
-    try {
-      if (!ruleEngine) ruleEngine = new RuleEngine(db);
-      return ruleEngine.deleteRule(id);
-    } catch (e) {
-      log.error("delete-rule error:", e);
-      return { success: false, error: e.message };
-    }
-  });
-
-  ipcMain.handle("reset-rules", async () => {
-    try {
-      if (!ruleEngine) ruleEngine = new RuleEngine(db);
-      return ruleEngine.resetToDefaults();
-    } catch (e) {
-      log.error("reset-rules error:", e);
-      return { success: false, error: e.message };
-    }
-  });
-
-  ipcMain.handle("get-rule-templates", async () => {
-    try {
-      if (!ruleEngine) ruleEngine = new RuleEngine(db);
-      return ruleEngine.getBuiltInTemplates();
-    } catch (e) {
-      log.error("get-rule-templates error:", e);
-      return [];
-    }
-  });
-
-  ipcMain.handle("export-rules", async () => {
-    try {
-      if (!ruleEngine) ruleEngine = new RuleEngine(db);
-      return ruleEngine.exportRules();
-    } catch (e) {
-      log.error("export-rules error:", e);
-      return "[]";
-    }
-  });
-
-  ipcMain.handle("import-rules", async (_, jsonStr) => {
-    try {
-      if (!ruleEngine) ruleEngine = new RuleEngine(db);
-      return ruleEngine.importRules(jsonStr);
-    } catch (e) {
-      log.error("import-rules error:", e);
-      return { success: false, error: e.message };
-    }
-  });
-
-  ipcMain.handle("get-rule-execution-log", async (_, limit) => {
-    try {
-      if (!ruleEngine) ruleEngine = new RuleEngine(db);
-      return ruleEngine.getExecutionLog(limit || 20);
-    } catch (e) {
-      log.error("get-rule-execution-log error:", e);
-      return [];
-    }
-  });
-
-  ipcMain.handle("test-rule", async (_, { content, type, sourceApp }) => {
-    try {
-      if (!ruleEngine) ruleEngine = new RuleEngine(db);
-      const result = ruleEngine.process({
-        content,
-        type: type || "text",
-        sourceApp: sourceApp || "",
-        tags: "[]",
-      });
-      return { success: true, result };
-    } catch (e) {
-      log.error("test-rule error:", e);
-      return { success: false, error: e.message };
-    }
-  });
-
-  // v0.62.0: Calendar heatmap
-  ipcMain.handle("get-calendar-data", async (_, days) => {
-    try {
-      return db.getCalendarData(days || 365);
-    } catch (e) {
-      log.error("get-calendar-data error:", e);
-      return { days: 365, dataMap: {} };
-    }
-  });
-
-  // 获取系统健康状态 (v0.26.0)
-  ipcMain.handle("get-system-health", async () => {
-    try {
-      const memUsage = process.memoryUsage();
-      const dbPath = path.join(app.getPath("userData"), "clawboard.db");
-      let dbSize = 0;
-      if (fs.existsSync(dbPath)) {
-        dbSize = fs.statSync(dbPath).size;
-      }
-      return {
-        memoryUsed: Math.round(memUsage.heapUsed / 1024 / 1024), // MB
-        memoryTotal: Math.round(memUsage.heapTotal / 1024 / 1024), // MB
-        rss: Math.round(memUsage.rss / 1024 / 1024), // MB
-        dbSize: dbSize,
-        dbSizeMB: Math.round((dbSize / 1024 / 1024) * 10) / 10,
-        uptime: Math.round(process.uptime()), // seconds
-        uptimeFormatted: formatUptime(process.uptime()),
-      };
-    } catch (err) {
-      log.error("get-system-health error:", err);
-      return null;
-    }
-  });
-
-  function formatUptime(seconds) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
-  }
-
-  // 获取来源应用列表
-  ipcMain.handle("get-source-apps", async () => {
-    try {
-      return db.getSourceApps();
-    } catch (err) {
-      log.error("get-source-apps error:", err);
-      return [];
-    }
-  });
-
-  // 标签相关
-  ipcMain.handle("get-all-tags", async () => {
-    try {
-      return db.getAllTags();
-    } catch (err) {
-      log.error("get-all-tags error:", err);
-      return [];
-    }
-  });
-
-  ipcMain.handle("add-tag", async (event, { recordId, tag }) => {
-    try {
-      return db.addTag(recordId, tag);
-    } catch (err) {
-      log.error("add-tag error:", err);
-      return false;
-    }
-  });
-
-  ipcMain.handle("remove-tag", async (event, { recordId, tag }) => {
-    try {
-      return db.removeTag(recordId, tag);
-    } catch (err) {
-      log.error("remove-tag error:", err);
-      return false;
-    }
-  });
-
-  ipcMain.handle("delete-tag", async (event, tag) => {
-    try {
-      return db.deleteTag(tag);
-    } catch (err) {
-      log.error("delete-tag error:", err);
-      return 0;
-    }
-  });
-
-  // 智能去重相关
-  ipcMain.handle("find-similar", async (event, content) => {
-    try {
-      return db.findSimilar(content);
-    } catch (err) {
-      log.error("find-similar error:", err);
-      return [];
-    }
-  });
-
-  ipcMain.handle("find-duplicates", async () => {
-    try {
-      return db.findDuplicates();
-    } catch (err) {
-      log.error("find-duplicates error:", err);
-      return [];
-    }
-  });
-
-  ipcMain.handle("cleanup-duplicates", async () => {
-    try {
-      return db.cleanupDuplicates();
-    } catch (err) {
-      log.error("cleanup-duplicates error:", err);
-      return 0;
-    }
-  });
-
-  // 更新当前来源应用（由剪贴板监控调用）
-  ipcMain.handle("set-current-source", async (event, { app, title, url }) => {
-    try {
-      // 存储当前前台窗口信息
-      clipboardWatcher.setCurrentSource({ app, title, url });
-      return { success: true };
-    } catch (err) {
-      log.error("set-current-source error:", err);
-      return { success: false };
-    }
-  });
-
-  // AI 摘要（占位）
-  ipcMain.handle("ai-summary", async (event, text) => {
-    try {
-      const AI = require("./ai");
-      return await AI.summarize(text);
-    } catch (err) {
-      log.error("ai-summary error:", err);
-      return null;
-    }
-  });
-
-  // v0.54.0: AI 设置相关 IPC
-  ipcMain.handle("ai-get-models", async () => {
-    try {
-      const AI = require("./ai");
-      return await AI.listModels();
-    } catch (err) {
-      log.error("ai-get-models error:", err);
-      return [];
-    }
-  });
-
-  ipcMain.handle("ai-get-settings", async () => {
-    try {
-      return db.getAISettings();
-    } catch (err) {
-      log.error("ai-get-settings error:", err);
-      return {};
-    }
-  });
-
-  ipcMain.handle("ai-save-settings", async (event, settings) => {
-    try {
-      return db.saveAISettings(settings);
-    } catch (err) {
-      log.error("ai-save-settings error:", err);
-      return false;
-    }
-  });
-
-  // v0.58.0: AI 配置管理
-  ipcMain.handle("get-ai-config", async () => {
-    try {
-      return AI.getConfig();
-    } catch (e) {
-      return {};
-    }
-  });
-
-  ipcMain.handle("update-ai-config", async (_, updates) => {
-    try {
-      return AI.updateConfig(updates);
-    } catch (e) {
-      log.error("update-ai-config error:", e);
-      return null;
-    }
-  });
-
-  ipcMain.handle("get-ai-prompts", async () => {
-    try {
-      return AI.getPrompts();
-    } catch (e) {
-      return {};
-    }
-  });
-
-  ipcMain.handle("update-ai-prompt", async (_, { key, template }) => {
-    try {
-      return AI.updatePrompt(key, template);
-    } catch (e) {
-      return false;
-    }
-  });
-
-  ipcMain.handle("reset-ai-defaults", async () => {
-    try {
-      return AI.resetToDefaults();
-    } catch (e) {
-      return false;
-    }
-  });
-
-  ipcMain.handle("get-ai-defaults", async () => {
-    try {
-      return { config: AI.getDefaultConfig(), prompts: AI.getDefaultPrompts() };
-    } catch (e) {
-      return null;
-    }
-  });
-
-  // 获取设置
-  ipcMain.handle("get-settings", async () => {
-    try {
-      return db.getSettings();
-    } catch (err) {
-      log.error("get-settings error:", err);
-      return {};
-    }
-  });
-
-  // 保存设置
-  ipcMain.handle("save-settings", async (event, settings) => {
-    try {
-      // 处理开机自启动
-      if (settings.autoStart !== undefined) {
-        app.setLoginItemSettings({
-          openAtLogin: settings.autoStart,
-          path: app.getPath("exe"),
-        });
-      }
-      // v0.29.0: 更新通知设置
-      updateNotificationSettings(settings);
-      return db.saveSettings(settings);
-    } catch (err) {
-      log.error("save-settings error:", err);
-      return false;
-    }
-  });
-
-  // v0.29.0: 通知设置相关 IPC
-  // v0.64.0: 扩展通知合并配置
-  ipcMain.handle("get-notification-settings", async () => {
-    try {
-      return {
-        enabled: notificationSettings.enabled,
-        soundEnabled: notificationSettings.soundEnabled,
-        showPreview: notificationSettings.showPreview,
-        ignoreLargeText: notificationSettings.ignoreLargeText,
-        largeTextThreshold: notificationSettings.largeTextThreshold,
-        // v0.64.0
-        mergeEnabled: notificationSettings.mergeEnabled,
-        mergeWindow: notificationSettings.mergeWindow,
-        position: notificationSettings.position,
-      };
-    } catch (err) {
-      log.error("get-notification-settings error:", err);
-      return null;
-    }
-  });
-
-  ipcMain.handle("update-notification-settings", async (event, settings) => {
-    try {
-      updateNotificationSettings(settings);
-      // 同时保存到数据库
-      const dbSettings = db.getSettings();
-      dbSettings.notificationEnabled = settings.enabled;
-      dbSettings.notificationSound = settings.soundEnabled;
-      dbSettings.notificationPreview = settings.showPreview;
-      dbSettings.notificationIgnoreLarge = settings.ignoreLargeText;
-      dbSettings.notificationLargeThreshold = settings.largeTextThreshold;
-      // v0.64.0
-      dbSettings.notificationMergeEnabled = settings.mergeEnabled;
-      dbSettings.notificationMergeWindow = settings.mergeWindow;
-      dbSettings.notificationPosition = settings.position;
-      return db.saveSettings(dbSettings);
-    } catch (err) {
-      log.error("update-notification-settings error:", err);
-      return false;
-    }
-  });
-
-  // v0.29.0: 测试通知
-  ipcMain.handle("test-notification", async () => {
-    try {
-      showClipboardNotification({
-        type: "text",
-        content: "这是一条测试通知 📋 ClawBoard 通知功能已启用！",
-        id: "test",
-      });
-      return { success: true };
-    } catch (err) {
-      log.error("test-notification error:", err);
-      return { success: false, error: err.message };
-    }
-  });
-
-  // 搜索（支持关键词 + 语义搜索）
-  ipcMain.handle("search", async (event, { query, useSemantic = true }) => {
-    try {
-      // 如果启用语义搜索且 Ollama 可用
-      if (useSemantic && AI) {
-        const isHealthy = await AI.checkHealth();
-        if (isHealthy) {
-          return await db.semanticSearch(query, AI.getEmbedding.bind(AI));
-        }
-      }
-      // 回退到关键词搜索
-      return db.search(query);
-    } catch (err) {
-      log.error("search error:", err);
-      return [];
-    }
-  });
-
+  require('./ipc/recordIpc')(ipcMain, db, log, () => clipboardWatcher);
+  require('./ipc/groupIpc')(ipcMain, db, log);
+  require('./ipc/statsIpc')(ipcMain, db, log, () => insightsEngine, () => app);
+  require('./ipc/ruleIpc')(ipcMain, db, log);
+  require('./ipc/aiIpc')(ipcMain, db, log, AI);
+  require('./ipc/settingsIpc')(ipcMain, db, log, () => app, () => notificationSettings, updateNotificationSettings, showClipboardNotification);
+  require('./ipc/windowIpc')(ipcMain, db, log, () => mainWindow, () => clipboardWatcher, () => tray, () => monitoringPaused, (v) => { monitoringPaused = v; });
   log.info("IPC 处理器已注册");
 }
 
-// 导出数据
-ipcMain.handle("export-data", async (event, { format = "json" }) => {
-  try {
-    const records = db.getRecords({ limit: 10000 });
-    const { dialog } = require("electron");
+require('./ipc/dataIpc')(ipcMain, db, log, () => mainWindow);
+require('./ipc/templateIpc')(ipcMain, db, log);
+require('./ipc/ocrIpc')(ipcMain, ocrService, db, log);
+require('./ipc/encryptionIpc')(ipcMain, db, log);
+require('./ipc/syncIpc')(ipcMain, db, log);
 
-    const result = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: `clawboard-backup-${Date.now()}.${format}`,
-      filters: [
-        { name: "JSON", extensions: ["json"] },
-        { name: "CSV", extensions: ["csv"] },
-      ],
-    });
-
-    if (result.canceled) return { success: false, message: "已取消" };
-
-    const fs = require("fs");
-    let content;
-
-    if (format === "json") {
-      content = JSON.stringify(records, null, 2);
-    } else if (format === "csv") {
-      const headers =
-        "id,type,content,summary,source,favorite,language,created_at\n";
-      const rows = records
-        .map(
-          (r) =>
-            `${r.id},"${r.type}","${(r.content || "").replace(/"/g, '""')}","${(r.summary || "").replace(/"/g, '""')}","${r.source}",${r.favorite || 0},"${r.language || ""}","${r.created_at}"`,
-        )
-        .join("\n");
-      content = headers + rows;
-    }
-
-    fs.writeFileSync(result.filePath, content, "utf-8");
-    return { success: true, message: `已导出 ${records.length} 条记录` };
-  } catch (err) {
-    log.error("export-data error:", err);
-    return { success: false, message: err.message };
-  }
-});
-
-// 导入数据
-ipcMain.handle("import-data", async (event, filePath) => {
-  try {
-    const fs = require("fs");
-    const content = fs.readFileSync(filePath, "utf-8");
-    const records = JSON.parse(content);
-
-    let count = 0;
-    for (const record of records) {
-      if (record.content) {
-        db.addRecord({
-          type: record.type || "text",
-          content: record.content,
-          summary: record.summary,
-          source: "import",
-          favorite: record.favorite || 0,
-          language: record.language,
-        });
-        count++;
-      }
-    }
-
-    return { success: true, message: `已导入 ${count} 条记录` };
-  } catch (err) {
-    log.error("import-data error:", err);
-    return { success: false, message: err.message };
-  }
-});
-
-// 模板管理
-ipcMain.handle("get-templates", async () => {
-  try {
-    return db.getTemplates();
-  } catch (err) {
-    log.error("get-templates error:", err);
-    return [];
-  }
-});
-
-ipcMain.handle("add-template", async (event, { name, content, category }) => {
-  try {
-    return db.addTemplate(name, content, category);
-  } catch (err) {
-    log.error("add-template error:", err);
-    return null;
-  }
-});
-
-ipcMain.handle(
-  "update-template",
-  async (event, { id, name, content, category }) => {
-    try {
-      return db.updateTemplate(id, name, content, category);
-    } catch (err) {
-      log.error("update-template error:", err);
-      return null;
-    }
-  },
-);
-
-ipcMain.handle("delete-template", async (event, id) => {
-  try {
-    return db.deleteTemplate(id);
-  } catch (err) {
-    log.error("delete-template error:", err);
-    return false;
-  }
-});
-
-// 窗口置顶
-ipcMain.handle("set-always-on-top", async (event, flag) => {
-  try {
-    if (mainWindow) {
-      mainWindow.setAlwaysOnTop(flag);
-      return true;
-    }
-    return false;
-  } catch (err) {
-    log.error("set-always-on-top error:", err);
-    return false;
-  }
-});
-
-// v0.17.0: OCR 相关 IPC
-// 手动触发 OCR 识别
-ipcMain.handle("ocr-recognize", async (event, imagePath) => {
-  try {
-    if (!ocrService) {
-      return { success: false, error: "OCR 服务未初始化" };
-    }
-    return await ocrService.recognize(imagePath);
-  } catch (err) {
-    log.error("ocr-recognize error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 获取 OCR 文本
-ipcMain.handle("get-ocr-text", async (event, id) => {
-  try {
-    const record = db.getRecord(id);
-    return record ? record.ocr_text : null;
-  } catch (err) {
-    log.error("get-ocr-text error:", err);
-    return null;
-  }
-});
-
-// v0.53.0: OCR 语言管理
-ipcMain.handle("get-ocr-languages", async () => {
-  try {
-    return ocrService.getAvailableLanguages();
-  } catch (err) {
-    log.error("get-ocr-languages error:", err);
-    return []; // 返回空数组而非 null
-  }
-});
-
-ipcMain.handle("set-ocr-language", async (_, langCodes) => {
-  try {
-    const result = await ocrService.setLanguage(langCodes);
-    return result; // { success: true/false, ... }
-  } catch (err) {
-    log.error("set-ocr-language error:", err);
-    return { success: false, error: err.message }; // 返回错误对象
-  }
-});
-
-ipcMain.handle("get-current-ocr-language", async () => {
-  try {
-    return { success: true, languages: ocrService.getCurrentLanguage() }; // 返回成功对象
-  } catch (err) {
-    log.error("get-current-ocr-language error:", err);
-    return {
-      success: false,
-      error: err.message,
-      languages: ["chi_sim", "eng"],
-    }; // 返回错误对象和默认值
-  }
-});
-
-// 切换锁定状态
-ipcMain.handle("toggle-lock", async (event, id) => {
-  try {
-    return db.toggleLock(id);
-  } catch (err) {
-    log.error("toggle-lock error:", err);
-    return false;
-  }
-});
-
-// ==================== 加密相关 ====================
-
-// 设置加密密码（解密所有加密记录）
-ipcMain.handle("set-encryption-password", async (event, password) => {
-  try {
-    db.setEncryptionKey(password);
-    return { success: true };
-  } catch (err) {
-    log.error("set-encryption-password error:", err);
-    return { success: false, message: err.message };
-  }
-});
-
-// 清除加密密钥
-ipcMain.handle("clear-encryption-key", async () => {
-  try {
-    db.clearEncryptionKey();
-    return { success: true };
-  } catch (err) {
-    log.error("clear-encryption-key error:", err);
-    return false;
-  }
-});
-
-// v0.71.0: 加密记录（支持算法选择）
-ipcMain.handle("encrypt-record", async (event, { id, algorithm = 'aes-256-gcm' }) => {
-  try {
-    return db.encryptRecord(id, algorithm);
-  } catch (err) {
-    log.error("encrypt-record error:", err);
-    return false;
-  }
-});
-
-// 解密记录（临时查看）
-ipcMain.handle("decrypt-record", async (event, id) => {
-  try {
-    return db.decryptRecord(id);
-  } catch (err) {
-    log.error("decrypt-record error:", err);
-    return null;
-  }
-});
-
-// 取消加密
-ipcMain.handle("remove-encryption", async (event, id) => {
-  try {
-    return db.removeEncryption(id);
-  } catch (err) {
-    log.error("remove-encryption error:", err);
-    return false;
-  }
-});
-
-// v0.71.0: 批量解密
-ipcMain.handle("batch-decrypt", async (event, ids) => {
-  try {
-    // v0.71.0: 如果 ids 为空，解密所有加密记录
-    let targetIds = ids;
-    if (!ids || ids.length === 0) {
-      const allEncrypted = db.db.prepare('SELECT id FROM records WHERE encrypted = 1').all();
-      targetIds = allEncrypted.map(r => r.id);
-    }
-    let success = 0, failed = 0;
-    for (const id of targetIds) {
-      try {
-        const result = db.decryptRecord(id);
-        if (result) { db.removeEncryption(id); success++; } else { failed++; }
-      } catch { failed++; }
-    }
-    return { success, failed, total: targetIds.length };
-  } catch (err) {
-    log.error("batch-decrypt error:", err);
-    return { success: 0, failed: 0, total: 0, error: err.message };
-  }
-});
-
-// v0.71.0: 获取加密统计
-ipcMain.handle("get-encryption-stats", async () => {
-  try {
-    if (!db) return null;
-    return db.getEncryptionStats ? db.getEncryptionStats() : null;
-  } catch (err) {
-    log.error("get-encryption-stats error:", err);
-    return null;
-  }
-});
-
-// v0.71.0: 检查密码强度
-ipcMain.handle("check-password-strength", async (event, password) => {
-  const analyze = (pw) => {
-    let score = 0;
-    const suggestions = [];
-    if (pw.length < 8) { suggestions.push('至少8个字符'); } else { score += 20; }
-    if (pw.length >= 12) score += 15;
-    if (pw.length >= 16) score += 10;
-    if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score += 15;
-    if (/[0-9]/.test(pw)) score += 10;
-    if (/[^A-Za-z0-9]/.test(pw)) score += 15;
-    if (/(.)\1{2,}/.test(pw)) { suggestions.push('避免连续重复字符'); score -= 10; }
-    if (/^[a-z]+$/i.test(pw)) { suggestions.push('避免纯字母'); score -= 10; }
-    if (/^[0-9]+$/.test(pw)) { suggestions.push('避免纯数字'); score -= 15; }
-    const commonPasswords = ['password', '123456', 'qwerty', 'admin', 'letmein', 'welcome'];
-    if (commonPasswords.some(p => pw.toLowerCase().includes(p))) { suggestions.push('避免常见密码'); score -= 20; }
-    score = Math.max(0, Math.min(100, score));
-    const levels = ['极弱', '弱', '中等', '强', '很强'];
-    return { score, level: levels[Math.min(Math.floor(score / 20), 4)], suggestions };
-  };
-  return analyze(password);
-});
-
-// v0.23.0: 保存记录（用于合并功能）
-ipcMain.handle("save-record", async (event, record) => {
-  try {
-    const result = db.addRecord(record);
-    return { success: true, record: result };
-  } catch (err) {
-    log.error("save-record error:", err);
-    return { success: false, message: err.message };
-  }
-});
-
-// ==================== 分组管理 ====================
-// 获取所有分组
-ipcMain.handle("get-all-groups", async () => {
-  try {
-    return db.getAllGroups();
-  } catch (err) {
-    log.error("get-all-groups error:", err);
-    return [];
-  }
-});
-
-// 创建分组
-ipcMain.handle("create-group", async (event, { name, color, icon }) => {
-  try {
-    return db.createGroup(name, color, icon);
-  } catch (err) {
-    log.error("create-group error:", err);
-    return null;
-  }
-});
-
-// 更新分组
-ipcMain.handle("update-group", async (event, { id, ...updates }) => {
-  try {
-    return db.updateGroup(id, updates);
-  } catch (err) {
-    log.error("update-group error:", err);
-    return null;
-  }
-});
-
-// 删除分组
-ipcMain.handle("delete-group", async (event, id) => {
-  try {
-    return db.deleteGroup(id);
-  } catch (err) {
-    log.error("delete-group error:", err);
-    return false;
-  }
-});
-
-// 切换分组折叠状态
-ipcMain.handle("toggle-group-collapsed", async (event, id) => {
-  try {
-    return db.toggleGroupCollapsed(id);
-  } catch (err) {
-    log.error("toggle-group-collapsed error:", err);
-    return false;
-  }
-});
-
-// 移动记录到分组
-ipcMain.handle("move-record-to-group", async (event, { recordId, groupId }) => {
-  try {
-    return db.moveRecordToGroup(recordId, groupId);
-  } catch (err) {
-    log.error("move-record-to-group error:", err);
-    return false;
-  }
-});
-
-// 更新记录排序
-ipcMain.handle(
-  "update-record-sort-order",
-  async (event, { recordId, newOrder, newGroupId }) => {
-    try {
-      return db.updateRecordSortOrder(recordId, newOrder, newGroupId);
-    } catch (err) {
-      log.error("update-record-sort-order error:", err);
-      return false;
-    }
-  },
-);
-
-// 批量更新排序
-ipcMain.handle("batch-update-sort-order", async (event, updates) => {
-  try {
-    return db.batchUpdateSortOrder(updates);
-  } catch (err) {
-    log.error("batch-update-sort-order error:", err);
-    return false;
-  }
-});
-
-// v0.25.0: 统计导出
-ipcMain.handle("get-stats-for-export", async () => {
-  try {
-    return db.getDetailedStatsForExport();
-  } catch (err) {
-    log.error("get-stats-for-export error:", err);
-    return null;
-  }
-});
-
-// v0.25.0: 导出记录
-ipcMain.handle("export-records", async (event, { format, options }) => {
-  try {
-    return db.exportRecords(format, options);
-  } catch (err) {
-    log.error("export-records error:", err);
-    return null;
-  }
-});
-
-// v0.25.0: 保存导出文件
-ipcMain.handle("save-export-file", async (event, { content, filename }) => {
-  try {
-    const { dialog } = require("electron");
-    const fs = require("fs");
-    const result = await dialog.showSaveDialog({
-      defaultPath: filename,
-      filters: [
-        { name: "JSON", extensions: ["json"] },
-        { name: "CSV", extensions: ["csv"] },
-        { name: "所有文件", extensions: ["*"] },
-      ],
-    });
-    if (result.canceled) return { success: false, canceled: true };
-    fs.writeFileSync(result.filePath, content, "utf8");
-    return { success: true, path: result.filePath };
-  } catch (err) {
-    log.error("save-export-file error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// v0.26.0: 获取运行时健康监控数据
-ipcMain.handle("get-runtime-stats", async () => {
-  try {
-    return db.getRuntimeStats();
-  } catch (err) {
-    log.error("get-runtime-stats error:", err);
-    return null;
-  }
-});
-
-// v0.27.0: 置顶记录管理
-ipcMain.handle("get-pinned-records", async (_, options) => {
-  try {
-    return db.getPinnedRecords(options || {});
-  } catch (err) {
-    log.error("get-pinned-records error:", err);
-    return [];
-  }
-});
-
-ipcMain.handle("update-pinned-record", async (_, id, updates) => {
-  try {
-    return db.updatePinnedRecord(id, updates);
-  } catch (err) {
-    log.error("update-pinned-record error:", err);
-    return null;
-  }
-});
-
-ipcMain.handle("batch-update-pinned", async (_, ids, options) => {
-  try {
-    return db.batchUpdatePinned(ids, options);
-  } catch (err) {
-    log.error("batch-update-pinned error:", err);
-    return { updated: 0, deleted: 0 };
-  }
-});
-
-ipcMain.handle("get-pinned-stats", async () => {
-  try {
-    return db.getPinnedStats();
-  } catch (err) {
-    log.error("get-pinned-stats error:", err);
-    return null;
-  }
-});
-
-// v0.28.0: 云端同步功能
-ipcMain.handle("get-sync-metadata", async () => {
-  try {
-    return db.getSyncMetadata();
-  } catch (err) {
-    log.error("get-sync-metadata error:", err);
-    return null;
-  }
-});
-
-ipcMain.handle("save-sync-config", async (_, config) => {
-  try {
-    return db.saveSyncConfig(config);
-  } catch (err) {
-    log.error("save-sync-config error:", err);
-    return false;
-  }
-});
-
-ipcMain.handle("get-sync-stats", async () => {
-  try {
-    return db.getSyncStats();
-  } catch (err) {
-    log.error("get-sync-stats error:", err);
-    return null;
-  }
-});
-
-ipcMain.handle("export-for-sync", async (_, options) => {
-  try {
-    return db.exportForSync(options);
-  } catch (err) {
-    log.error("export-for-sync error:", err);
-    return null;
-  }
-});
-
-ipcMain.handle(
-  "import-from-sync",
-  async (_, syncData, encryptionKey, options) => {
-    try {
-      return db.importFromSync(syncData, encryptionKey, options);
-    } catch (err) {
-      log.error("import-from-sync error:", err);
-      return { error: err.message };
-    }
-  },
-);
-
-ipcMain.handle("test-webdav-connection", async (_, config) => {
-  try {
-    const { protocol, host, port, path, username, password } = config;
-    const url = `${protocol}://${host}:${port}${path}`;
-
-    // 简单的连接测试 - 使用 fetch
-    const response = await fetch(url, {
-      method: "PROPFIND",
-      headers: {
-        Depth: "0",
-        Authorization:
-          "Basic " + Buffer.from(`${username}:${password}`).toString("base64"),
-      },
-    });
-
-    return { success: response.ok, status: response.status };
-  } catch (err) {
-    log.error("test-webdav-connection error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle("sync-to-webdav", async (_, config) => {
-  try {
-    const {
-      protocol,
-      host,
-      port,
-      path,
-      username,
-      password,
-      encrypt,
-      encryptionKey,
-    } = config;
-    const url = `${protocol}://${host}:${port}${path}/clawboard-sync.json`;
-
-    // 导出数据
-    const exportData = db.exportForSync({ encrypt, encryptionKey });
-
-    // 上传到 WebDAV
-    const auth =
-      "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
-    const response = await fetch(url, {
-      method: "PUT",
-      headers: {
-        Authorization: auth,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(exportData),
-    });
-
-    if (response.ok) {
-      // 更新同步时间
-      db.updateLastSyncTime();
-
-      // 标记所有记录为已同步
-      const records = db.getSyncableRecords({ limit: 10000 });
-      const ids = records.map((r) => r.id);
-      if (ids.length > 0) {
-        db.markAsSynced(ids);
-      }
-
-      return { success: true, recordCount: ids.length };
-    }
-
-    return { success: false, status: response.status };
-  } catch (err) {
-    log.error("sync-to-webdav error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle("sync-from-webdav", async (_, config) => {
-  try {
-    const { protocol, host, port, path, username, password, encryptionKey } =
-      config;
-    const url = `${protocol}://${host}:${port}${path}/clawboard-sync.json`;
-
-    // 从 WebDAV 下载
-    const auth =
-      "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: auth,
-      },
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return { success: false, error: "远程没有找到同步文件" };
-      }
-      return { success: false, status: response.status };
-    }
-
-    const syncData = await response.json();
-
-    // 导入数据
-    const result = db.importFromSync(syncData, encryptionKey);
-
-    // 更新同步时间
-    db.updateLastSyncTime();
-
-    return { success: true, ...result };
-  } catch (err) {
-    log.error("sync-from-webdav error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 应用启动
 app.whenReady().then(async () => {
   log.info("应用准备就绪");
 
-  // 初始化数据库（异步）
   db = new Database(app.getPath("userData"));
   await db._init();
 
-  // v0.74.0: 启动自动备份机制（每小时备份，保留30天）
   try {
     db.startAutoBackup();
     log.info("[Database] 自动备份机制已启用");
@@ -2073,7 +481,6 @@ app.whenReady().then(async () => {
     log.warn("[Database] 自动备份启动失败:", err.message);
   }
 
-  // v0.75.0: 初始化会话安全管理器
   try {
     sessionManager = new SessionManager(app.getPath("userData"), db);
     log.info("[Security] 会话安全管理器已启用");
@@ -2081,7 +488,6 @@ app.whenReady().then(async () => {
     log.error("[Security] 会话管理器初始化失败:", err);
   }
 
-  // v0.76.0: 初始化竞品特性模块
   try {
     pasteModeManager = new PasteModeManager();
     log.info("[Feature] 特殊粘贴模式管理器已启用 (12种模式)");
@@ -2095,7 +501,6 @@ app.whenReady().then(async () => {
     log.error("[Feature] 模块初始化失败:", err);
   }
 
-  // v0.17.0: 初始化 OCR 服务
   const ocrLangPath = path.join(app.getAppPath(), "assets", "tessdata");
   const ocrCachePath = path.join(app.getPath("userData"), "tessdata");
   ocrService = new OCRService({
@@ -2110,24 +515,18 @@ app.whenReady().then(async () => {
     }
   });
 
-  // 初始化剪贴板监控（传入 AI 和 OCR 模块）
   clipboardWatcher = new ClipboardWatcher(db, clipboard, log, AI, ocrService);
   clipboardWatcher.start();
 
-  // v0.29.0: 将通知函数暴露给全局，供剪贴板模块调用
   global.showClipboardNotification = showClipboardNotification;
-  // v0.45.0: 将数据库和忽略规则暴露给全局，供剪贴板模块自动加密使用
   global.db = db;
   global.ignoreRules = ignoreRules;
 
-  // v0.31.0: 启动自动过期清理定时器
   startAutoExpiryTimer();
 
-  // v0.32.0: 初始化快捷键模板系统
   hotkeyTemplates = new HotkeyTemplates(db);
   hotkeyTemplates.registerAll((accelerator, content, label) => {
     log.info(`[HotkeyTemplates] 触发: ${accelerator} → ${label}`);
-    // 通知渲染进程快捷键已触发
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("hotkey-triggered", {
         accelerator,
@@ -2138,23 +537,18 @@ app.whenReady().then(async () => {
   });
   log.info("[HotkeyTemplates] 快捷键模板系统已初始化");
 
-  // v0.65.0: 初始化自动分类引擎
   autoCat = new AutoCategorize();
   log.info("[AutoCategorize] 自动分类引擎已初始化");
 
-  // v0.69.0: 初始化智能洞察引擎
   insightsEngine = new Insights(db);
   log.info("[Insights] 智能洞察引擎已初始化");
 
-  // v0.73.0: 初始化规则引擎
   ruleEngine = new RuleEngine(db);
   log.info("[RuleEngine] 规则引擎已初始化");
 
-  // 创建窗口和托盘
   createWindow();
   createTray();
 
-  // 设置开机自启动（从设置读取）
   const settings = db.getSettings();
   if (settings.autoStart) {
     app.setLoginItemSettings({
@@ -2163,19 +557,14 @@ app.whenReady().then(async () => {
     });
   }
 
-  // v0.29.0: 加载通知设置
   updateNotificationSettings(settings);
 
-  // 注册全局快捷键（从设置读取）
   registerGlobalShortcut(settings);
 
-  // v0.39.0: 注册循环模式快捷键
   registerCycleShortcut();
 
-  // v0.57.0: 注册快速粘贴浮动菜单快捷键
   registerQuickPasteShortcut();
 
-  // 注册 IPC
   setupIPC();
 
   app.on("activate", () => {
@@ -2185,14 +574,12 @@ app.whenReady().then(async () => {
   });
 });
 
-// 退出前清理
 app.on("before-quit", () => {
   log.info("应用即将退出");
   app.isQuitting = true;
   if (clipboardWatcher) {
     clipboardWatcher.stop();
   }
-  // 注销全局快捷键
   globalShortcut.unregisterAll();
 });
 
@@ -2202,13 +589,9 @@ app.on("window-all-closed", () => {
   }
 });
 
-// ==================== 自动更新功能 (v0.50.0) ====================
-
-// 配置 electron-updater 日志
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = "info";
 
-// 自动更新事件处理
 autoUpdater.on("checking-for-update", () => {
   log.info("[AutoUpdater] 正在检查更新...");
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2224,7 +607,6 @@ autoUpdater.on("update-available", (info) => {
       version: info.version,
     });
   }
-  // 显示系统通知
   showUpdateNotification(`发现新版本 v${info.version}，正在下载...`);
 });
 
@@ -2258,7 +640,6 @@ autoUpdater.on("update-downloaded", (info) => {
     });
   }
   showUpdateNotification(`v${info.version} 下载完成，即将重启应用以完成更新`);
-  // 自动安装并在重启后清理
   setTimeout(() => {
     autoUpdater.quitAndInstall(false, true);
   }, 3000);
@@ -2291,9 +672,7 @@ function showUpdateNotification(message) {
   }
 }
 
-// 检查更新（启动时调用）
 function checkForUpdates() {
-  // 仅在非开发模式下检查更新
   if (
     process.env.NODE_ENV === "development" ||
     process.argv.includes("--dev")
@@ -2308,32 +687,8 @@ function checkForUpdates() {
   }
 }
 
-// 手动检查更新 IPC
-ipcMain.handle("check-for-updates", async () => {
-  try {
-    if (
-      process.env.NODE_ENV === "development" ||
-      process.argv.includes("--dev")
-    ) {
-      return { success: false, message: "开发模式下无法检查更新" };
-    }
-    const result = await autoUpdater.checkForUpdates();
-    if (result && result.updateInfo) {
-      return { success: true, version: result.updateInfo.version };
-    }
-    return { success: true, message: "已是最新版本" };
-  } catch (err) {
-    log.error("[AutoUpdater] 手动检查更新失败:", err.message);
-    return { success: false, message: err.message };
-  }
-});
+require('./ipc/appIpc')(ipcMain, db, log, app, autoUpdater, registerGlobalShortcut);
 
-// 获取当前版本
-ipcMain.handle("get-app-version", async () => {
-  return app.getVersion();
-});
-
-// 全局异常处理
 process.on("uncaughtException", (err) => {
   log.error("Uncaught Exception:", err);
 });
@@ -2342,7 +697,6 @@ process.on("unhandledRejection", (reason) => {
   log.error("Unhandled Rejection:", reason);
 });
 
-// v0.29.0: 播放通知声音
 function playNotificationSound() {
   try {
     const { exec } = require("child_process");
@@ -2353,7 +707,6 @@ function playNotificationSound() {
       } else if (Platform.isMac) {
         exec(cmd);
       } else {
-        // Linux: try canberra first, fallback to paplay
         exec(cmd, (err) => {
           if (err) {
             exec(
@@ -2369,9 +722,6 @@ function playNotificationSound() {
   }
 }
 
-// v0.29.0: 显示剪贴板捕获通知
-
-// v0.31.0: 自动过期清理定时器
 function startAutoExpiryTimer() {
   if (autoExpiryTimer) clearInterval(autoExpiryTimer);
   if (!db) return;
@@ -2386,7 +736,6 @@ function startAutoExpiryTimer() {
           mainWindow.webContents.send("expiry-cleanup", { count });
         }
       }
-      // v0.72.0: 自动清理过期回收站记录
       db.autoCleanTrash();
     } catch (err) {
       log.error("自动过期清理失败:", err);
@@ -2396,7 +745,6 @@ function startAutoExpiryTimer() {
   if (count > 0) {
     log.info("启动时自动过期清理: 删除了 " + count + " 条过期记录");
   }
-  // v0.72.0: 启动时清理过期回收站记录
   db.autoCleanTrash();
 }
 
@@ -2404,7 +752,6 @@ function showClipboardNotification(record) {
   if (!notificationSettings.enabled) return;
 
   try {
-    // 检查是否为大文本
     const contentLength = record.content ? record.content.length : 0;
     if (
       notificationSettings.ignoreLargeText &&
@@ -2413,7 +760,6 @@ function showClipboardNotification(record) {
       return;
     }
 
-    // v0.64.0: 通知合并逻辑
     if (notificationSettings.mergeEnabled) {
       notificationQueue.push({
         record,
@@ -2421,7 +767,6 @@ function showClipboardNotification(record) {
         timestamp: Date.now(),
       });
 
-      // 设置或重置合并定时器
       if (notificationTimer) {
         clearTimeout(notificationTimer);
       }
@@ -2430,24 +775,21 @@ function showClipboardNotification(record) {
         flushNotificationQueue();
       }, notificationSettings.mergeWindow);
 
-      return; // 等待合并刷新
+      return;
     }
 
-    // 直接显示单条通知（合并禁用时）
     showSingleNotification(record);
   } catch (err) {
     log.warn("显示通知失败:", err.message);
   }
 }
 
-// v0.64.0: 刷新通知队列（合并显示）
 function flushNotificationQueue() {
   if (notificationQueue.length === 0) return;
 
   const count = notificationQueue.length;
   const latestRecord = notificationQueue[count - 1].record;
 
-  // 统计各类型数量
   const typeCounts = {};
   for (const item of notificationQueue) {
     typeCounts[item.type] = (typeCounts[item.type] || 0) + 1;
@@ -2456,13 +798,10 @@ function flushNotificationQueue() {
   let title, body;
 
   if (count === 1) {
-    // 单条通知：正常显示
     showSingleNotification(latestRecord);
   } else {
-    // 多条合并通知
     title = `📋 已捕获 ${count} 条内容`;
 
-    // 构建类型摘要
     const typeLabels = {
       text: "文字",
       code: "代码",
@@ -2499,16 +838,13 @@ function flushNotificationQueue() {
     log.info(`已显示合并通知: ${count} 条`);
   }
 
-  // 清空队列
   notificationQueue = [];
   notificationTimer = null;
 }
 
-// v0.64.0: 显示单条通知
 function showSingleNotification(record) {
   const contentLength = record.content ? record.content.length : 0;
 
-  // 准备通知内容
   let title = "📋 已捕获剪贴板";
   let body = "";
 
@@ -2543,7 +879,6 @@ function showSingleNotification(record) {
         : "新内容已捕获";
   }
 
-  // 创建通知
   const notification = new Notification({
     title: title,
     body: body,
@@ -2569,8 +904,6 @@ function showSingleNotification(record) {
   log.info("已显示剪贴板捕获通知:", record.type);
 }
 
-// v0.29.0: 更新通知设置
-// v0.64.0: 扩展通知合并配置
 function updateNotificationSettings(settings) {
   notificationSettings = {
     enabled: settings?.notificationEnabled ?? false,
@@ -2578,7 +911,6 @@ function updateNotificationSettings(settings) {
     showPreview: settings?.notificationPreview ?? true,
     ignoreLargeText: settings?.notificationIgnoreLarge ?? true,
     largeTextThreshold: settings?.notificationLargeThreshold ?? 1000,
-    // v0.64.0: 通知合并
     mergeEnabled: settings?.notificationMergeEnabled ?? true,
     mergeWindow: settings?.notificationMergeWindow ?? 5000,
     position: settings?.notificationPosition ?? "bottom-right",
@@ -2586,17 +918,14 @@ function updateNotificationSettings(settings) {
   log.info("通知设置已更新:", notificationSettings);
 }
 
-// 注册全局快捷键
 let currentShortcut = null;
-let cycleShortcut = null; // v0.39.0
+let cycleShortcut = null;
 
 function registerGlobalShortcut(settings) {
-  // 先注销之前的快捷键
   if (currentShortcut) {
     globalShortcut.unregister(currentShortcut);
   }
 
-  // 获取快捷键（默认 Ctrl+Shift+V）
   const shortcut = settings?.globalShortcut || "CommandOrControl+Shift+V";
 
   const ret = globalShortcut.register(shortcut, () => {
@@ -2618,21 +947,17 @@ function registerGlobalShortcut(settings) {
   }
 }
 
-// v0.39.0: Register cycle mode shortcut (Alt+V)
-// v0.67.0: 使用可配置快捷键
 function registerCycleShortcut() {
   if (cycleShortcut) {
     globalShortcut.unregister(cycleShortcut);
   }
   const shortcut = shortcutsConfig.cyclePaste || "Alt+V";
-  if (!shortcut) return; // 留空则禁用
+  if (!shortcut) return;
   try {
     const ret = globalShortcut.register(shortcut, () => {
       if (cycleWindow && !cycleWindow.isDestroyed()) {
-        // Already open: cycle to next item
         cycleWindow.webContents.send("cycle-next");
       } else {
-        // Open cycle window
         createCycleWindow();
       }
     });
@@ -2647,15 +972,13 @@ function registerCycleShortcut() {
   }
 }
 
-// v0.57.0: Register quick paste shortcut (Alt+Q)
-// v0.67.0: 使用可配置快捷键
 let quickPasteShortcut = null;
 function registerQuickPasteShortcut() {
   if (quickPasteShortcut) {
     globalShortcut.unregister(quickPasteShortcut);
   }
   const shortcut = shortcutsConfig.quickPaste || "Alt+Q";
-  if (!shortcut) return; // 留空则禁用
+  if (!shortcut) return;
   try {
     const ret = globalShortcut.register(shortcut, () => {
       createQuickPasteWindow();
@@ -2671,1614 +994,18 @@ function registerQuickPasteShortcut() {
   }
 }
 
-// 更新全局快捷键
-ipcMain.handle("update-shortcut", async (event, shortcut) => {
-  try {
-    const settings = db.getSettings();
-    settings.globalShortcut = shortcut;
-    db.saveSettings(settings);
-
-    // 重新注册快捷键
-    registerGlobalShortcut(settings);
-
-    return { success: true };
-  } catch (err) {
-    log.error("update-shortcut error:", err);
-    return { success: false, message: err.message };
-  }
-});
-
-// 获取通知设置
-ipcMain.handle("get-notification-settings", async () => {
-  try {
-    return db.getNotificationSettings();
-  } catch (err) {
-    log.error("get-notification-settings error:", err);
-    return {
-      enabled: false,
-      soundEnabled: true,
-      durationSeconds: 3,
-      showPreview: true,
-      minContentLength: 0,
-      excludedApps: [],
-    };
-  }
-});
-
-// 保存通知设置
-ipcMain.handle("save-notification-settings", async (_, settings) => {
-  try {
-    db.saveNotificationSettings(settings);
-    return { success: true };
-  } catch (err) {
-    log.error("save-notification-settings error:", err);
-    return { success: false, message: err.message };
-  }
-});
-
-// 发送剪贴板捕获通知
-ipcMain.handle(
-  "show-clipboard-notification",
-  async (_, { type, preview, source }) => {
-    try {
-      const notifySettings = db.getNotificationSettings();
-      if (!notifySettings.enabled)
-        return { success: false, reason: "disabled" };
-
-      const contentLength = (preview || "").length;
-      if (contentLength < notifySettings.minContentLength)
-        return { success: false, reason: "too_short" };
-
-      // 发送桌面通知
-      const { Notification } = require("electron");
-
-      let body = "";
-      if (notifySettings.showPreview) {
-        const truncated =
-          contentLength > 100 ? preview.substring(0, 100) + "..." : preview;
-        body = truncated;
-      } else {
-        const typeLabels = {
-          text: "文本",
-          code: "代码",
-          image: "图片",
-          file: "文件",
-          url: "链接",
-        };
-        body = typeLabels[type] || "新内容";
-      }
-
-      const notification = new Notification({
-        title: "📋 ClawBoard 已捕获",
-        body,
-        silent: !notifySettings.soundEnabled,
-        timeoutType: "default",
-      });
-
-      notification.show();
-      return { success: true };
-    } catch (err) {
-      log.error("show-clipboard-notification error:", err);
-      return { success: false, message: err.message };
-    }
-  },
-);
-
-// ==================== v0.31.0: 智能粘贴功能 ====================
-
-// 获取可用的智能粘贴类型
-ipcMain.handle("get-smart-paste-types", async () => {
-  try {
-    if (!smartPaste) {
-      smartPaste = new SmartPaste();
-    }
-    return smartPaste.getAvailableTypes();
-  } catch (err) {
-    log.error("get-smart-paste-types error:", err);
-    return [];
-  }
-});
-
-// 执行智能粘贴转换
-ipcMain.handle(
-  "smart-paste-transform",
-  async (_, { content, type, options }) => {
-    try {
-      if (!smartPaste) {
-        smartPaste = new SmartPaste();
-      }
-      const result = smartPaste.transform(content, type, options);
-      return { success: true, result };
-    } catch (err) {
-      log.error("smart-paste-transform error:", err);
-      return { success: false, error: err.message };
-    }
-  },
-);
-
-// 智能粘贴到剪贴板
-ipcMain.handle(
-  "smart-paste-to-clipboard",
-  async (_, { content, type, options }) => {
-    try {
-      if (!smartPaste) {
-        smartPaste = new SmartPaste();
-      }
-      const result = smartPaste.transform(content, type, options);
-      clipboard.writeText(result);
-      return { success: true, result };
-    } catch (err) {
-      log.error("smart-paste-to-clipboard error:", err);
-      return { success: false, error: err.message };
-    }
-  },
-);
-
-// 获取忽略规则
-ipcMain.handle("get-ignore-rules", async () => {
-  try {
-    if (!ignoreRules) {
-      ignoreRules = new IgnoreRules();
-    }
-    return ignoreRules.getRules();
-  } catch (err) {
-    log.error("get-ignore-rules error:", err);
-    return null;
-  }
-});
-
-// 保存忽略规则
-ipcMain.handle("save-ignore-rules", async (_, rules) => {
-  try {
-    if (!ignoreRules) {
-      ignoreRules = new IgnoreRules();
-    }
-    // 更新规则
-    ignoreRules.rules = rules;
-    return { success: true };
-  } catch (err) {
-    log.error("save-ignore-rules error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 添加忽略应用
-ipcMain.handle("add-ignored-app", async (_, pattern) => {
-  try {
-    if (!ignoreRules) {
-      ignoreRules = new IgnoreRules();
-    }
-    ignoreRules.addIgnoredApp(pattern);
-    return { success: true };
-  } catch (err) {
-    log.error("add-ignored-app error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 移除忽略应用
-ipcMain.handle("remove-ignored-app", async (_, pattern) => {
-  try {
-    if (!ignoreRules) {
-      ignoreRules = new IgnoreRules();
-    }
-    ignoreRules.removeIgnoredApp(pattern);
-    return { success: true };
-  } catch (err) {
-    log.error("remove-ignored-app error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 测试内容是否应该被忽略
-ipcMain.handle("test-ignore-rules", async (_, { content, metadata }) => {
-  try {
-    if (!ignoreRules) {
-      ignoreRules = new IgnoreRules();
-    }
-    return ignoreRules.shouldIgnore(content, metadata);
-  } catch (err) {
-    log.error("test-ignore-rules error:", err);
-    return { shouldIgnore: false, reason: "" };
-  }
-});
-
-// ==================== v0.45.0: 自动加密规则 ====================
-
-// 获取自动加密设置
-ipcMain.handle("get-auto-encrypt-settings", async () => {
-  try {
-    if (!ignoreRules) {
-      ignoreRules = new IgnoreRules();
-    }
-    return ignoreRules.getAutoEncryptSettings();
-  } catch (err) {
-    log.error("get-auto-encrypt-settings error:", err);
-    return null;
-  }
-});
-
-// 设置自动加密总开关
-ipcMain.handle("set-auto-encrypt-enabled", async (_, enabled) => {
-  try {
-    if (!ignoreRules) {
-      ignoreRules = new IgnoreRules();
-    }
-    ignoreRules.setAutoEncryptEnabled(enabled);
-    // 同步到设置面板的忽略规则
-    return { success: true };
-  } catch (err) {
-    log.error("set-auto-encrypt-enabled error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 切换自动加密内置规则
-ipcMain.handle("toggle-auto-encrypt-rule", async (_, { type, enabled }) => {
-  try {
-    if (!ignoreRules) {
-      ignoreRules = new IgnoreRules();
-    }
-    ignoreRules.toggleAutoEncryptRule(type, enabled);
-    return { success: true };
-  } catch (err) {
-    log.error("toggle-auto-encrypt-rule error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 添加自定义自动加密规则
-ipcMain.handle("add-custom-auto-encrypt-rule", async (_, { name, pattern }) => {
-  try {
-    if (!ignoreRules) {
-      ignoreRules = new IgnoreRules();
-    }
-    ignoreRules.addCustomAutoEncryptRule(name, pattern);
-    return { success: true };
-  } catch (err) {
-    log.error("add-custom-auto-encrypt-rule error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 移除自定义自动加密规则
-ipcMain.handle("remove-custom-auto-encrypt-rule", async (_, name) => {
-  try {
-    if (!ignoreRules) {
-      ignoreRules = new IgnoreRules();
-    }
-    ignoreRules.removeCustomAutoEncryptRule(name);
-    return { success: true };
-  } catch (err) {
-    log.error("remove-custom-auto-encrypt-rule error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 批量自动加密已有记录（扫描所有未加密记录）
-ipcMain.handle("batch-auto-encrypt", async () => {
-  try {
-    if (!ignoreRules) {
-      ignoreRules = new IgnoreRules();
-    }
-    if (!db.encryptionKey) {
-      return { success: false, message: "未设置加密密码" };
-    }
-
-    const records = db.getRecords({ limit: 10000 });
-    let encryptedCount = 0;
-    let skippedCount = 0;
-
-    for (const record of records) {
-      if (record.encrypted) {
-        skippedCount++;
-        continue;
-      }
-
-      const result = ignoreRules.shouldIgnore(record.content, {});
-      if (result.autoEncrypt) {
-        const success = db.encryptRecord(record.id);
-        if (success) {
-          // 更新敏感类型标记
-          db.db.run(`UPDATE records SET sensitive_types = ? WHERE id = ?`, [
-            result.types ? result.types.join(",") : "",
-            record.id,
-          ]);
-          encryptedCount++;
-        }
-      }
-    }
-
-    db._save();
-    log.info(
-      `批量自动加密完成: ${encryptedCount} 条已加密, ${skippedCount} 条跳过`,
-    );
-    return { success: true, encryptedCount, skippedCount };
-  } catch (err) {
-    log.error("batch-auto-encrypt error:", err);
-    return { success: false, message: err.message };
-  }
-});
-
-// ==================== v0.31.0: 自动过期清理 ====================
-
-ipcMain.handle("get-auto-expiry-settings", async () => {
-  try {
-    return db.getAutoExpirySettings();
-  } catch (err) {
-    log.error("get-auto-expiry-settings error:", err);
-    return { enabled: false, days: 30, keepFavorites: true };
-  }
-});
-
-ipcMain.handle("save-auto-expiry-settings", async (_, settings) => {
-  try {
-    db.saveAutoExpirySettings(settings);
-    startAutoExpiryTimer();
-    return { success: true };
-  } catch (err) {
-    log.error("save-auto-expiry-settings error:", err);
-    return { success: false, message: err.message };
-  }
-});
-
-ipcMain.handle("get-expiry-stats", async () => {
-  try {
-    return db.getExpiryStats();
-  } catch (err) {
-    log.error("get-expiry-stats error:", err);
-    return { total: 0, expired: 0, protected: 0 };
-  }
-});
-
-ipcMain.handle("clean-expired-items", async () => {
-  try {
-    const count = db.cleanExpiredItems();
-    return { success: true, count };
-  } catch (err) {
-    log.error("clean-expired-items error:", err);
-    return { success: false, count: 0, message: err.message };
-  }
-});
-
-// ==================== v0.32.0: 快捷键模板系统 ====================
-
-ipcMain.handle("hotkey-get-all-slots", async () => {
-  try {
-    if (!hotkeyTemplates) return [];
-    return hotkeyTemplates.getAllSlots();
-  } catch (err) {
-    log.error("hotkey-get-all-slots error:", err);
-    return [];
-  }
-});
-
-ipcMain.handle(
-  "hotkey-bind",
-  async (_, { slot, label, content, isTemplate }) => {
-    try {
-      if (!hotkeyTemplates)
-        return { success: false, message: "快捷键模板系统未初始化" };
-      const result = hotkeyTemplates.bind(
-        slot,
-        label,
-        content,
-        isTemplate,
-        (accelerator, rendered, lbl) => {
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send("hotkey-triggered", {
-              accelerator,
-              content: rendered,
-              label: lbl,
-            });
-          }
-        },
-      );
-      return result;
-    } catch (err) {
-      log.error("hotkey-bind error:", err);
-      return { success: false, message: err.message };
-    }
-  },
-);
-
-ipcMain.handle("hotkey-bind-from-item", async (_, { slot, clipboardItem }) => {
-  try {
-    if (!hotkeyTemplates)
-      return { success: false, message: "快捷键模板系统未初始化" };
-    const result = hotkeyTemplates.bindFromClipboardItem(
-      slot,
-      clipboardItem,
-      (accelerator, rendered, lbl) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("hotkey-triggered", {
-            accelerator,
-            content: rendered,
-            label: lbl,
-          });
-        }
-      },
-    );
-    return result;
-  } catch (err) {
-    log.error("hotkey-bind-from-item error:", err);
-    return { success: false, message: err.message };
-  }
-});
-
-ipcMain.handle("hotkey-unbind", async (_, { slot }) => {
-  try {
-    if (!hotkeyTemplates) return false;
-    return hotkeyTemplates.unbindSlot(slot);
-  } catch (err) {
-    log.error("hotkey-unbind error:", err);
-    return false;
-  }
-});
-
-ipcMain.handle("hotkey-render-template", async (_, { content }) => {
-  try {
-    if (!hotkeyTemplates) return content;
-    return hotkeyTemplates.renderTemplate(content);
-  } catch (err) {
-    log.error("hotkey-render-template error:", err);
-    return content;
-  }
-});
-
-// ==================== v0.33.0: 格式转换 ====================
-
-const textTransformer = new TextTransform();
-
-ipcMain.handle("list-transforms", async () => {
-  return textTransformer.listTransforms();
-});
-
-ipcMain.handle("apply-transform", async (_, { transformId, text }) => {
-  try {
-    const result = textTransformer.apply(transformId, text);
-    return { success: true, ...result };
-  } catch (err) {
-    log.error("apply-transform error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle("apply-transform-copy", async (_, { transformId, text }) => {
-  try {
-    const result = textTransformer.apply(transformId, text);
-    clipboard.writeText(result.result);
-    return { success: true, label: result.label, result: result.result };
-  } catch (err) {
-    log.error("apply-transform-copy error:", err);
-    return { success: false, error: err.message };
-  }
-});
-// ==================== v0.34.0: 导入导出 ====================
-
-ipcMain.handle("export-records-json", async () => {
-  try {
-    const records = db.exportAllRecords();
-    return { success: true, data: records };
-  } catch (err) {
-    log.error("export-records-json error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle("export-records-csv", async () => {
-  try {
-    const csv = db.exportAllRecordsCSV();
-    return { success: true, data: csv };
-  } catch (err) {
-    log.error("export-records-csv error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle("import-records", async (_, { records, mode }) => {
-  try {
-    const result = db.importRecords(records, mode);
-    return { success: true, ...result };
-  } catch (err) {
-    log.error("import-records error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// v0.63.0: 导出增强 - 带筛选条件
-ipcMain.handle(
-  "export-with-filters",
-  async (_, { format, range, type, favorite }) => {
-    try {
-      const crypto = require("crypto");
-      let records = db.getRecords({ limit: 10000 });
-
-      // 应用时间范围筛选
-      const now = new Date();
-      if (range === "today") {
-        const today = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-        );
-        records = records.filter((r) => new Date(r.created_at) >= today);
-      } else if (range === "week") {
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        records = records.filter((r) => new Date(r.created_at) >= weekAgo);
-      } else if (range === "month") {
-        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        records = records.filter((r) => new Date(r.created_at) >= monthAgo);
-      }
-
-      // 应用类型筛选
-      if (type && type !== "all") {
-        records = records.filter((r) => r.type === type);
-      }
-
-      // 应用收藏筛选
-      if (favorite) {
-        records = records.filter((r) => r.favorite);
-      }
-
-      if (format === "json") {
-        return JSON.stringify(records, null, 2);
-      } else if (format === "csv") {
-        const headers = "ID,类型,内容,创建时间,收藏,标签\n";
-        const rows = records
-          .map(
-            (r) =>
-              `${r.id},"${r.type}","${(r.content || "").replace(/"/g, '""').substring(0, 500)}","${r.created_at}",${r.favorite},"${r.tags}"`,
-          )
-          .join("\n");
-        return headers + rows;
-      } else if (format === "markdown") {
-        return records
-          .map((r) => {
-            const preview = (r.content || "")
-              .substring(0, 200)
-              .replace(/\n/g, " ");
-            return `## ${r.type} (${r.created_at})\n\n${preview}\n\n---\n`;
-          })
-          .join("\n");
-      }
-      return "";
-    } catch (err) {
-      log.error("export-with-filters error:", err);
-      return "";
-    }
-  },
-);
-
-// v0.63.0: 获取导出计数
-ipcMain.handle("get-export-count", async (_, { range, type, favorite }) => {
-  try {
-    let records = db.getRecords({ limit: 10000 });
-    const now = new Date();
-
-    if (range === "today") {
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      records = records.filter((r) => new Date(r.created_at) >= today);
-    } else if (range === "week") {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      records = records.filter((r) => new Date(r.created_at) >= weekAgo);
-    } else if (range === "month") {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      records = records.filter((r) => new Date(r.created_at) >= monthAgo);
-    }
-
-    if (type && type !== "all") {
-      records = records.filter((r) => r.type === type);
-    }
-
-    if (favorite) {
-      records = records.filter((r) => r.favorite);
-    }
-
-    return records.length;
-  } catch (err) {
-    log.error("get-export-count error:", err);
-    return 0;
-  }
-});
-
-// v0.63.0: 导入增强
-ipcMain.handle(
-  "import-records-enhanced",
-  async (_, { records, duplicateMode }) => {
-    try {
-      const crypto = require("crypto");
-      const contentHashes = new Set();
-      const existingRecords = db.getRecords({ limit: 10000 });
-
-      existingRecords.forEach((r) => {
-        if (r.content) {
-          const hash = crypto.createHash("md5").update(r.content).digest("hex");
-          contentHashes.add(hash);
-        }
-      });
-
-      let imported = 0,
-        skipped = 0;
-
-      for (const record of records) {
-        if (!record.content) continue;
-
-        const hash = crypto
-          .createHash("md5")
-          .update(record.content)
-          .digest("hex");
-
-        if (contentHashes.has(hash) && duplicateMode === "skip") {
-          skipped++;
-          continue;
-        }
-
-        db.addRecord({
-          type: record.type || "text",
-          content: record.content,
-          source: "import",
-          source_app: record.source_app || "",
-          tags: record.tags || "[]",
-          favorite: record.favorite ? 1 : 0,
-        });
-
-        contentHashes.add(hash);
-        imported++;
-      }
-
-      return { success: true, imported, skipped };
-    } catch (err) {
-      log.error("import-records-enhanced error:", err);
-      return { success: false, error: err.message };
-    }
-  },
-);
-
-ipcMain.handle("show-save-dialog", async (_, options) => {
-  try {
-    const result = await dialog.showSaveDialog(mainWindow, options);
-    return result;
-  } catch (err) {
-    log.error("show-save-dialog error:", err);
-    return { canceled: true };
-  }
-});
-
-ipcMain.handle("show-open-dialog", async (_, options) => {
-  try {
-    const result = await dialog.showOpenDialog(mainWindow, options);
-    return result;
-  } catch (err) {
-    log.error("show-open-dialog error:", err);
-    return { canceled: true };
-  }
-});
-
-ipcMain.handle("write-file", async (_, { filePath, content }) => {
-  try {
-    require("fs").writeFileSync(filePath, content, "utf8");
-    return { success: true };
-  } catch (err) {
-    log.error("write-file error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle("read-file", async (_, { filePath }) => {
-  try {
-    const content = require("fs").readFileSync(filePath, "utf8");
-    return { success: true, content };
-  } catch (err) {
-    log.error("read-file error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// ==================== v0.47.0: 文件路径快捷操作 ====================
-
-// 在资源管理器中打开
-ipcMain.handle("open-in-explorer", async (_, filePath) => {
-  try {
-    const fs = require("fs");
-    // 检查路径是否存在
-    if (!fs.existsSync(filePath)) {
-      return { success: false, error: "路径不存在" };
-    }
-    const stat = fs.statSync(filePath);
-    if (stat.isDirectory()) {
-      await shell.openPath(filePath);
-    } else {
-      // 打开文件所在目录并选中
-      await shell.openPath(path.dirname(filePath));
-    }
-    return { success: true };
-  } catch (err) {
-    log.error("open-in-explorer error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 在终端中打开
-ipcMain.handle("open-in-terminal", async (_, filePath) => {
-  try {
-    const fs = require("fs");
-    let targetDir = filePath;
-
-    // 如果是文件，取其所在目录
-    if (fs.existsSync(filePath)) {
-      const stat = fs.statSync(filePath);
-      if (stat.isFile()) {
-        targetDir = path.dirname(filePath);
-      }
-    } else {
-      return { success: false, error: "路径不存在" };
-    }
-
-    // Windows: 使用系统默认终端 (spawn 替代 exec 防止命令注入)
-    const { exec, spawn } = require("child_process");
-    // 验证路径合法性：必须存在且为目录
-    if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
-      return { success: false, error: 'Invalid directory path' };
-    }
-    // 路径规范化，消除 ../ 等跳转
-    targetDir = path.resolve(targetDir);
-    if (process.platform === "win32") {
-      // 优先尝试 Windows Terminal，回退到 cmd
-      exec("where wt", (err) => {
-        if (!err) {
-          spawn('wt', ['-d', targetDir], { windowsHide: true, shell: false, detached: true }).unref();
-        } else {
-          spawn('cmd', ['/c', 'start', 'cmd', '/K', `cd /d ${targetDir}`], { windowsHide: true, shell: false, detached: true }).unref();
-        }
-      });
-    } else if (process.platform === "darwin") {
-      spawn('open', ['-a', 'Terminal', targetDir], { detached: true }).unref();
-    } else {
-      spawn('gnome-terminal', ['--working-directory', targetDir], { detached: true }).unref();
-    }
-    return { success: true };
-  } catch (err) {
-    log.error("open-in-terminal error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 检查路径是否存在
-ipcMain.handle("check-path-exists", async (_, filePath) => {
-  try {
-    const fs = require("fs");
-    if (!fs.existsSync(filePath)) {
-      return { exists: false, type: null };
-    }
-    const stat = fs.statSync(filePath);
-    return {
-      exists: true,
-      type: stat.isFile() ? "file" : stat.isDirectory() ? "directory" : "other",
-    };
-  } catch (err) {
-    return { exists: false, type: null };
-  }
-});
-
-// 批量在资源管理器中打开
-ipcMain.handle("batch-open-in-explorer", async (_, filePaths) => {
-  try {
-    let opened = 0;
-    let failed = 0;
-    const fs = require("fs");
-    for (const fp of filePaths) {
-      if (fs.existsSync(fp)) {
-        const stat = fs.statSync(fp);
-        if (stat.isDirectory()) {
-          await shell.openPath(fp);
-        } else {
-          await shell.openPath(path.dirname(fp));
-        }
-        opened++;
-      } else {
-        failed++;
-      }
-    }
-    return { success: true, opened, failed };
-  } catch (err) {
-    log.error("batch-open-in-explorer error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// ==================== v0.49.0: 文件路径快捷操作增强 ====================
-
-// v0.52.0: Copy image file to a user-chosen path
-ipcMain.handle("copy-image-to-path", async (_, { srcPath, destPath }) => {
-  try {
-    const fs = require("fs");
-    const path = require("path");
-    
-    // 安全验证：防止路径遍历攻击
-    const normalizedDest = path.normalize(destPath);
-    if (normalizedDest.includes("..") || !normalizedDest.startsWith(path.resolve(destPath))) {
-      return { success: false, error: "非法的目标路径" };
-    }
-    
-    if (!fs.existsSync(srcPath)) {
-      return { success: false, error: "源图片不存在" };
-    }
-    
-    // 确保目标目录存在
-    const destDir = path.dirname(normalizedDest);
-    if (!fs.existsSync(destDir)) {
-      fs.mkdirSync(destDir, { recursive: true });
-    }
-    
-    fs.copyFileSync(srcPath, normalizedDest);
-    return { success: true };
-  } catch (err) {
-    log.error("copy-image-to-path error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 启动文件（用系统默认程序打开）
-ipcMain.handle("file-launch", async (_, filePath) => {
-  try {
-    const fs = require("fs");
-    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, "");
-    if (!fs.existsSync(normalizedPath)) {
-      return { success: false, error: "文件不存在" };
-    }
-    await shell.openPath(normalizedPath);
-    return { success: true, path: normalizedPath };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-});
-
-// v0.49.0: 增强版 - 在资源管理器中打开（支持父目录回退）
-ipcMain.handle("file-open-explorer", async (_, filePath) => {
-  try {
-    const fs = require("fs");
-    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, "");
-    if (!fs.existsSync(normalizedPath)) {
-      const parentDir = path.dirname(normalizedPath);
-      if (fs.existsSync(parentDir)) {
-        await shell.openPath(parentDir);
-        return {
-          success: true,
-          path: parentDir,
-          note: "文件不存在，已打开父目录",
-        };
-      }
-      return { success: false, error: "路径不存在" };
-    }
-    const stat = fs.statSync(normalizedPath);
-    if (stat.isDirectory()) {
-      await shell.openPath(normalizedPath);
-    } else {
-      await shell.openPath(path.dirname(normalizedPath));
-    }
-    return { success: true, path: normalizedPath };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-});
-
-// v0.49.0: 增强版 - 在终端中打开（智能选择 Windows Terminal）
-ipcMain.handle("file-open-terminal", async (_, filePath) => {
-  try {
-    const fs = require("fs");
-    const { spawn } = require("child_process");
-    const normalizedPath = filePath.trim().replace(/^["']|["']$/g, "");
-    const targetDir =
-      fs.existsSync(normalizedPath) && fs.statSync(normalizedPath).isFile()
-        ? path.dirname(normalizedPath)
-        : normalizedPath;
-    if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
-      return { success: false, error: "路径不存在或不是目录" };
-    }
-    // 路径规范化，消除路径跳转
-    const safeDir = path.resolve(targetDir);
-    const wtPath = path.join(
-      process.env.LOCALAPPDATA,
-      "Microsoft",
-      "WindowsApps",
-      "wt.exe",
-    );
-    if (fs.existsSync(wtPath)) {
-      spawn(wtPath, ['-d', safeDir], { windowsHide: true, shell: false, detached: true }).unref();
-    } else {
-      spawn('cmd', ['/c', 'start', 'cmd', '/k', `cd /d ${safeDir}`], { windowsHide: true, shell: false, detached: true }).unref();
-    }
-    return { success: true, path: safeDir };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-});
-// v0.39.0: Cycle mode IPC handlers
-ipcMain.on("cycle-paste", (event, item) => {
-  try {
-    if (item && item.content) {
-      clipboard.writeText(item.content);
-      log.info("Cycle mode: pasted item #" + (item.id || "unknown"));
-    }
-    if (cycleWindow && !cycleWindow.isDestroyed()) {
-      cycleWindow.close();
-    }
-  } catch (err) {
-    log.error("cycle-paste error:", err);
-    if (cycleWindow && !cycleWindow.isDestroyed()) cycleWindow.close();
-  }
-});
-
-ipcMain.on("cycle-cancel", () => {
-  if (cycleWindow && !cycleWindow.isDestroyed()) {
-    cycleWindow.close();
-  }
-});
-
-// v0.57.0: Quick paste IPC handlers
-ipcMain.on("quick-paste-select", (event, item) => {
-  if (quickPasteWindow && !quickPasteWindow.isDestroyed())
-    quickPasteWindow.close();
-  const record = db.getRecord(item.id);
-  if (record && record.content) {
-    clipboard.writeText(record.content);
-
-    // 模拟粘贴操作（跨平台适配 v0.74.0）
-    setTimeout(() => {
-      const { exec } = require("child_process");
-      const pasteCmd = Platform.getQuickPasteCommand();
-
-      if (pasteCmd) {
-        // Windows: 使用 PowerShell SendKeys
-        exec(pasteCmd, { windowsHide: true });
-      } else if (process.platform === "darwin") {
-        // macOS: 使用 AppleScript 模拟 Cmd+V
-        exec(
-          `osascript -e 'tell application "System Events" to keystroke "v" using command down'`,
-          (err) => {
-            if (err) log.warn("macOS 快速粘贴失败:", err.message);
-          },
-        );
-      } else if (process.platform === "linux") {
-        // Linux: 使用 xdotool 模拟 Ctrl+V
-        exec("xdotool key ctrl+v", (err) => {
-          if (err)
-            log.warn(
-              "Linux 快速粘贴失败: xdotool 不可用，请安装: sudo apt install xdotool",
-            );
-        });
-      }
-    }, 100);
-  }
-});
-
-ipcMain.on("quick-paste-close", () => {
-  if (quickPasteWindow && !quickPasteWindow.isDestroyed())
-    quickPasteWindow.close();
-});
-
-// ==================== v0.48.0: 快捷片段 ====================
-
-const Snippets = require("../features/snippets/SnippetsManager");
-let snippets = null; // 延迟初始化
-
-// 辅助函数：确保 snippets 已初始化
-function ensureSnippets() {
-  if (!snippets && db) {
-    snippets = new Snippets(db.db || db);
-  }
-  return snippets;
-}
-
-ipcMain.handle("snippets-get-all", async (_, category) => {
-  try {
-    const s = ensureSnippets();
-    return s ? s.getAll(category) : { error: "Database not initialized" };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle("snippets-get-by-id", async (_, id) => {
-  try {
-    const s = ensureSnippets();
-    return s ? s.getById(id) : { error: "Database not initialized" };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle("snippets-search", async (_, query) => {
-  try {
-    const s = ensureSnippets();
-    return s ? s.search(query) : { error: "Database not initialized" };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle("snippets-create", async (_, data) => {
-  try {
-    const s = ensureSnippets();
-    return s ? s.create(data) : { error: "Database not initialized" };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle("snippets-update", async (_, { id, ...updates }) => {
-  try {
-    const s = ensureSnippets();
-    return s ? s.update(id, updates) : { error: "Database not initialized" };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle("snippets-delete", async (_, id) => {
-  try {
-    const s = ensureSnippets();
-    return s ? s.delete(id) : { error: "Database not initialized" };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle("snippets-get-categories", async () => {
-  try {
-    const s = ensureSnippets();
-    return s ? s.getCategories() : { error: "Database not initialized" };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle("snippets-get-by-shortcut", async (_, shortcut) => {
-  try {
-    const s = ensureSnippets();
-    return s
-      ? s.getByShortcut(shortcut)
-      : { error: "Database not initialized" };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle("snippets-use", async (_, id) => {
-  try {
-    const s = ensureSnippets();
-    if (!s) return { error: "Database not initialized" };
-    const snippet = s.use(id);
-    if (snippet) {
-      const content = s.renderContent(snippet.content);
-      clipboard.writeText(content);
-    }
-    return snippet;
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle(
-  "snippets-create-from-record",
-  async (_, { record, title, category }) => {
-    try {
-      const s = ensureSnippets();
-      return s
-        ? s.createFromRecord(record, { title, category })
-        : { error: "Database not initialized" };
-    } catch (e) {
-      return { error: e.message };
-    }
-  },
-);
-
-ipcMain.handle("snippets-import", async (_, snippetList) => {
-  try {
-    const s = ensureSnippets();
-    return s
-      ? s.importSnippets(snippetList)
-      : { error: "Database not initialized" };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle("snippets-export", async () => {
-  try {
-    const s = ensureSnippets();
-    return s ? s.exportSnippets() : { error: "Database not initialized" };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle("snippets-stats", async () => {
-  try {
-    const s = ensureSnippets();
-    return s ? s.getStats() : { error: "Database not initialized" };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-ipcMain.handle("snippets-render-content", async (_, content) => {
-  try {
-    const s = ensureSnippets();
-    if (!s) return { error: "Database not initialized" };
-    let rendered = s.renderContent(content);
-    // 动态替换 {{clipboard}}
-    if (rendered.includes("{{clipboard}}")) {
-      const currentClipboard = clipboard.readText();
-      rendered = rendered.split("{{clipboard}}").join(currentClipboard || "");
-    }
-    return rendered;
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-
-// ==================== v0.37.0: 诊断信息 ====================
-
-ipcMain.handle("get-diagnostics", async () => {
-  try {
-    const memUsage = process.memoryUsage();
-    const dbPath = path.join(app.getPath("userData"), "clawboard.db");
-    let dbSize = 0;
-    if (fs.existsSync(dbPath)) {
-      dbSize = fs.statSync(dbPath).size;
-    }
-    const stats = db.getStats();
-    return {
-      appVersion: app.getVersion(),
-      electronVersion: process.versions.electron,
-      nodeVersion: process.versions.node,
-      chromeVersion: process.versions.chrome,
-      platform: process.platform,
-      arch: process.arch,
-      osRelease: require("os").release(),
-      totalMemory: Math.round(require("os").totalmem() / 1024 / 1024),
-      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
-      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
-      dbSize: dbSize,
-      recordCount: stats.total,
-      favoriteCount: stats.favorite,
-      userDataPath: app.getPath("userData"),
-      dbPath: dbPath,
-      uptime: Math.round(process.uptime()),
-    };
-  } catch (err) {
-    log.error("get-diagnostics error:", err);
-    return { error: err.message };
-  }
-});
-
-// v0.70.0: Storage compression
-ipcMain.handle("get-storage-stats", async () => {
-  try {
-    const dbPath = path.join(app.getPath("userData"), "clawboard.db");
-    let dbSize = 0;
-    if (fs.existsSync(dbPath)) {
-      dbSize = fs.statSync(dbPath).size;
-    }
-    const stats = db.getDetailedStats ? db.getDetailedStats() : db.getStats();
-    let compressedCount = 0;
-    try {
-      compressedCount =
-        db.db.exec(
-          "SELECT COUNT(*) as count FROM records WHERE compressed = 1",
-        )[0]?.values[0][0] || 0;
-    } catch (e) {}
-    return {
-      dbSize,
-      dbSizeMB: Math.round((dbSize / 1024 / 1024) * 10) / 10,
-      totalRecords: stats.total || 0,
-      compressedRecords: compressedCount,
-      compressionRatio:
-        compressedCount > 0
-          ? Math.round((compressedCount / (stats.total || 1)) * 100)
-          : 0,
-    };
-  } catch (e) {
-    log.error("get-storage-stats error:", e);
-    return {
-      dbSize: 0,
-      dbSizeMB: 0,
-      totalRecords: 0,
-      compressedRecords: 0,
-      compressionRatio: 0,
-    };
-  }
-});
-
-ipcMain.handle("compress-all", async () => {
-  try {
-    const lz = require("lz-string");
-    const result = db.db.exec(
-      "SELECT id, content FROM records WHERE compressed = 0 AND LENGTH(content) > 1024",
-    );
-    if (!result.length || !result[0].values.length)
-      return { success: true, compressed: 0 };
-    let compressed = 0;
-    for (const row of result[0].values) {
-      const [id, content] = row;
-      try {
-        const compressedStr = lz.compress(content);
-        if (compressedStr.length < content.length) {
-          db.db.run(
-            "UPDATE records SET content = ?, compressed = 1 WHERE id = ?",
-            [compressedStr, id],
-          );
-          compressed++;
-        }
-      } catch (e) {
-        // Skip this record
-      }
-    }
-    if (compressed > 0) db._save();
-    return { success: true, compressed };
-  } catch (e) {
-    log.error("compress-all error:", e);
-    return { success: false, error: e.message };
-  }
-});
-
-// v0.55.0: 模糊去重（MinHash）
-ipcMain.handle(
-  "find-fuzzy-duplicates",
-  async (_, { threshold = 0.75 } = {}) => {
-    try {
-      return db._findFuzzyDuplicates(threshold);
-    } catch (err) {
-      log.error("find-fuzzy-duplicates error:", err);
-      return [];
-    }
-  },
-);
-
-ipcMain.handle(
-  "cleanup-fuzzy-duplicates",
-  async (_, { threshold = 0.85 } = {}) => {
-    try {
-      return db.cleanupFuzzyDuplicates(threshold);
-    } catch (err) {
-      log.error("cleanup-fuzzy-duplicates error:", err);
-      return { deleted: 0, found: 0 };
-    }
-  },
-);
-
-ipcMain.handle("get-fuzzy-dedup-stats", async () => {
-  try {
-    return db.getFuzzyStats();
-  } catch (err) {
-    log.error("get-fuzzy-dedup-stats error:", err);
-    return { total: 0, fuzzyPairsFound: 0, samples: [] };
-  }
-});
-
-// ==================== v0.71.0: 内容预览增强 ====================
-
-// 获取图片文件信息（尺寸、格式、大小）
-ipcMain.handle("get-image-info", async (_, filePath) => {
-  try {
-    const fs = require("fs");
-    if (!fs.existsSync(filePath)) {
-      return { success: false, error: "文件不存在" };
-    }
-    const stat = fs.statSync(filePath);
-    const img = nativeImage.createFromPath(filePath);
-    const size = img.getSize();
-    const ext = path
-      .extname(filePath)
-      .toLowerCase()
-      .replace(".", "")
-      .toUpperCase();
-    const formatMap = {
-      PNG: "PNG",
-      JPG: "JPEG",
-      JPEG: "JPEG",
-      GIF: "GIF",
-      BMP: "BMP",
-      WEBP: "WebP",
-      SVG: "SVG",
-      ICO: "ICO",
-      TIFF: "TIFF",
-      TIF: "TIFF",
-      AVIF: "AVIF",
-    };
-    return {
-      success: true,
-      width: size.width,
-      height: size.height,
-      format: formatMap[ext] || ext,
-      fileSize: stat.size,
-      fileName: path.basename(filePath),
-      aspectRatio: (size.width / size.height).toFixed(2),
-    };
-  } catch (err) {
-    log.error("get-image-info error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 读取文件内容用于预览（支持文本文件）
-ipcMain.handle("read-file-preview", async (_, filePath) => {
-  try {
-    const fs = require("fs");
-    if (!fs.existsSync(filePath)) {
-      return { success: false, error: "文件不存在" };
-    }
-    const stat = fs.statSync(filePath);
-    const maxSize = 100 * 1024; // 100KB
-    const textExtensions = new Set([
-      ".txt",
-      ".md",
-      ".markdown",
-      ".json",
-      ".csv",
-      ".tsv",
-      ".xml",
-      ".html",
-      ".htm",
-      ".css",
-      ".js",
-      ".jsx",
-      ".ts",
-      ".tsx",
-      ".py",
-      ".java",
-      ".c",
-      ".cpp",
-      ".h",
-      ".hpp",
-      ".cs",
-      ".go",
-      ".rs",
-      ".rb",
-      ".php",
-      ".sh",
-      ".bash",
-      ".ps1",
-      ".bat",
-      ".cmd",
-      ".yaml",
-      ".yml",
-      ".toml",
-      ".ini",
-      ".conf",
-      ".cfg",
-      ".env",
-      ".sql",
-      ".log",
-      ".gitignore",
-      ".dockerignore",
-      ".editorconfig",
-      ".vue",
-      ".svelte",
-      ".astro",
-      ".scss",
-      ".sass",
-      ".less",
-      ".lua",
-      ".r",
-      ".m",
-      ".swift",
-      ".kt",
-      ".kts",
-      ".dart",
-      ".zig",
-    ]);
-    const ext = path.extname(filePath).toLowerCase();
-    if (!textExtensions.has(ext) && stat.size > maxSize) {
-      return {
-        success: false,
-        error: "文件过大或格式不支持预览",
-        isTextFile: false,
-      };
-    }
-    if (stat.size > maxSize) {
-      return {
-        success: false,
-        error: `文件过大（${(stat.size / 1024).toFixed(0)}KB），超过 100KB 限制`,
-        isTextFile: true,
-      };
-    }
-    const content = fs.readFileSync(filePath, "utf8");
-    return {
-      success: true,
-      content,
-      fileName: path.basename(filePath),
-      fileSize: stat.size,
-      extension: ext.replace(".", ""),
-      isTruncated: false,
-    };
-  } catch (err) {
-    log.error("read-file-preview error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 复制图片到剪贴板
-ipcMain.handle("copy-image-clipboard", async (_, filePath) => {
-  try {
-    const fs = require("fs");
-    if (!fs.existsSync(filePath)) {
-      return { success: false, error: "文件不存在" };
-    }
-    const img = nativeImage.createFromPath(filePath);
-    clipboard.writeImage(img);
-    return { success: true };
-  } catch (err) {
-    log.error("copy-image-clipboard error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// ==================== v0.74.0: 数据库备份管理 ====================
-
-// 手动创建备份
-ipcMain.handle("create-backup", async (_, reason = "manual") => {
-  try {
-    const result = db.createBackup(reason);
-    return result;
-  } catch (err) {
-    log.error("create-backup error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 获取备份列表
-ipcMain.handle("get-backups", async () => {
-  try {
-    const backups = db.getBackups();
-    return backups;
-  } catch (err) {
-    log.error("get-backups error:", err);
-    return [];
-  }
-});
-
-// 从备份恢复
-ipcMain.handle("restore-from-backup", async (_, backupFilename) => {
-  try {
-    // 显示确认对话框（因为这是危险操作）
-    const { dialog } = require("electron");
-    const result = await dialog.showMessageBox(mainWindow, {
-      type: "warning",
-      title: "⚠️ 确认恢复备份",
-      message: `即将从备份恢复数据:\n${backupFilename}\n\n当前数据将自动备份，但此操作不可撤销。`,
-      buttons: ["取消", "确认恢复"],
-      defaultId: 0,
-      cancelId: 0,
-    });
-
-    if (result.response !== 1) {
-      return { success: false, canceled: true, message: "用户取消操作" };
-    }
-
-    const restoreResult = db.restoreFromBackup(backupFilename);
-    
-    // 通知渲染进程数据已变更
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("database-restored", restoreResult);
-    }
-
-    return restoreResult;
-  } catch (err) {
-    log.error("restore-from-backup error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 删除备份
-ipcMain.handle("delete-backup", async (_, backupFilename) => {
-  try {
-    const fs = require("fs");
-    const path = require("path");
-    const backupPath = path.join(db.backupPath, backupFilename);
-
-    if (!fs.existsSync(backupPath)) {
-      return { success: false, error: "备份文件不存在" };
-    }
-
-    fs.unlinkSync(backupPath);
-
-    // 更新清单
-    const metaPath = path.join(db.backupPath, "backup-manifest.json");
-    if (fs.existsSync(metaPath)) {
-      let manifest = JSON.parse(fs.readFileSync(metaPath, "utf8"));
-      manifest = manifest.filter((b) => b.filename !== backupFilename);
-      fs.writeFileSync(metaPath, JSON.stringify(manifest, null, 2));
-    }
-
-    return { success: true };
-  } catch (err) {
-    log.error("delete-backup error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// ==================== v0.75.0: 企业级安全功能 ====================
-
-// 安全删除文件 (DoD 5220.22-M 标准)
-ipcMain.handle("secure-delete-file", async (_, filePath) => {
-  try {
-    // 验证路径安全性 (防止目录遍历攻击)
-    const normalizedPath = path.normalize(filePath);
-    if (!normalizedPath.startsWith(app.getPath("userData")) && 
-        !normalizedPath.startsWith(app.getPath("app"))) {
-      return { success: false, error: "不允许删除此位置的文件" };
-    }
-
-    const result = SecureUtils.secureDelete(normalizedPath);
-    log.info(`[Security] 安全删除: ${result.method} - ${result.size || 0} bytes`);
-    return result;
-  } catch (err) {
-    log.error("secure-delete-file error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 获取密码强度评估
-ipcMain.handle("get-password-strength", async (_, password) => {
-  try {
-    const strength = SecureUtils.checkPasswordStrength(password);
-    return strength;
-  } catch (err) {
-    log.error("get-password-strength error:", err);
-    return { score: 0, strength: 'error', suggestions: ['检测失败'] };
-  }
-});
-
-// 使用 AES-256-GCM 加密文本
-ipcMain.handle("encrypt-text-gcm", async (_, plaintext, password) => {
-  try {
-    // 派生密钥
-    const salt = SecureUtils.generateSalt();
-    const key = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256');
-    
-    // 加密
-    const encrypted = SecureUtils.encryptGCM(plaintext, key);
-    
-    return {
-      success: true,
-      data: encrypted,
-      salt: salt.toString('hex'),
-      algorithm: 'aes-256-gcm'
-    };
-  } catch (err) {
-    log.error("encrypt-text-gcm error:", err);
-    return { success: false, error: err.message };
-  }
-});
-
-// 使用 AES-256-GCM 解密文本
-ipcMain.handle("decrypt-text-gcm", async (_, encryptedData, password, saltHex) => {
-  try {
-    const salt = Buffer.from(saltHex, 'hex');
-    const key = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256');
-    
-    const decrypted = SecureUtils.decryptGCM(encryptedData, key);
-    
-    return {
-      success: true,
-      data: decrypted
-    };
-  } catch (err) {
-    log.error("decrypt-text-gcm error:", err);
-    return { success: false, error: '解密失败,请检查密码' };
-  }
-});
-
-// 计算文件哈希 (用于完整性验证)
-ipcMain.handle("hash-file", async (_, filePath) => {
-  try {
-    const hash = await SecureUtils.fileHashSHA256(filePath);
-    return { success: true, hash, algorithm: 'sha-256' };
-  } catch (err) {
-    log.error("hash-file error:", err);
-    return { success: false, error: err.message };
-  }
-});
+require('./ipc/smartPasteIpc')(ipcMain, log, () => smartPaste);
+require('./ipc/ignoreRulesIpc')(ipcMain, db, log, () => ignoreRules);
+require('./ipc/expiryIpc')(ipcMain, db, log, startAutoExpiryTimer);
+require('./ipc/hotkeyIpc')(ipcMain, log, () => hotkeyTemplates, () => mainWindow);
+require('./ipc/transformIpc')(ipcMain, log);
+
+require('./ipc/exportIpc')(ipcMain, db, log);
+require('./ipc/fileIpc')(ipcMain, db, log, () => mainWindow);
+
+require('./ipc/cycleIpc')(ipcMain, log, db, () => cycleWindow, () => quickPasteWindow);
+
+require('./ipc/systemIpc')(ipcMain, db, log, () => app);
+require('./ipc/previewIpc')(ipcMain, log);
+require('./ipc/backupIpc')(ipcMain, db, log, () => mainWindow);
+require('./ipc/securityIpc')(ipcMain, log, SecureUtils, () => app);
