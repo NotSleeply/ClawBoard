@@ -4,7 +4,20 @@
 
 const path = require('path');
 const fs = require('fs');
-const { app } = require('electron');
+
+let app;
+try {
+  app = require('electron').app;
+} catch {
+  app = {
+    getPath: (name) => {
+      const os = require('os');
+      const map = { userData: os.homedir(), temp: os.tmpdir() };
+      return map[name] || os.tmpdir();
+    },
+    getVersion: () => '0.0.0',
+  };
+}
 
 class ClipboardWatcher {
   constructor(db, clipboard, log, ai, ocr) {

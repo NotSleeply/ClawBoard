@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: windows-latest
@@ -32,7 +35,6 @@ jobs:
 
       - name: Test
         run: pnpm test
-        continue-on-error: false
 
       - name: CLI Smoke Test
         run: |
@@ -47,15 +49,3 @@ jobs:
         with:
           name: coverage-report
           path: coverage/
-
-      - name: Trigger AI Self-Healing on Failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `[CI Failure] Self-healing request for commit ${context.sha.substring(0, 7)}`,
-              body: `CI Pipeline failed on branch **${context.ref}**.\n\nPlease investigate the logs and apply a fix.\n\nRun URL: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
-            })
