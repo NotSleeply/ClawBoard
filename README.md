@@ -237,18 +237,6 @@ ollama serve
 
 ---
 
-## 🤝 贡献
-
-我们欢迎所有形式的贡献！无论是 Bug 报告、功能建议还是代码提交。
-
-### 如何开始
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'feat: add amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 创建 Pull Request
-
 ### 开发流程
 
 ```bash
@@ -361,35 +349,6 @@ clawboard watch             # 启动监控守护进程
 ## 📄 许可证
 
 本项目基于 [MIT License](LICENSE) 开源。
-
-```
-MIT License
-
-Copyright (c) 2024 NotSleeply
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-```
-
----
-
-## 🙏 致谢
-
-感谢以下开源项目：
-
-- [Ollama](https://ollama.ai/) - 本地 AI 运行时
-- [Tesseract.js](https://github.com/naptha/tesseract.js) - OCR 引擎
-- [sql.js](https://github.com/kripken/sql.js) - SQLite WebAssembly 构建
-- [Commander.js](https://github.com/tj/commander.js/) - CLI 框架
-
----
 
 ## 📞 支持
 
