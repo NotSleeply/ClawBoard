@@ -217,6 +217,38 @@ program
   });
 
 program
+  .command('clear')
+  .description('清空剪贴板历史记录')
+  .option('--force', '跳过确认直接清空')
+  .action(async opts => {
+    if (!opts.force) {
+      const readline = require('readline');
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      const answer = await new Promise(resolve => {
+        rl.question(chalk.yellow('⚠️  确认清空所有剪贴板历史记录？(y/N) '), resolve);
+      });
+      rl.close();
+      if (answer.toLowerCase() !== 'y') {
+        console.log(chalk.gray('已取消'));
+        return;
+      }
+    }
+    const db = await initDb();
+    try {
+      const stats = db.getStats();
+      const total = stats.total || stats.totalRecords || 0;
+      if (total === 0) {
+        console.log(chalk.gray('暂无记录'));
+        return;
+      }
+      db.clearAllRecords();
+      console.log(chalk.green(`✅ 已清空 ${total} 条剪贴板历史记录`));
+    } finally {
+      closeDb(db);
+    }
+  });
+
+program
   .command('favorite <id>')
   .alias('fav')
   .description('切换记录收藏状态')
