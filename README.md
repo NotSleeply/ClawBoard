@@ -1,4 +1,4 @@
-# 🦞 ClawBoard CLI
+# 🦞 ClawBoard
 
 <p align="center">
   <strong>AI驱动的本地剪贴板管理器 CLI</strong><br>
@@ -94,7 +94,7 @@ pnpm format
 
 ## 目录结构
 
-```
+```bash
 src/
 ├── cli/                    # CLI 入口和命令
 │   ├── index.js           # CLI 主入口
@@ -135,31 +135,6 @@ src/
     ├── TriggerEngine.js    # 触发引擎
     └── LRUCache.js         # LRU 缓存
 ```
-
-## 模块说明
-
-### CLI (cli/)
-
-- **index.js**: CLI 主入口，提供所有命令行命令
-- **watcher.js**: 剪贴板监控守护进程
-
-### 核心模块 (core/)
-
-- **database/**: 数据库操作，使用 sql.js 实现
-- **clipboard/**: 剪贴板监控和处理
-- **ai/**: AI 功能，包括摘要生成、语义搜索等
-- **sync/**: 数据同步功能
-
-### 功能模块 (features/)
-
-- **snippets/**: 快捷片段管理
-- **ocr/**: 图片文字识别
-- **rules/**: 自动化规则引擎
-- **insights/**: 智能洞察和分析
-
-### 工具模块 (utils/)
-
-通用工具函数和辅助类
 
 ## 可用命令
 
