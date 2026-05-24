@@ -17,7 +17,7 @@
 <p align="center">
   <img src="https://img.shields.io/github/v/release/NotSleeply/ClawBoard?style=flat-square" alt="Version">
   <img src="https://img.shields.io/github/stars/NotSleeply/ClawBoard?style=flat-square" alt="Stars">
-  <img src="https://img.shields.io/github/license/NotSleeply/ClawBoard?style=flat-square" alt="License">
+  <img src="https://img.shields.io/github/license/NotSleeply/ClawBoard?style=flat-square&label=License" alt="License">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/node/v/18+-green?style=flat-square" alt="Node Version">
 </p>
@@ -256,7 +256,9 @@ clawboard watch             # 启动监控守护进程
 
 ## 📄 许可证
 
-本项目基于 [MIT License](LICENSE) 开源。
+本项目基于 [PolyForm Noncommercial License 1.0.0](LICENSE) 开源，**禁止商业用途**。
+
+允许个人学习、研究、非营利组织使用。如需商用，请联系作者获取授权。
 
 ## 📞 支持
 
