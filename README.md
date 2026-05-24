@@ -142,6 +142,8 @@ src/
 ## 可用命令
 
 ```bash
+clawboard <command>
+clawboard --help            # 显示帮助信息
 clawboard list              # 列出剪贴板历史
 clawboard copy <id>         # 复制指定记录到剪贴板
 clawboard search <query>    # 搜索剪贴板记录
@@ -157,6 +159,7 @@ clawboard import <file>     # 导入数据
 clawboard backup            # 备份管理
 clawboard config            # 查看或修改配置
 clawboard watch             # 启动监控守护进程
+clawboard watch --stop      # 停止监控守护进程
 ```
 
 详见 [CONTRIBUTING.md](docs/CONTRIBUTING.md)。

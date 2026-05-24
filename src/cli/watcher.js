@@ -41,11 +41,14 @@ async function main() {
       const { execSync } = require('child_process');
       try {
         if (process.platform === 'win32') {
-          return execSync('powershell -NoProfile -Command "Get-Clipboard"', {
-            encoding: 'utf8',
-            windowsHide: true,
-            timeout: 5000
-          }).replace(/\r?\n$/, '');
+          return execSync(
+            'powershell -NoProfile -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-Clipboard"',
+            {
+              encoding: 'utf8',
+              windowsHide: true,
+              timeout: 5000
+            }
+          ).replace(/\r?\n$/, '');
         } else if (process.platform === 'darwin') {
           return execSync('pbpaste', { encoding: 'utf8', timeout: 5000 }).replace(/\r?\n$/, '');
         } else {

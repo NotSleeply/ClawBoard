@@ -58,10 +58,9 @@ function copyToClipboard(text) {
   if (process.platform === 'win32') {
     result = spawnSync(
       'powershell',
-      ['-NoProfile', '-Command', '[Console]::In.ReadToEnd() | Set-Clipboard'],
+      ['-NoProfile', '-Command', '$Input | Set-Clipboard'],
       {
-        input: text,
-        encoding: 'utf8',
+        input: Buffer.from(text, 'utf8'),
         windowsHide: true
       }
     );
