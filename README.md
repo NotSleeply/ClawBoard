@@ -90,6 +90,9 @@ pnpm test
 
 # 格式化代码
 pnpm format
+
+# 测试命令
+node src/cli/index.js <command>
 ```
 
 ## 目录结构
