@@ -6,15 +6,6 @@
 </p>
 
 <p align="center">
-  <a href="#-功能特点">功能</a> •
-  <a href="#-快速开始">开始使用</a> •
-  <a href="#-技术栈">技术栈</a> •
-  <a href="#-文档">文档</a> •
-  <a href="#-贡献">贡献</a> •
-  <a href="#-许可证">许可证</a>
-</p>
-
-<p align="center">
   <img src="https://img.shields.io/github/v/release/NotSleeply/ClawBoard?style=flat-square" alt="Version">
   <img src="https://img.shields.io/github/stars/NotSleeply/ClawBoard?style=flat-square" alt="Stars">
   <img src="https://img.shields.io/github/license/NotSleeply/ClawBoard?style=flat-square&label=License" alt="License">
@@ -35,7 +26,7 @@
 | 📌 **永久收藏**     | 标记重要内容，永不丢失                             | ✅   |
 | ⚡ **代码片段库**   | 自动识别代码，高亮保存，随时取用                   | ✅   |
 
-### 🤖 AI 能力 (v0.70+)
+### 🤖 AI 能力
 
 | 功能                | 描述                                       | 状态 |
 | ------------------- | ------------------------------------------ | ---- |
@@ -44,7 +35,7 @@
 | 📝 **自动分类**     | 智能识别内容类型(代码/邮件/链接/地址)      | ✅   |
 | 💬 **OCR 图片识别** | Tesseract OCR 引擎,支持多语言文字提取      | ✅   |
 
-### 🔒 企业级安全 (v0.75+)
+### 🔒 企业级安全
 
 | 功能                    | 描述                         | 状态 |
 | ----------------------- | ---------------------------- | ---- |
@@ -54,7 +45,7 @@
 | 🗑️ **安全删除**         | DoD 5220.22-M 标准 (7次覆写) | ✅   |
 | 📊 **操作审计**         | 完整的操作日志记录           | ✅   |
 
-### ⚡ 性能优化 (v0.74+)
+### ⚡ 性能优化
 
 | 功能                | 描述                      | 状态 |
 | ------------------- | ------------------------- | ---- |
@@ -62,62 +53,6 @@
 | 💾 **自动备份**     | 每小时自动备份,保留30天   | ✅   |
 | 🔗 **事务支持**     | ACID 保证数据一致性       | ✅   |
 | 🛡️ **SQL 注入防护** | 参数化查询,零注入风险     | ✅   |
-
----
-
-## 📖 详细文档
-
-### 用户手册
-
-- [📘 完整用户手册](docs/user-guide.md) - 所有功能的详细说明
-- [🔐 安全指南](docs/security-guide.md) - 加密和安全最佳实践
-
-### 开发者文档
-
-- [🏗️ 架构设计](docs/architecture.md) - 系统架构和技术决策
-- [🧪 测试指南](docs/testing.md) - 如何运行和编写测试
-
-### 贡献指南
-
-- [🤝 贡献指南](docs/CONTRIBUTING.md) - 如何参与项目开发
-- [📋 Issue 模板](.github/ISSUE_TEMPLATE/) - Issue 和 PR 模板
-- [📜 行为准则](docs/CODE_OF_CONDUCT.md) - 社区行为规范
-
----
-
-## 🔄 更新日志
-
-查看 [CHANGELOG.md](docs/CHANGELOG.md) 了解版本更新历史。
-
-### v0.76.0 (最新)
-
-#### 新增功能
-
-- 🎨 **文本格式清理器** - 来自 ClipboardFusion 的 8 种格式转换
-- 🔤 **特殊粘贴模式** - 来自 Ditto 的 12 种粘贴选项
-- 📋 **快捷短语模板** - 来自 CopyQ 的变量模板引擎
-- 🤖 **自动触发器** - 来自 ClipboardFusion 的规则引擎
-
-#### 安全增强
-
-- 🔐 AES-256-GCM 认证加密
-- 🔑 主密码 + 会话超时锁定
-- 🛡️ 暴力破解防护 (5次锁定)
-- 🗑️ DoD 安全删除标准
-
-#### 性能优化
-
-- ⚡ LRU 缓存系统 (3.3x 加速)
-- 💾 自动备份机制 (每小时)
-- 🔗 ACID 事务支持
-- 🛡️ SQL 注入防护
-
-#### 质量保证
-
-- 🧪 Jest 单元测试框架 (90+ 测试用例)
-- 🔍 ESLint 代码检查
-- 💅 Prettier 代码格式化
-- 📊 CI/CD 流水线 (GitHub Actions)
 
 ---
 
