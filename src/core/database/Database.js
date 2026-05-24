@@ -28,7 +28,7 @@ class Database {
     this._statsCache = new LRUCache(10); // 统计数据缓存 (10秒过期)
     this._cacheTimestamps = new Map(); // 缓存时间戳
 
-    this._init();
+    this._initPromise = this._init();
   }
 
   // ==================== 安全工具方法 ====================
@@ -698,10 +698,9 @@ class Database {
       this._saveTimer = null;
       if (this._pendingSave) {
         this._pendingSave = false;
-        this._requestSave();
+        this._save();
       }
     }, this._saveDebounceMs);
-    // 确保 timer 不会阻止进程退出
     if (this._saveTimer.unref) this._saveTimer.unref();
   }
 
