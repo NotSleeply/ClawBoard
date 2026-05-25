@@ -9,7 +9,7 @@
     "strict": false,
     "moduleResolution": "node16",
     "resolveJsonModule": true,
-    "types": ["node", "jest"]
+    "types": ["node", "vitest"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "build", "src/renderer/app.js", "src/main/index.js"]
