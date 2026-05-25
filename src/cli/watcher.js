@@ -14,7 +14,7 @@ function writeLog(level, ...args) {
   console.log(msg);
   try {
     fs.appendFileSync(logFile, line);
-  } catch { }
+  } catch {}
 }
 
 const log = {

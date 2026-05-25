@@ -1233,7 +1233,7 @@ class Database {
           tags.forEach(tag => {
             tagCount[tag] = (tagCount[tag] || 0) + 1;
           });
-        } catch (e) { }
+        } catch (e) {}
       });
     }
 
@@ -1250,7 +1250,7 @@ class Database {
     let tags = [];
     try {
       tags = JSON.parse(record.tags || '[]');
-    } catch (e) { }
+    } catch (e) {}
 
     tag = tag.trim();
     if (!tag || tags.includes(tag)) return true; // 标签已存在
@@ -1269,7 +1269,7 @@ class Database {
     let tags = [];
     try {
       tags = JSON.parse(record.tags || '[]');
-    } catch (e) { }
+    } catch (e) {}
 
     const index = tags.indexOf(tag);
     if (index === -1) return true;
@@ -1299,7 +1299,7 @@ class Database {
           this.db.run(`UPDATE records SET tags = ? WHERE id = ?`, [JSON.stringify(tags), id]);
           count++;
         }
-      } catch (e) { }
+      } catch (e) {}
     });
 
     if (count > 0) this._requestSave();
@@ -1508,7 +1508,9 @@ class Database {
 
   clearAllRecords() {
     this.db.run(`DELETE FROM records`);
-    try { this.db.run(`DELETE FROM record_tags`); } catch { }
+    try {
+      this.db.run(`DELETE FROM record_tags`);
+    } catch {}
     this.invalidateSearchCache();
     this._requestSave();
     return true;
@@ -1985,7 +1987,7 @@ class Database {
           tags.forEach(tag => {
             tagRecords[tag] = (tagRecords[tag] || 0) + 1;
           });
-        } catch (e) { }
+        } catch (e) {}
       });
     }
 
@@ -2314,7 +2316,7 @@ class Database {
       if (syncInfo.length > 0 && syncInfo[0].values.length > 0) {
         lastSyncTime = syncInfo[0].values[0][0];
       }
-    } catch (e) { }
+    } catch (e) {}
 
     // 获取同步配置
     let syncConfig = null;
@@ -2611,7 +2613,7 @@ class Database {
           byType[type] = count;
         });
       }
-    } catch (e) { }
+    } catch (e) {}
 
     // 获取最早和最新的待同步记录时间
     let oldestPending = null;
@@ -2624,7 +2626,7 @@ class Database {
         oldestPending = timeResult[0].values[0][0];
         newestPending = timeResult[0].values[0][1];
       }
-    } catch (e) { }
+    } catch (e) {}
 
     return {
       total,
@@ -2661,7 +2663,7 @@ class Database {
           else if (key === 'notify_excluded_apps') {
             try {
               settings.excludedApps = JSON.parse(value);
-            } catch (e) { }
+            } catch (e) {}
           }
         }
       }

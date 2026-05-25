@@ -10,7 +10,9 @@ describe('Database', () => {
       db.close();
     }
     if (tmpDir) {
-      try { require('fs').rmSync(tmpDir, { recursive: true, force: true }); } catch { }
+      try {
+        require('fs').rmSync(tmpDir, { recursive: true, force: true });
+      } catch {}
     }
   });
 
@@ -103,7 +105,12 @@ describe('Database', () => {
     db = new Database(createTmpDir('code'));
     await db._initPromise;
 
-    addTestRecord(db, { type: 'code', content: 'const x = 1;', summary: 'const x = 1;', language: 'javascript' });
+    addTestRecord(db, {
+      type: 'code',
+      content: 'const x = 1;',
+      summary: 'const x = 1;',
+      language: 'javascript'
+    });
     const records = db.getRecords({ limit: 10 });
     expect(records.length).toBe(1);
     expect(records[0].type).toBe('code');

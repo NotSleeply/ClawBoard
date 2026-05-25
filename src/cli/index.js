@@ -56,14 +56,10 @@ function copyToClipboard(text) {
   let result;
 
   if (process.platform === 'win32') {
-    result = spawnSync(
-      'powershell',
-      ['-NoProfile', '-Command', '$Input | Set-Clipboard'],
-      {
-        input: Buffer.from(text, 'utf8'),
-        windowsHide: true
-      }
-    );
+    result = spawnSync('powershell', ['-NoProfile', '-Command', '$Input | Set-Clipboard'], {
+      input: Buffer.from(text, 'utf8'),
+      windowsHide: true
+    });
   } else if (process.platform === 'darwin') {
     result = spawnSync('pbcopy', [], {
       input: text,

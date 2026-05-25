@@ -84,7 +84,11 @@ describe('ClipboardWatcher', () => {
 
   test('_check readText 抛出异常不应该崩溃', () => {
     const mockDb = { addRecord: vi.fn(), getRecords: vi.fn().mockReturnValue([]) };
-    const mockClipboard = { readText: vi.fn().mockImplementation(() => { throw new Error('read error'); }) };
+    const mockClipboard = {
+      readText: vi.fn().mockImplementation(() => {
+        throw new Error('read error');
+      })
+    };
     const mockLog = { info: vi.fn(), error: vi.fn(), warn: vi.fn() };
     watcher = new ClipboardWatcher(mockDb, mockClipboard, mockLog);
     watcher.lastText = '';
