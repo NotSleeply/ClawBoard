@@ -12,12 +12,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "build",
-    "src/**/__tests__/**",
-    "src/renderer",
-    "src/main"
-  ]
+  "exclude": ["node_modules", "dist", "build", "src/**/__tests__/**", "src/renderer", "src/main"]
 }
