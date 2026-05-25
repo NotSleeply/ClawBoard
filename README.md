@@ -1,13 +1,13 @@
-# 🦞 ClawBoard
+# 🦞 BoardClip
 
 <p align="center">
-  <strong>AI驱动的本地剪贴板管理器 CLI</strong><br>
+  <strong>AI 驱动的本地剪贴板管理器 CLI</strong><br>
   <em>智能记录 · 语义搜索 · 永久收藏</em>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/v/release/NotSleeply/ClawBoard?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/github/stars/NotSleeply/ClawBoard?style=flat-square" alt="Stars">
+  <img src="https://img.shields.io/npm/v/board-clip?style=flat-square" alt="npm">
+  <img src="https://img.shields.io/npm/dt/board-clip?style=flat-square" alt="Downloads">
   <img src="https://img.shields.io/github/license/NotSleeply/ClawBoard?style=flat-square&label=License" alt="License">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/node/v/18+-green?style=flat-square" alt="Node Version">
@@ -15,166 +15,119 @@
 
 ---
 
-## ✨ 功能特点
+## 安装
 
-### 🧠 核心功能
+```bash
+npm install -g board-clip
+```
 
-| 功能                | 描述                                               | 状态 |
-| ------------------- | -------------------------------------------------- | ---- |
-| 🌡️ **全程监控**     | 记录复制的一切：文字、代码、图片、文件路径         | ✅   |
-| 🔍 **自然语言搜索** | 用日常语言搜索剪贴板历史，例如 "上周那个 API 地址" | ✅   |
-| 📌 **永久收藏**     | 标记重要内容，永不丢失                             | ✅   |
-| ⚡ **代码片段库**   | 自动识别代码，高亮保存，随时取用                   | ✅   |
+> 需要 Node.js >= 18
 
-### 🤖 AI 能力
+## 快速上手
 
-| 功能                | 描述                                       | 状态 |
-| ------------------- | ------------------------------------------ | ---- |
-| 🧠 **本地 AI 摘要** | 基于 Ollama 自动分析内容、生成摘要、打标签 | ✅   |
-| 🔍 **语义搜索**     | AI 驱动的智能搜索,理解意图而非关键词匹配   | ✅   |
-| 📝 **自动分类**     | 智能识别内容类型(代码/邮件/链接/地址)      | ✅   |
-| 💬 **OCR 图片识别** | Tesseract OCR 引擎,支持多语言文字提取      | ✅   |
+```bash
+# 启动剪贴板监控（后台守护进程）
+board-clip watch
 
-### 🔒 企业级安全
+# 查看剪贴板历史
+board-clip list
 
-| 功能                    | 描述                         | 状态 |
-| ----------------------- | ---------------------------- | ---- |
-| 🔐 **AES-256-GCM 加密** | 认证加密,防篡改              | ✅   |
-| 🔑 **主密码保护**       | 会话管理 + 超时自动锁定      | ✅   |
-| 🛡️ **暴力破解防护**     | 5次失败锁定5分钟             | ✅   |
-| 🗑️ **安全删除**         | DoD 5220.22-M 标准 (7次覆写) | ✅   |
-| 📊 **操作审计**         | 完整的操作日志记录           | ✅   |
+# 搜索记录
+board-clip search "API 地址"
 
-### ⚡ 性能优化
+# 复制某条记录到剪贴板
+board-clip copy <id>
 
-| 功能                | 描述                      | 状态 |
-| ------------------- | ------------------------- | ---- |
-| 🚀 **LRU 缓存系统** | 列表加载速度提升 **3.3x** | ✅   |
-| 💾 **自动备份**     | 每小时自动备份,保留30天   | ✅   |
-| 🔗 **事务支持**     | ACID 保证数据一致性       | ✅   |
-| 🛡️ **SQL 注入防护** | 参数化查询,零注入风险     | ✅   |
+# 停止监控
+board-clip watch --stop
+```
 
-### 🌍 多平台适配
+## 命令参考
 
-| 平台        | 特性                      | 状态        |
-| ----------- | ------------------------- | ----------- |
-| **Windows** | PowerShell 粘贴、通知声音 | ✅ 完全支持 |
-| **macOS**   | pbcopy 粘贴               | ✅ 完全支持 |
-| **Linux**   | xclip 粘贴                | ✅ 完全支持 |
+| 命令                         | 别名  | 说明                     |
+| ---------------------------- | ----- | ------------------------ |
+| `board-clip list`            | `ls`  | 列出剪贴板历史记录       |
+| `board-clip copy <id>`       | `cp`  | 复制指定记录到系统剪贴板 |
+| `board-clip search <query>`  | `s`   | 搜索剪贴板记录           |
+| `board-clip delete <id>`     | `rm`  | 删除指定记录             |
+| `board-clip favorite <id>`   | `fav` | 切换记录收藏状态         |
+| `board-clip stats`           |       | 显示使用统计             |
+| `board-clip groups`          | `grp` | 管理分组                 |
+| `board-clip tags`            |       | 管理标签                 |
+| `board-clip encrypt <id>`    |       | 加密指定记录             |
+| `board-clip decrypt <id>`    |       | 解密指定记录             |
+| `board-clip export [format]` |       | 导出数据（json/csv/md）  |
+| `board-clip import <file>`   | `imp` | 从备份文件导入数据       |
+| `board-clip backup`          |       | 备份管理                 |
+| `board-clip config`          |       | 查看或修改配置           |
+| `board-clip watch`           |       | 启动剪贴板监控守护进程   |
+| `board-clip watch --stop`    |       | 停止监控守护进程         |
 
-#### ⚠️ 已知限制
+## 功能特点
+
+### 🧠 核心能力
+
+- **剪贴板监控** — 后台守护进程，自动记录所有复制内容
+- **自然语言搜索** — 用日常语言搜索历史，如 "上周那个 API 地址"
+- **永久收藏** — 标记重要内容，永不丢失
+- **代码片段库** — 自动识别代码，随时取用
+
+### 🤖 AI 能力（需 [Ollama](https://ollama.ai)）
+
+- **本地 AI 摘要** — 自动分析内容、生成摘要、打标签
+- **语义搜索** — AI 驱动的智能搜索，理解意图而非关键词匹配
+- **自动分类** — 智能识别内容类型（代码/邮件/链接/地址）
+
+### 🔒 安全
+
+- **AES-256-GCM 加密** — 认证加密，防篡改
+- **主密码保护** — 会话管理 + 超时自动锁定
+- **暴力破解防护** — 5 次失败锁定 5 分钟
+- **安全删除** — DoD 5220.22-M 标准（7 次覆写）
+
+### 🌍 多平台
+
+| 平台        | 状态        | 备注                                     |
+| ----------- | ----------- | ---------------------------------------- |
+| **Windows** | ✅ 完全支持 | PowerShell 剪贴板交互                    |
+| **macOS**   | ✅ 完全支持 | pbcopy / pbpaste                         |
+| **Linux**   | ✅ 完全支持 | 需安装 `xclip`：`sudo apt install xclip` |
 
 <details>
-<summary><b>点击展开详情</b></summary>
+<summary><b>开发相关</b></summary>
 
-##### Linux
+### 开发
 
-- 需要安装 `xclip`: `sudo apt install xclip`
-- 文件路径识别仅支持常见目录（/home, /tmp, /var, /etc, /opt）
+```bash
+git clone https://github.com/NotSleeply/ClawBoard.git
+cd ClawBoard
+pnpm install
+pnpm test
+node src/cli/index.js <command>
+```
+
+### 项目结构
+
+```
+src/
+├── cli/              # CLI 入口和命令
+├── core/             # 核心模块（数据库、剪贴板、AI）
+├── features/         # 功能模块（片段、规则、洞察）
+└── utils/            # 工具函数
+```
 
 </details>
 
 ---
 
-### 开发流程
-
-```bash
-# 安装开发依赖
-pnpm install
-
-# 运行 lint 检查
-pnpm lint
-
-# 运行测试
-pnpm test
-
-# 格式化代码
-pnpm format
-
-# 测试命令
-node src/cli/index.js <command>
-```
-
-## 目录结构
-
-```bash
-src/
-├── cli/                    # CLI 入口和命令
-│   ├── index.js           # CLI 主入口
-│   └── watcher.js         # 剪贴板监控守护进程
-│
-├── core/                   # 核心功能模块
-│   ├── database/           # 数据库相关
-│   │   └── Database.js     # 数据库管理类
-│   ├── clipboard/          # 剪贴板相关
-│   │   └── ClipboardWatcher.js
-│   ├── ai/                 # AI 相关
-│   │   └── AIService.js
-│   └── sync/               # 同步相关
-│       └── SyncService.js
-│
-├── features/               # 功能模块
-│   ├── snippets/           # 代码片段
-│   │   └── SnippetsManager.js
-│   ├── ocr/                # OCR 文字识别
-│   │   └── OCRService.js
-│   ├── rules/              # 规则引擎
-│   │   └── RuleEngine.js
-│   └── insights/           # 洞察分析
-│       └── InsightsService.js
-│
-└── utils/                  # 工具函数
-    ├── platform.js         # 跨平台抽象
-    ├── text-transform.js   # 文本转换
-    ├── hotkey-templates.js # 快捷键模板
-    ├── ignore-rules.js     # 忽略规则
-    ├── auto-categorize.js  # 自动分类
-    ├── smart-paste.js      # 智能粘贴
-    ├── SessionManager.js   # 会话管理
-    ├── SecureUtils.js      # 安全工具
-    ├── TextFormatter.js    # 文本格式化
-    ├── PasteModeManager.js # 粘贴模式管理
-    ├── SnippetsManager.js  # 片段管理
-    ├── TriggerEngine.js    # 触发引擎
-    └── LRUCache.js         # LRU 缓存
-```
-
-## 可用命令
-
-```bash
-clawboard <command>
-clawboard --help            # 显示帮助信息
-clawboard list              # 列出剪贴板历史
-clawboard copy <id>         # 复制指定记录到剪贴板
-clawboard search <query>    # 搜索剪贴板记录
-clawboard delete <id>       # 删除指定记录
-clawboard favorite <id>     # 切换收藏状态
-clawboard stats             # 显示使用统计
-clawboard groups            # 管理分组
-clawboard tags              # 管理标签
-clawboard encrypt <id>      # 加密指定记录
-clawboard decrypt <id>      # 解密指定记录
-clawboard export [format]   # 导出数据
-clawboard import <file>     # 导入数据
-clawboard backup            # 备份管理
-clawboard config            # 查看或修改配置
-clawboard watch             # 启动监控守护进程
-clawboard watch --stop      # 停止监控守护进程
-```
-
-详见 [CONTRIBUTING.md](docs/CONTRIBUTING.md)。
-
----
-
 ## 📄 许可证
 
-本项目基于 [PolyForm Noncommercial License 1.0.0](LICENSE) 开源，**禁止商业用途**。
+[PolyForm Noncommercial License 1.0.0](LICENSE) — **禁止商业用途**。
 
 允许个人学习、研究、非营利组织使用。如需商用，请联系作者获取授权。
 
 ## 📞 支持
 
-- 📖 [完整文档](docs/)
 - 🐛 [Issue 反馈](https://github.com/NotSleeply/ClawBoard/issues)
 - 💬 [讨论区](https://github.com/NotSleeply/ClawBoard/discussions)
 

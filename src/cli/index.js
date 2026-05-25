@@ -9,7 +9,7 @@ const os = require('os');
 const pkg = require('../../package.json');
 
 function getDataDir() {
-  const dir = path.join(os.homedir(), '.clawboard');
+  const dir = path.join(os.homedir(), '.board-clip');
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -88,8 +88,8 @@ function copyToClipboard(text) {
 const program = new Command();
 
 program
-  .name('clawboard')
-  .description('🦞 ClawBoard - AI 驱动的本地剪贴板管理器 CLI')
+  .name('board-clip')
+  .description('🦞 BoardClip - AI 驱动的本地剪贴板管理器 CLI')
   .version(pkg.version);
 
 program
@@ -115,7 +115,7 @@ program
         console.log(chalk.gray('暂无记录'));
         return;
       }
-      console.log(chalk.bold(`\n🦞 ClawBoard 剪贴板历史 (共 ${records.length} 条)\n`));
+      console.log(chalk.bold(`\n🦞 CBoard 剪贴板历史 (共 ${records.length} 条)\n`));
       for (const r of records) {
         const icon = typeIcons[r.type] || '📋';
         const fav = r.favorite ? chalk.yellow('⭐') : '  ';
@@ -274,7 +274,7 @@ program
     const db = await initDb();
     try {
       const stats = opts.detailed ? db.getDetailedStats() : db.getStats();
-      console.log(chalk.bold('\n📊 ClawBoard 使用统计\n'));
+      console.log(chalk.bold('\n📊 BoardClip 使用统计\n'));
       if (opts.detailed) {
         console.log(`  📋 总记录数:  ${chalk.bold(stats.total || stats.totalRecords || 0)}`);
         console.log(`  📝 文字记录:  ${stats.text || 0}`);
@@ -445,7 +445,7 @@ program
         type: opts.type,
         favorite: opts.favorite
       });
-      const output = opts.output || `clawboard-export-${Date.now()}.${fmt}`;
+      const output = opts.output || `board-clip-export-${Date.now()}.${fmt}`;
       if (typeof data === 'string') {
         fs.writeFileSync(output, data, 'utf8');
       } else {
@@ -600,7 +600,7 @@ program
       try {
         process.kill(pid, 0);
         console.log(chalk.yellow(`⚠️ 守护进程已在运行 (PID: ${pid})`));
-        console.log(chalk.gray('使用 clawboard watch --stop 停止后重新启动'));
+        console.log(chalk.gray('使用 board-clip watch --stop 停止后重新启动'));
         return;
       } catch {
         fs.unlinkSync(pidFile);
@@ -618,8 +618,8 @@ program
 
     fs.writeFileSync(pidFile, String(child.pid));
     console.log(chalk.green(`✅ 剪贴板监控已启动 (PID: ${child.pid})`));
-    console.log(chalk.gray('使用 clawboard watch --stop 停止'));
-    console.log(chalk.gray('使用 clawboard watch --status 查看状态'));
+    console.log(chalk.gray('使用 board-clip watch --stop 停止'));
+    console.log(chalk.gray('使用 board-clip watch --status 查看状态'));
   });
 
 program.parse();

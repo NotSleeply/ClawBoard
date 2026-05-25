@@ -1,18 +1,23 @@
 {
-  "name": "clawboard",
+  "name": "board-clip",
   "version": "0.76.0",
   "description": "AI驱动的本地剪贴板管理器 - 智能记录、语义搜索、永久收藏",
   "main": "src/cli/index.js",
   "bin": {
-    "clawboard": "src/cli/index.js"
+    "board-clip": "src/cli/index.js"
   },
-  "packageManager": "pnpm@10.13.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NotSleeply/ClawBoard.git"
+  },
+  "homepage": "https://github.com/NotSleeply/ClawBoard#readme",
+  "bugs": {
+    "url": "https://github.com/NotSleeply/ClawBoard/issues"
+  },
   "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
+    "node": ">=18.0.0"
   },
   "scripts": {
-    "preinstall": "npx only-allow pnpm",
     "lint": "eslint src tests --ext .js,.jsx --max-warnings 0",
     "lint:fix": "eslint src tests --ext .js,.jsx --fix",
     "format": "prettier --write \"{src,tests}/**/*.{js,jsx,json}\" \"*.{js,json}\" \"docs/**/*.md\"",
@@ -28,7 +33,9 @@
     "ai",
     "ollama",
     "productivity",
-    "local-first"
+    "local-first",
+    "clipboard-manager",
+    "clipboard-history"
   ],
   "author": "NotSleeply",
   "license": "PolyForm-Noncommercial-1.0.0",
@@ -45,12 +52,6 @@
     "commander": "^14.0.3",
     "crypto-js": "^4.2.0",
     "lz-string": "^1.5.0",
-    "qrcode-generator": "^2.0.4",
-    "sql.js": "^1.10.0",
-    "tesseract.js": "^7.0.0"
-  },
-  "files": [
-    "src/**/*",
-    "assets/**/*"
-  ]
+    "sql.js": "^1.10.0"
+  }
 }

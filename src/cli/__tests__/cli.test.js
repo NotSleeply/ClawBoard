@@ -18,11 +18,11 @@ function runCli(args) {
   }
 }
 
-describe('ClawBoard CLI', () => {
+describe('BoardClip CLI', () => {
   test('--help 应该输出帮助信息', () => {
     const result = runCli('--help');
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain('clawboard');
+    expect(result.stdout).toContain('board-clip');
     expect(result.stdout).toContain('list');
     expect(result.stdout).toContain('search');
     expect(result.stdout).toContain('stats');
@@ -59,7 +59,7 @@ describe('ClawBoard CLI', () => {
   test('stats 命令应该输出统计信息', () => {
     const result = runCli('stats');
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain('ClawBoard');
+    expect(result.stdout).toContain('BoardClip');
   });
 
   test('stats --detailed 应该输出详细统计', () => {

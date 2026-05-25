@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-const logDir = path.join(os.homedir(), '.clawboard', 'logs');
+const logDir = path.join(os.homedir(), '.board-clip', 'logs');
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
@@ -31,7 +31,7 @@ async function main() {
   const ClipboardWatcher = require('../core/clipboard/ClipboardWatcher');
   const AI = require('../core/ai/AIService');
 
-  const dataDir = process.env.CLAWBOARD_DATA || path.join(os.homedir(), '.clawboard');
+  const dataDir = process.env.BOARD_CLIP_DATA || path.join(os.homedir(), '.board-clip');
 
   const db = new Database(dataDir);
   await db._init();
