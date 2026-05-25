@@ -1,8 +1,5 @@
-/**
- * TextFormatter 单元测试
- */
-
-const TextFormatter = require('../TextFormatter');
+import { describe, test, expect } from 'vitest';
+import TextFormatter from '../TextFormatter.js';
 
 describe('TextFormatter', () => {
   describe('toPlainText - 纯文本转换', () => {
@@ -114,8 +111,8 @@ describe('TextFormatter', () => {
     test('getStats 应该返回正确的统计信息', () => {
       const stats = TextFormatter.getStats('Hello 世界!');
 
-      expect(stats.characters).toBe(9); // H,e,l,l,o, ,世,界,! (9个字符)
-      expect(stats.words).toBe(2); // Hello 和 世界
+      expect(stats.characters).toBe(9);
+      expect(stats.words).toBe(2);
       expect(stats.lines).toBe(1);
       expect(stats.bytes).toBeGreaterThan(0);
     });

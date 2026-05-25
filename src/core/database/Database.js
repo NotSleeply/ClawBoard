@@ -1447,6 +1447,7 @@ class Database {
   deleteRecord(id, permanent = false) {
     if (permanent) {
       this.db.run(`DELETE FROM records WHERE id = ?`, [id]);
+      this.invalidateSearchCache();
       this._requestSave();
       return true;
     }

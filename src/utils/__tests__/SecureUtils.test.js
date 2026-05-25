@@ -1,8 +1,5 @@
-/**
- * SecureUtils 单元测试
- */
-
-const SecureUtils = require('../SecureUtils');
+import { describe, test, expect, beforeAll } from 'vitest';
+import SecureUtils from '../SecureUtils.js';
 
 describe('SecureUtils', () => {
   describe('密钥派生', () => {
@@ -23,7 +20,6 @@ describe('SecureUtils', () => {
     let key;
 
     beforeAll(() => {
-      // 生成测试用的 32 字节密钥
       const crypto = require('crypto');
       key = crypto.randomBytes(32);
     });
@@ -34,7 +30,7 @@ describe('SecureUtils', () => {
       const decrypted = SecureUtils.decryptGCM(encrypted, key);
 
       expect(decrypted).toBe(plaintext);
-      expect(encrypted).not.toBe(plaintext); // 密文应该不同于明文
+      expect(encrypted).not.toBe(plaintext);
     });
 
     test('应该处理空字符串', () => {
@@ -102,28 +98,22 @@ describe('SecureUtils', () => {
 
       expect(weak.crackTime).toBeTruthy();
       expect(strong.crackTime).toBeTruthy();
-      // 强密码的破解时间应该更长
     });
   });
 
   describe('输入验证', () => {
     test('_isValidTag 应该验证标签名称', () => {
-      // 注意: _isValidTag 是实例方法,这里测试逻辑
-      // 合法标签
       expect(/^[\w\u4e00-\u9fa5\s-]+$/.test('工作')).toBe(true);
       expect(/^[\w\u4e00-\u9fa5\s-]+$/.test('dev-tag')).toBe(true);
 
-      // 非法标签
       expect(/^[\w\u4e00-\u9fa5\s-]+$/.test('<script>')).toBe(false);
       expect(/^[\w\u4e00-\u9fa5\s-]+$/.test('tag with space and special!')).toBe(false);
     });
 
     test('_isValidSettingKey 应该验证设置键名', () => {
-      // 合法键名
       expect(/^[a-zA-Z0-9_.-]+$/.test('theme.dark-mode')).toBe(true);
       expect(/^[a-zA-Z0-9_.-]+$/.test('auto-sync.interval')).toBe(true);
 
-      // 非法键名
       expect(/^[a-zA-Z0-9_.-]+$/.test('../../etc/passwd')).toBe(false);
     });
   });

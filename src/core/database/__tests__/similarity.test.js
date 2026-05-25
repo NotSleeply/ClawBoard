@@ -1,12 +1,5 @@
-/**
- * Database 相似度算法优化测试
- * 直接测试算法逻辑，不依赖完整 Database 实例
- */
+import { describe, test, expect } from 'vitest';
 
-// 复制优化后的算法逻辑（与 Database.js 保持同步）
-// 这样可以避免 Electron/SQL 依赖问题
-
-// 单行数组优化的 Levenshtein 距离
 function levenshteinDistance(a, b) {
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;
@@ -30,7 +23,6 @@ function levenshteinDistance(a, b) {
 
 const SIMILARITY_MAX_LEN = 256;
 
-// 带预过滤和截断的相似度计算
 function similarity(a, b) {
   if (a === null || a === undefined || b === null || b === undefined) return 0;
 
@@ -38,11 +30,9 @@ function similarity(a, b) {
   const minLen = Math.min(a.length, b.length);
   if (maxLen === 0) return 1;
 
-  // 快速路径：长度差异过大
   const lenRatio = minLen / maxLen;
   if (lenRatio < 0.5) return 0;
 
-  // 截断长文本
   const ta = a.length > SIMILARITY_MAX_LEN ? a.substring(0, SIMILARITY_MAX_LEN) : a;
   const tb = b.length > SIMILARITY_MAX_LEN ? b.substring(0, SIMILARITY_MAX_LEN) : b;
 
@@ -113,14 +103,13 @@ describe('相似度算法优化', () => {
     });
 
     test('长度差异超过 50% 时返回 0', () => {
-      // minLen/maxLen = 5/11 ≈ 0.45 < 0.5
       expect(similarity('hello', 'hello world!')).toBe(0);
     });
 
     test('截断后计算：前 256 字相同', () => {
       const a = 'x'.repeat(256) + 'different_tail_a';
       const b = 'x'.repeat(256) + 'different_tail_b';
-      expect(similarity(a, b)).toBe(1); // 截断后完全相同
+      expect(similarity(a, b)).toBe(1);
     });
 
     test('截断后检测差异', () => {
@@ -157,7 +146,6 @@ describe('相似度算法优化', () => {
         similarity(longText, longText.substring(0, 5000 - i));
       }
       const elapsed = performance.now() - start;
-      // 100 次计算应在 500ms 内完成（截断后实际只比较 256 字符）
       expect(elapsed).toBeLessThan(500);
     });
 
@@ -169,7 +157,6 @@ describe('相似度算法优化', () => {
         similarity(shortText, longText);
       }
       const elapsed = performance.now() - start;
-      // 1000 次预过滤跳过应在 10ms 内完成
       expect(elapsed).toBeLessThan(10);
     });
   });

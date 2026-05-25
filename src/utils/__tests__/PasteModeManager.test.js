@@ -1,8 +1,5 @@
-/**
- * PasteModeManager 单元测试
- */
-
-const PasteModeManager = require('../PasteModeManager');
+import { describe, test, expect, beforeEach } from 'vitest';
+import PasteModeManager from '../PasteModeManager.js';
 
 describe('PasteModeManager', () => {
   let manager;
@@ -28,7 +25,6 @@ describe('PasteModeManager', () => {
     test('plain 模式应该返回纯文本', () => {
       const result = manager.paste('<b>HTML</b> text', 'plain');
       expect(result.success).toBe(true);
-      // plain 模式应该去除 HTML 标签
       expect(result.text).not.toContain('<b>');
     });
 
@@ -77,7 +73,7 @@ describe('PasteModeManager', () => {
     test('base64encode 模式应该 Base64 编码', () => {
       const result = manager.paste('test', 'base64encode');
       expect(result.success).toBe(true);
-      expect(result.text).toBe('dGVzdA=='); // base64 of 'test'
+      expect(result.text).toBe('dGVzdA==');
     });
   });
 
@@ -161,7 +157,6 @@ describe('PasteModeManager', () => {
 
       expect(previews.length).toBeGreaterThan(0);
 
-      // 每个预览应该包含必要字段
       previews.forEach(preview => {
         expect(preview).toHaveProperty('id');
         expect(preview).toHaveProperty('name');
@@ -174,7 +169,7 @@ describe('PasteModeManager', () => {
       const previews = manager.previewAllModes('hello');
 
       const uppercase = previews.find(p => p.id === 'uppercase');
-      expect(uppercase.isDifferent).toBe(true); // hello → HELLO (不同)
+      expect(uppercase.isDifferent).toBe(true);
     });
 
     test('plain 模式通常会产生不同结果 (去除格式)', () => {
@@ -182,7 +177,7 @@ describe('PasteModeManager', () => {
       const previews = manager.previewAllModes(htmlText);
 
       const plain = previews.find(p => p.id === 'plain');
-      expect(plain.isDifferent).toBe(true); // 去除 HTML 标签
+      expect(plain.isDifferent).toBe(true);
     });
   });
 });

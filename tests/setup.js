@@ -1,9 +1,7 @@
-// Jest 测试环境设置
-// 模拟 Electron API
+import { vi } from 'vitest';
+
 global.window = {
-  webContents: {
-    send: jest.fn()
-  },
+  webContents: { send: vi.fn() },
   isDestroyed: () => false
 };
 
@@ -12,39 +10,24 @@ global.BrowserWindow = {
   fromWebContents: () => null
 };
 
-// 模拟 ipcMain 和 ipcRenderer
-global.ipcMain = {
-  handle: jest.fn(),
-  on: jest.fn()
-};
+global.ipcMain = { handle: vi.fn(), on: vi.fn() };
+global.ipcRenderer = { invoke: vi.fn(), on: vi.fn(), send: vi.fn() };
 
-global.ipcRenderer = {
-  invoke: jest.fn(),
-  on: jest.fn(),
-  send: jest.fn()
-};
-
-// 模拟 app
 global.app = {
   getPath: name => `/tmp/test-${name}`,
   getVersion: () => '0.76.0',
   getName: () => 'ClawBoard',
-  on: jest.fn(),
-  quit: jest.fn(),
+  on: vi.fn(),
+  quit: vi.fn(),
   isPackaged: false
 };
 
-// 模拟 dialog
 global.dialog = {
-  showMessageBox: jest.fn().mockResolvedValue({ response: 0 }),
-  showOpenDialog: jest.fn().mockResolvedValue({ canceled: false, filePaths: [] }),
-  showSaveDialog: jest.fn().mockResolvedValue({ canceled: false, filePath: '' })
+  showMessageBox: vi.fn().mockResolvedValue({ response: 0 }),
+  showOpenDialog: vi.fn().mockResolvedValue({ canceled: false, filePaths: [] }),
+  showSaveDialog: vi.fn().mockResolvedValue({ canceled: false, filePath: '' })
 };
 
-// 设置测试超时
-jest.setTimeout(10000);
-
-// 全局错误处理
 process.on('unhandledRejection', reason => {
   console.error('Unhandled Rejection in Test:', reason);
 });

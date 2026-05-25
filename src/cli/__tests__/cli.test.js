@@ -1,8 +1,9 @@
-const { execSync } = require('child_process');
-const path = require('path');
-const os = require('os');
+import { describe, test, expect } from 'vitest';
+import { execSync } from 'child_process';
+import path from 'path';
+import os from 'os';
 
-const cliPath = path.resolve(__dirname, '..', 'index.js');
+const cliPath = path.resolve(import.meta.dirname, '..', 'index.js');
 
 function runCli(args) {
   try {
@@ -126,5 +127,11 @@ describe('ClawBoard CLI', () => {
   test('import 不存在的文件应该报错', () => {
     const result = runCli('import nonexistent-file.json');
     expect(result.exitCode).not.toBe(0);
+  });
+
+  test('clear --help 应该显示帮助', () => {
+    const result = runCli('clear --help');
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('清空');
   });
 });

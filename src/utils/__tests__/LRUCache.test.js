@@ -1,8 +1,5 @@
-/**
- * LRUCache 单元测试
- */
-
-const LRUCache = require('../LRUCache');
+import { describe, test, expect, beforeEach, vi } from 'vitest';
+import LRUCache from '../LRUCache.js';
 
 describe('LRUCache', () => {
   let cache;
@@ -48,17 +45,12 @@ describe('LRUCache', () => {
       cache.set('b', 2);
       cache.set('c', 3);
 
-      // 访问 a, 使其变为最近使用
       cache.get('a');
 
-      // 添加新项, 应该淘汰 b (最久未使用)
       cache.set('d', 4);
 
-      // a 应该还在 (最近访问过)
       expect(cache.get('a')).toBe(1);
-      // b 应该被淘汰
       expect(cache.get('b')).toBeUndefined();
-      // c 和 d 应该在
       expect(cache.get('c')).toBe(3);
       expect(cache.get('d')).toBe(4);
     });
@@ -69,7 +61,6 @@ describe('LRUCache', () => {
       smallCache.set('y', 20);
       expect(smallCache.size).toBe(2);
 
-      // 超出容量, 自动淘汰
       smallCache.set('z', 30);
       expect(smallCache.size).toBe(2);
     });
@@ -77,7 +68,7 @@ describe('LRUCache', () => {
 
   describe('getOrSet 方法', () => {
     test('如果键不存在应调用工厂函数', () => {
-      const factory = jest.fn().mockReturnValue('computed');
+      const factory = vi.fn().mockReturnValue('computed');
       const result = cache.getOrSet('newKey', factory);
 
       expect(factory).toHaveBeenCalledTimes(1);
@@ -87,7 +78,7 @@ describe('LRUCache', () => {
 
     test('如果键已存在不应调用工厂函数', () => {
       cache.set('existingKey', 'cached');
-      const factory = jest.fn().mockReturnValue('should-not-be-called');
+      const factory = vi.fn().mockReturnValue('should-not-be-called');
       const result = cache.getOrSet('existingKey', factory);
 
       expect(factory).not.toHaveBeenCalled();
@@ -101,14 +92,12 @@ describe('LRUCache', () => {
       cache.set('second', 2);
       cache.set('third', 3);
 
-      // 访问 first, 使其变为最近使用
       cache.get('first');
 
-      // 添加第四个, 应该淘汰 second (不是 first)
       cache.set('fourth', 4);
 
-      expect(cache.get('first')).toBe(1); // first 还在
-      expect(cache.get('second')).toBeUndefined(); // second 被淘汰
+      expect(cache.get('first')).toBe(1);
+      expect(cache.get('second')).toBeUndefined();
     });
   });
 
@@ -130,7 +119,6 @@ describe('LRUCache', () => {
       }
       expect(largeCache.size).toBe(1000);
 
-      // 添加一个, 应淘汰最早的
       largeCache.set('new', 'new');
       expect(largeCache.size).toBe(1000);
       expect(largeCache.get('key0')).toBeUndefined();
