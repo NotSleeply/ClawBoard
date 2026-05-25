@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/npm/dm/board-clip?style=flat-square" alt="Downloads">
   <img src="https://img.shields.io/npm/l/board-clip?style=flat-square&label=License" alt="License">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=flat-square" alt="Platform">
-  <img src="https://img.shields.io/node/18/green?style=flat-square" alt="Node Version">
+  <img src="https://img.shields.io/badge/node-%3E%3D18-green?style=flat-square" alt="Node Version">
 </p>
 
 ---
