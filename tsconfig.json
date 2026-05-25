@@ -1,16 +1,23 @@
 {
   "compilerOptions": {
     "target": "es2022",
-    "module": "Node16",
-    "lib": ["es2022", "dom"],
+    "module": "nodenext",
+    "lib": ["es2022"],
     "allowJs": true,
     "checkJs": false,
     "noEmit": true,
     "strict": false,
-    "moduleResolution": "node16",
+    "moduleResolution": "nodenext",
     "resolveJsonModule": true,
-    "types": ["node", "vitest"]
+    "types": ["node"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "build", "src/renderer/app.js", "src/main/index.js"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "src/**/__tests__/**",
+    "src/renderer",
+    "src/main"
+  ]
 }
